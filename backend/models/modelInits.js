@@ -1,9 +1,7 @@
 //Here I will import all the models->create relationships, and connect to neon POSTGRES database
 const { Sequelize } = require("sequelize");
 
-const sequelize = new Sequelize(
-	"postgresql://GymApp_owner:npg_pnNs6owleC3a@ep-divine-silence-a8bn6sww-pooler.eastus2.azure.neon.tech/GymApp?sslmode=require&channel_binding=require"
-);
+const sequelize = new Sequelize(process.env.DB_CONNECTION_URL);
 
 const users = require("./users.model")(sequelize, Sequelize.DataTypes);
 const workouts = require("./workouts.model")(sequelize, Sequelize.DataTypes);
