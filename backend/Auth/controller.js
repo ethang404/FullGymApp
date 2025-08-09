@@ -70,4 +70,8 @@ async function login(req, res) {
 	});
 }
 
-module.exports = { test, register, refreshToken, login };
+async function IsValidToken(req, res) {
+	res.status(200).json({ message: "user is valid" });
+}
+
+module.exports = { test, register, refreshToken, login, IsValidToken };
