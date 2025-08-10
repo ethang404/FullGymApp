@@ -13,9 +13,11 @@ function refreshToken(req, res) {
 	if (!refreshToken) res.status(401).json({ message: "Missing RefreshToken for refresh" });
 	try {
 		const resp = authService.refreshToken(refreshToken);
-		res.status(200).json({ accessToken: resp, message: "Sucessfully refreshed Access Token" });
+		return res
+			.status(200)
+			.json({ accessToken: resp, message: "Sucessfully refreshed Access Token" });
 	} catch (err) {
-		res.status(401).json({ message: "Failed to refreshToken. Invalid refreshToken" });
+		return res.status(401).json({ message: "Failed to refreshToken. Invalid refreshToken" });
 	}
 }
 
@@ -27,7 +29,7 @@ async function register(req, res) {
 	try {
 		const resp = await authService.register(req.body);
 		const { accessToken, refreshToken } = authService.generateTokens(user.user_id);
-		res.status(201).json({
+		return res.status(201).json({
 			message: "User created!",
 			userId: resp.user_id,
 			username: resp.user_name,
@@ -36,7 +38,7 @@ async function register(req, res) {
 		});
 	} catch (error) {
 		console.error("Error during registration:", error);
-		res.status(500).json({ message: "Failed to register user" });
+		return res.status(500).json({ message: "Failed to register user" });
 	}
 }
 
@@ -53,17 +55,21 @@ async function login(req, res) {
 		}
 		user = await authService.login(userName);
 		if (!user)
-			res.status(401).json({ message: "Invalid Credentials with provided username and password" });
+			return res
+				.status(401)
+				.json({ message: "Invalid Credentials with provided username and password" });
 		let fullPass = password + process.env.PEPPER;
 
 		validPassword = bcrypt.compare(fullPass, user.password); //returns true if valid user. False otherwise
 	} catch (error) {}
 
 	if (!validPassword)
-		res.status(401).json({ message: "Invalid Credentials with provided username and password" });
+		return res
+			.status(401)
+			.json({ message: "Invalid Credentials with provided username and password" });
 
 	const { accessToken, refreshToken } = authService.generateTokens(user.user_id);
-	res.status(200).json({
+	return res.status(200).json({
 		message: "Login successful",
 		accessToken,
 		refreshToken,
@@ -71,7 +77,7 @@ async function login(req, res) {
 }
 
 async function IsValidToken(req, res) {
-	res.status(200).json({ message: "user is valid" });
+	return res.status(200).json({ message: "user is valid" });
 }
 
 module.exports = { test, register, refreshToken, login, IsValidToken };

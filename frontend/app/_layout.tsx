@@ -1,6 +1,7 @@
 import { Stack } from "expo-router";
 import { AuthProvider, AuthContext } from "@/utils/AuthProvider";
 import { useContext } from "react";
+import { AxiosInterceptorHandler } from "@/utils/AxiosInterceptorHandler";
 
 function AppStack() {
 	const { isValidUser } = useContext(AuthContext);
@@ -20,7 +21,9 @@ function AppStack() {
 export default function AppLayout() {
 	return (
 		<AuthProvider>
-			<AppStack />
+			<AxiosInterceptorHandler>
+				<AppStack />
+			</AxiosInterceptorHandler>
 		</AuthProvider>
 	);
 }
