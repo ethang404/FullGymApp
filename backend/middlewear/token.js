@@ -1,7 +1,8 @@
 const jwt = require("jsonwebtoken");
 
 function verifyToken(req, res, next) {
-	if (!req.headers.authorization) res.status(401).json({ message: "Missing authorization Token" });
+	if (!req.headers.authorization)
+		return res.status(401).json({ message: "Missing authorization Token" });
 	const accessToken = req.headers.authorization.split(" ")[1];
 
 	//if token is valid: next()
@@ -15,7 +16,7 @@ function verifyToken(req, res, next) {
 	} catch (err) {
 		console.log("Access Token is invalid.");
 		console.log("Error: " + err);
-		res.status(401).json({ message: "Access Token is invalid" });
+		return res.status(401).json({ message: "Access Token is invalid" });
 	}
 
 	//if accessToken is invalid: attempt to refresh token.
