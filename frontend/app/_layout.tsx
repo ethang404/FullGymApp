@@ -3,6 +3,11 @@ import { AuthProvider, AuthContext } from "@/utils/AuthProvider";
 import { useContext } from "react";
 import { AxiosInterceptorHandler } from "@/utils/AxiosInterceptorHandler";
 
+//import global navbar (if auth)
+import NavBar from "@/components/NavBar";
+
+//<Stack.Screen name="hidden" />
+
 function AppStack() {
 	const { isValidUser } = useContext(AuthContext);
 	return (
@@ -12,7 +17,7 @@ function AppStack() {
 			</Stack.Protected>
 
 			<Stack.Protected guard={isValidUser}>
-				<Stack.Screen name="hidden" />
+				<Stack.Screen name="(protected)" options={{ headerShown: false }} />
 			</Stack.Protected>
 		</Stack>
 	);

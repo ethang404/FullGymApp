@@ -3,7 +3,6 @@ const jwt = require("jsonwebtoken");
 function verifyToken(req, res, next) {
 	if (!req.headers.authorization)
 		return res.status(401).json({ message: "Missing authorization Token" });
-	console.log("IS my token missing? ", req.headers.authorization);
 	const accessToken = req.headers.authorization.split(" ")[1];
 
 	//if token is valid: next()
