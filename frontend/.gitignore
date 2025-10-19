@@ -42,4 +42,5 @@ app-example
 
 #Ignore my emulator and my .vs
 emulator.bat
+startEm.bat
 .vscode
