@@ -13,11 +13,11 @@ module.exports = (sequelize, DataTypes) => {
 				allowNull: false,
 			},
 			set_number: {
-				type: DataTypes.INTEGER,
+				type: DataTypes.INTEGER, //0 is warmup, 1+ set number
 				allowNull: false,
 			},
 			notes: {
-				type: DataTypes.TEXT,
+				type: DataTypes.STRING(100),
 				allowNull: true,
 			},
 			reps: {

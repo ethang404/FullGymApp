@@ -11,11 +11,11 @@ const db = require("./models/modelInits");
 
 const authRoutes = require("./Auth/route");
 const nutritionRoutes = require("./Nutrition/route");
-//const workoutRoutes = require("./Workouts/route");
+const workoutRoutes = require("./Workouts/route");
 
 app.use("/auth", authRoutes);
 app.use("/nutrition", nutritionRoutes);
-//app.use("/workout", workoutRoutes);
+app.use("/workout", workoutRoutes);
 
 app.get("/", (req, res) => {
 	res.send("Hello World!");

@@ -27,12 +27,12 @@ async function register(req, res) {
 	const hash = await bcrypt.hash(req.body.password + process.env.PEPPER, salt);
 	req.body.password = hash;
 	try {
-		const resp = await authService.register(req.body);
+		const user = await authService.register(req.body);
 		const { accessToken, refreshToken } = authService.generateTokens(user.user_id);
 		return res.status(201).json({
 			message: "User created!",
-			userId: resp.user_id,
-			username: resp.user_name,
+			userId: user.user_id,
+			username: user.user_name,
 			accessToken,
 			refreshToken,
 		});

@@ -15,7 +15,7 @@ async function testDB() {
 	try {
 		await sequelize.authenticate();
 		console.log("Connection has been established successfully.");
-		//await sequelize.sync({ force: true });
+		//await sequelize.sync({ force: true }); //this forces remote db to sync to what we have here (wipes data)
 		//console.log("fuck me, calling sync");
 	} catch (error) {
 		console.error("Unable to connect to the database:", error);
