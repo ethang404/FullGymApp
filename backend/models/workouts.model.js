@@ -20,11 +20,14 @@ module.exports = (sequelize, DataTypes) => {
 				allowNull: false,
 			},
 			notes: {
-				type: DataTypes.TEXT,
+				type: DataTypes.STRING(255),
 			},
 			created_at: {
 				type: DataTypes.DATE,
 				defaultValue: sequelize.literal("CURRENT_TIMESTAMP"),
+			},
+			finished_at: {
+				type: DataTypes.DATE,
 			},
 		},
 		{

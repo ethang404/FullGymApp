@@ -7,25 +7,17 @@ module.exports = (sequelize, DataTypes) => {
 				primaryKey: true,
 				autoIncrement: true,
 			},
+			exercise_name: {
+				type: DataTypes.STRING(30),
+				allowNull: false,
+			},
 			workout_id: {
 				//foreign key
 				type: DataTypes.INTEGER,
 				allowNull: false,
 			},
-			set_number: {
-				type: DataTypes.INTEGER,
-				allowNull: false,
-			},
 			notes: {
-				type: DataTypes.TEXT,
-				allowNull: true,
-			},
-			reps: {
-				type: DataTypes.INTEGER,
-				allowNull: true,
-			},
-			weight: {
-				type: DataTypes.DECIMAL,
+				type: DataTypes.STRING(100),
 				allowNull: true,
 			},
 		},
