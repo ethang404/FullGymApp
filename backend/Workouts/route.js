@@ -8,6 +8,7 @@ router.get("/GetWorkouts", /*verifyToken,*/ controller.getWorkoutsList); //get l
 
 router.post("/AddWorkout", verifyToken, controller.createWorkout); //Should create workout/sets/reps for user in one call
 
+router.put("/EditWorkout/:id", verifyToken, controller.editWorkout);
 //router.post("AddSet/", verifyToken, controller.addSet);
 
 module.exports = router;

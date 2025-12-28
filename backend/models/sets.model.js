@@ -28,6 +28,10 @@ module.exports = (sequelize, DataTypes) => {
 				type: DataTypes.DECIMAL,
 				allowNull: true,
 			},
+			order_number: {
+				type: DataTypes.INTEGER,//order of exercises for workout
+				allowNull: false,
+			}
 		},
 		{
 			tableName: "sets",

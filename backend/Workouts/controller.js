@@ -60,8 +60,13 @@ async function createWorkout(req, res) {
 		issuer: "gym-auth-server",
 	});
 	user_id = user.user_id;
-	let workout = await service.CreateWorkout(req.body, user_id); //workout object (might) also contain exercises/sets
-	return res.status(200).json({ workout });
+	console.log("My user id: ", user_id)
+	try{
+		let workout = await service.CreateWorkout(req.body, user_id); //workout object (might) also contain exercises/sets
+		return res.status(200).json({ workout });
+	}catch(error){
+		return res.status(200).json({ workout });
+	}
 }
 
 async function editWorkout(req, res) {
@@ -76,7 +81,9 @@ async function editWorkout(req, res) {
 		issuer: "gym-auth-server",
 	});
 	user_id = user.user_id;
-	let modified_workout = await service.EditWorkout(req.body, user_id); //workout object (might) also contain exercises/sets
+	console.log("Are you working at all?")
+	let workoutId = req.params.id
+	let modified_workout = await service.EditWorkout(req.body, workoutId); //workout object (might) also contain exercises/sets
 	return res.status(200).json({ modified_workout });
 }
 

@@ -20,6 +20,10 @@ module.exports = (sequelize, DataTypes) => {
 				type: DataTypes.STRING(100),
 				allowNull: true,
 			},
+			order_number: {
+				type: DataTypes.INTEGER,//order of exercises for workout
+				allowNull: false,
+			}
 		},
 		{
 			tableName: "exercises",
