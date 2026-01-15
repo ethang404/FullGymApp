@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 
 const controller = require("./controller");
-const verifyToken = require("../middlewear/token");
+const verifyToken = require("../Middlewear/token");
 
 router.get("/GetWorkouts", /*verifyToken,*/ controller.getWorkoutsList); //get list of workouts for some date range/filter perhaps
 

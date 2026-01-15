@@ -5,7 +5,7 @@ const router = express.Router();
 const authController = require("./controller");
 
 //middlwear
-const verifyToken = require("../middlewear/token");
+const verifyToken = require("../Middlewear/token");
 
 console.log("Are you working?");
 router.get("/test", authController.test);

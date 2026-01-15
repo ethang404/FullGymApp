@@ -3,6 +3,10 @@ const ExercisesModel = require("../models/modelInits").exercises;
 const SetsModel = require("../models/modelInits").sets;
 const UsersModel = require("../models/modelInits").users;
 
+//error imports
+const {GeneralError, NotFoundError, DataError, UnauthorizedError, ForbiddenError} = require("../error")
+
+
 async function GetWorkouts(user_id, filter) {
 	let workouts;
 	let now = new Date();
@@ -33,56 +37,41 @@ async function GetWorkouts(user_id, filter) {
 async function CreateWorkout(data, user_id) {
 	//createWorkout
 	const user = await UsersModel.findOne({ where: { user_id: user_id } });
-	if (user)
-		console.log("found user")
-	else
-		console.log("No user found")
-	try{
-		var workout = await user.createWorkout({
-			name: data.workout_name,
-			workout_date: data.workout_date,
-			notes: data.notes,
-			finished_at: data.finished_at,
-		});
-	}catch(error){
-		console.log("Failed to create workout")
-		console.log(error)
-	}
+	if (!user)
+		throw new GeneralError("No user found or authentication expired")//this shouldn't even hit
 
-	if (workout)
-		console.log("workout created!")
+	if (!data.workout_name || !data.workout_date)
+		throw new DataError("Workout Name and Workout Date required")
+		
+	var workout = await user.createWorkout({
+		name: data.workout_name,
+		workout_date: data.workout_date,
+		notes: data.notes,
+		finished_at: data.finished_at,
+	});
 
 	//create exercises
 	for (let exercise of data.exercises) {
 		let newExercise;
-		try{
-			newExercise = await workout.createExercise({
-				exercise_name: exercise.exercise_name,
-				notes: exercise.notes,
-				order_number: exercise.order_number
-			});
-		}catch(error){
-			console.log(`Failed to create exercise ${exercise.exercise_name} for workout ${workout.workout_id}`)
-			console.log(error)
-		}
+		newExercise = await workout.createExercise({
+			exercise_name: exercise.exercise_name,
+			notes: exercise.notes,
+			order_number: exercise.order_number
+		});
 
 		if (newExercise)
 			console.log(`Created new exercise with id ${newExercise.exercise_id} (${exercise.exercise_name})`)
 
 		for (let set of exercise.sets) {
 			let newSet;
-			try{
-				newSet = newExercise.createSet({
-					set_number: set.set_number,//note set_number is NOT primary key, just numbering of sets (0 is warmup, 1+ is working)
-					notes: set.notes,
-					reps: set.reps,
-					weight: set.weight,
-					order_number: exercise.order_number
-				});
-			}catch(error){
-				console.log(`Failed to create set ${set.set_id} for exercise ${newExercise.exercise_id}`)
-				console.log(error)
-			}
+			newSet = newExercise.createSet({
+				set_number: set.set_number,//note set_number is NOT primary key, just numbering of sets (0 is warmup, 1+ is working)
+				notes: set.notes,
+				reps: set.reps,
+				weight: set.weight,
+				order_number: exercise.order_number
+			});
+			
 			if (newExercise)
 				console.log(`Created new set with id ${newSet.set_id} (for ${exercise.exercise_id})`)
 		}
@@ -110,6 +99,9 @@ async function EditWorkout(data, workout_id) {
 
 	//if we have exercise/set_id in database that isn't in workout, remove it from database
 
+	if (!workout_obj)
+		throw new NotFoundError("No workout found with that id")
+
 	const exercisesList = await ExercisesModel.findAll({where: {workout_id:workout_id}, include: SetsModel});
 	//cast exercises and sets into a map
 	let javascriptArray = exercisesList.map(exercise => exercise.toJSON());
@@ -135,7 +127,7 @@ async function EditWorkout(data, workout_id) {
 		}
 	}
 	
-
+	//stop here and make sure my things are actually being deleted before I try to add new ones
 	return null
 	console.log("Workout data before update:")
 	console.log("------------------------------")
@@ -201,6 +193,7 @@ async function EditWorkout(data, workout_id) {
 
 }
 
+//delete later..keeping  for reference just in case:
 async function EditWorkout2(data, user_id, workout_id) {
 
 	let workout_obj = await WorkoutsModel.findByPk(workout_id)
