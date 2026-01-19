@@ -12,8 +12,8 @@ module.exports = (sequelize, DataTypes) => {
 				type: DataTypes.INTEGER,
 				allowNull: false,
 			},
-			set_number: {
-				type: DataTypes.INTEGER, //0 is warmup, 1+ set number
+			set_type: {
+				type: DataTypes.STRING(100), //0 is warmup, 1+ set number
 				allowNull: false,
 			},
 			notes: {
@@ -29,14 +29,14 @@ module.exports = (sequelize, DataTypes) => {
 				allowNull: true,
 			},
 			order_number: {
-				type: DataTypes.INTEGER,//order of exercises for workout
+				type: DataTypes.INTEGER, //order of sets for workout
 				allowNull: false,
-			}
+			},
 		},
 		{
 			tableName: "sets",
-			timestamps: false,
+			timestamps: true,
 			underscored: true,
-		}
+		},
 	);
 };
