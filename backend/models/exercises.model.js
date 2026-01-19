@@ -21,14 +21,14 @@ module.exports = (sequelize, DataTypes) => {
 				allowNull: true,
 			},
 			order_number: {
-				type: DataTypes.INTEGER,//order of exercises for workout
+				type: DataTypes.INTEGER, //order of exercises for workout
 				allowNull: false,
-			}
+			},
 		},
 		{
 			tableName: "exercises",
-			timestamps: false,
+			timestamps: true,
 			underscored: true,
-		}
+		},
 	);
 };
