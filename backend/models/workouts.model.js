@@ -22,11 +22,8 @@ module.exports = (sequelize, DataTypes) => {
 			notes: {
 				type: DataTypes.STRING(255),
 			},
-			created_at: {
-				type: DataTypes.DATE,
-				defaultValue: sequelize.literal("CURRENT_TIMESTAMP"),
-			},
 			finished_at: {
+				//when workout was finished. Could be null, should maybe auto apply if past 2 hours.
 				type: DataTypes.DATE,
 			},
 		},

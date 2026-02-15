@@ -70,8 +70,7 @@ async function CreateWorkout(data, user_id) {
 
 		for (let set of exercise.sets) {
 			let newSet;
-			newSet = newExercise.createSet({
-				set_number: set.set_number, //note set_number is NOT primary key, just numbering of sets (0 is warmup, 1+ is working)
+			newSet = await newExercise.createSet({
 				notes: set.notes,
 				reps: set.reps,
 				weight: set.weight,
@@ -165,7 +164,6 @@ async function EditWorkout(data, workout_id) {
 				await newExercise.createSet({
 					set_type: set.set_type,
 					order_number: set.order_number,
-					set_number: set.set_number, //note set_number is NOT primary key, just numbering of sets (0 is warmup, 1+ is working)
 					notes: set.notes,
 					reps: set.reps,
 					weight: set.weight,
@@ -187,7 +185,6 @@ async function EditWorkout(data, workout_id) {
 					await exercise_obj.createSet({
 						set_type: set.set_type,
 						order_number: set.order_number,
-						set_number: set.set_number, //note set_number is NOT primary key, just numbering of sets (0 is warmup, 1+ is working)
 						notes: set.notes,
 						reps: set.reps,
 						weight: set.weight,
@@ -196,7 +193,6 @@ async function EditWorkout(data, workout_id) {
 					await set_obj.update({
 						set_type: set.set_type,
 						order_number: set.order_number,
-						set_number: set.set_number,
 						notes: set.notes,
 						reps: set.reps,
 						weight: set.weight,
