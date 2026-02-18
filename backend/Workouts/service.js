@@ -4,38 +4,21 @@ const SetsModel = require("../models/modelInits").sets;
 const UsersModel = require("../models/modelInits").users;
 
 //error imports
-const {
-	GeneralError,
-	NotFoundError,
-	DataError,
-	UnauthorizedError,
-	ForbiddenError,
-} = require("../error");
+const { GeneralError, NotFoundError, DataError, UnauthorizedError, ForbiddenError } = require("../error");
 
-async function GetWorkouts(user_id, filter) {
+async function GetWorkouts(user_id, filter = "all") {
 	let workouts;
 	let now = new Date();
+	let startDate = new Date();
 
 	if (filter == "all") workouts = await WorkoutsModel.findAll({ where: { user_id: user_id } });
-	else if (filter == "week") {
-		let oneWeekAgo = new Date();
-		oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-		workouts = await WorkoutsModel.findAll({
-			where: { workout_date: { [Op.between]: [oneWeekAgo, now] } },
-		});
-	} else if (filter == "month") {
-		let oneMonthAgo = new Date();
-		oneMonthAgo.setDate(oneMonthAgo.getDate() - 30);
-		workouts = await WorkoutsModel.findAll({
-			where: { workout_date: { [Op.between]: [oneMonthAgo, now] } },
-		});
-	} else if (filter == "year") {
-		let oneYearAgo = new Date();
-		oneYearAgo.setDate(oneYearAgo.getDate() - 365);
-		workouts = await WorkoutsModel.findAll({
-			where: { workout_date: { [Op.between]: [oneYearAgo, now] } },
-		});
-	}
+	else if (filter == "week") oneWeekAgo.setDate(startDate.getDate() - 7);
+	else if (filter == "month") oneMonthAgo.setDate(startDate.getDate() - 30);
+	else if (filter == "year") oneYearAgo.setDate(startDate.getDate() - 365);
+
+	workouts = await WorkoutsModel.findAll({
+		where: { workout_date: { [Op.between]: [oneYearAgo, now] }, user_id: user_id },
+	});
 	return workouts;
 }
 
@@ -44,8 +27,7 @@ async function CreateWorkout(data, user_id) {
 	const user = await UsersModel.findOne({ where: { user_id: user_id } });
 	if (!user) throw new GeneralError("No user found or authentication expired"); //this shouldn't even hit
 
-	if (!data.workout_name || !data.workout_date)
-		throw new DataError("Workout Name and Workout Date required");
+	if (!data.workout_name || !data.workout_date) throw new DataError("Workout Name and Workout Date required");
 
 	var workout = await user.createWorkout({
 		name: data.workout_name,
@@ -63,10 +45,7 @@ async function CreateWorkout(data, user_id) {
 			order_number: exercise.order_number,
 		});
 
-		if (newExercise)
-			console.log(
-				`Created new exercise with id ${newExercise.exercise_id} (${exercise.exercise_name})`,
-			);
+		if (newExercise) console.log(`Created new exercise with id ${newExercise.exercise_id} (${exercise.exercise_name})`);
 
 		for (let set of exercise.sets) {
 			let newSet;
@@ -78,8 +57,7 @@ async function CreateWorkout(data, user_id) {
 				order_number: set.order_number, //order of sets (1-x)
 			});
 
-			if (newExercise)
-				console.log(`Created new set with id ${newSet.set_id} (for ${exercise.exercise_id})`);
+			if (newExercise) console.log(`Created new set with id ${newSet.set_id} (for ${exercise.exercise_id})`);
 		}
 	}
 
@@ -119,17 +97,13 @@ async function EditWorkout(data, workout_id) {
 	//If object in database but not in passed data: remove
 	for (let dbExercise of javascriptArray) {
 		//if exercise id in database not found in data: remove
-		let shouldExist = data.exercises.some(
-			(exercise) => exercise.exercise_id === dbExercise.exercise_id,
-		);
+		let shouldExist = data.exercises.some((exercise) => exercise.exercise_id === dbExercise.exercise_id);
 		if (!shouldExist) {
 			console.log(`Removing exercise: ${dbExercise.exercise_id} from database`);
 			await ExercisesModel.destroy({ where: { exercise_id: dbExercise.exercise_id } });
 		} else {
 			//now check each set id of each exercise we DIDN'T REMOVE to see if it should exist
-			let exerciseSets = data.exercises.find(
-				(exercise) => exercise.exercise_id === dbExercise.exercise_id,
-			);
+			let exerciseSets = data.exercises.find((exercise) => exercise.exercise_id === dbExercise.exercise_id);
 			for (let dbSet of dbExercise.sets) {
 				shouldExist = exerciseSets.sets.some((set) => set.set_id === dbSet.set_id);
 				if (!shouldExist) {
