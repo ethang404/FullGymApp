@@ -1,38 +1,36 @@
-module.exports = (sequelize, DataTypes) => {
-	return sequelize.define(
-		"exercises",
-		{
-			exercise_id: {
-				type: DataTypes.INTEGER,
-				primaryKey: true,
-				autoIncrement: true,
-			},
-			workout_id: {
-				//foreign key
-				type: DataTypes.INTEGER,
-				allowNull: false,
-			},
-			set_number: {
-				type: DataTypes.INTEGER,
-				allowNull: false,
-			},
-			notes: {
-				type: DataTypes.TEXT,
-				allowNull: true,
-			},
-			reps: {
-				type: DataTypes.INTEGER,
-				allowNull: true,
-			},
-			weight: {
-				type: DataTypes.DECIMAL,
-				allowNull: true,
-			},
+const { DataTypes } = require("sequelize");
+const sequelize = require("./db");
+
+const exercises = sequelize.define(
+	"exercises",
+	{
+		exercise_id: {
+			type: DataTypes.INTEGER,
+			primaryKey: true,
+			autoIncrement: true,
 		},
-		{
-			tableName: "exercises",
-			timestamps: false,
-			underscored: true,
-		}
-	);
-};
+		exercise_name: {
+			type: DataTypes.STRING(30),
+			allowNull: false,
+		},
+		workout_id: {
+			//foreign key
+			type: DataTypes.INTEGER,
+			allowNull: false,
+		},
+		notes: {
+			type: DataTypes.STRING(100),
+			allowNull: true,
+		},
+		order_number: {
+			type: DataTypes.INTEGER, //order of exercises for workout
+			allowNull: false,
+		},
+	},
+	{
+		tableName: "exercises",
+		timestamps: true,
+		underscored: true,
+	},
+);
+module.exports = exercises;
