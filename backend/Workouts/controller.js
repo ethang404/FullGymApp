@@ -106,7 +106,14 @@ async function editWorkout(req, res) {
 
 async function deleteWorkout(req, res) {
 	let workout_id = req.params.id;
-	await Workout;
+	try {
+		await service.DeleteWorkout(workout_id); //successfully deleted
+		return res.status(200).json({ message: "Workout deleted successfully" });
+	} catch (error) {
+		//failed to delete
+		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
+		return res.status(500).json({ message: error.message });
+	}
 }
 
 module.exports = { getWorkoutsList, getWorkout, createWorkout, editWorkout, deleteWorkout };

@@ -28,11 +28,7 @@ afterAll(async () => {
 
 describe("Add/Edit/Delete Workout Endpoints", function () {
 	test("Add Workout DB update", async function () {
-		let resp = await request(app)
-			.post("/workout/AddWorkouts")
-			.set("Content-Type", "application/json")
-			.set("Authorization", `Bearer ${token}`)
-			.send(addWorkoutPayload);
+		let resp = await request(app).post("/Workouts").set("Content-Type", "application/json").set("Authorization", `Bearer ${token}`).send(addWorkoutPayload);
 
 		expect(resp.status).toEqual(200);
 
@@ -53,8 +49,6 @@ describe("Add/Edit/Delete Workout Endpoints", function () {
 				[ExercisesModel, SetsModel, "order_number", "ASC"],
 			],
 		});
-		console.log("What does my data look like: ");
-		console.log(JSON.stringify(workout, null, 2));
 
 		expect(workout).not.toBeNull();
 
@@ -79,20 +73,13 @@ describe("Add/Edit/Delete Workout Endpoints", function () {
 
 	test("Edit Workout DB Updates", async function () {
 		for (const ewPayload of editWorkoutPayloads) {
-			let resp = await request(app)
-				.put("/workout/EditWorkouts/1")
-				.set("Content-Type", "application/json")
-				.set("Authorization", `Bearer ${token}`)
-				.send(ewPayload);
+			let resp = await request(app).put("/Workouts/1").set("Content-Type", "application/json").set("Authorization", `Bearer ${token}`).send(ewPayload);
 			expect(resp.status).toEqual(200);
 
 			//for each payload, query workout 1
 			// expect that the workout name matches, workout notes, workout date, correct number of exercises
 			// expect that each exercise name matches/order_number/notes
 			// expect correct number of sets, and that each set has order_number/set_type/reps/notes/weight
-
-			console.log("What does response look like: ");
-			console.log(resp.body);
 
 			const workout = await WorkoutsModel.findByPk(resp.body.modified_workout.workout_id, {
 				include: [
@@ -131,5 +118,29 @@ describe("Add/Edit/Delete Workout Endpoints", function () {
 		}
 	});
 
-	test("Delete Workout DB", async function () {});
+	test("Delete Workout DB", async function () {
+		//No payload needed for this, just remove the workout id 1
+		let resp = await request(app).delete("/Workouts/1").set("Content-Type", "application/json").set("Authorization", `Bearer ${token}`);
+		expect(resp.status).toEqual(200);
+
+		//should be null
+		const workout = await WorkoutsModel.findByPk(1, {
+			include: [
+				{
+					model: ExercisesModel, //join w/ exercise model
+					include: [
+						{
+							model: SetsModel, //join with set model
+						},
+					],
+				},
+			],
+			order: [
+				[ExercisesModel, "order_number", "ASC"],
+				[ExercisesModel, SetsModel, "order_number", "ASC"],
+			],
+		});
+
+		expect(workout).toBeNull(); //workout should be null
+	});
 });

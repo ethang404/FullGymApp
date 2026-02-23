@@ -15,7 +15,7 @@ const workoutRoutes = require("./Workouts/route");
 
 app.use("/auth", authRoutes);
 app.use("/nutrition", nutritionRoutes);
-app.use("/workout", workoutRoutes);
+app.use("/Workouts", workoutRoutes);
 
 app.get("/", (req, res) => {
 	res.send("Hello World!");
