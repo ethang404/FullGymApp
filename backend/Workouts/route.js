@@ -11,4 +11,6 @@ router.post("/AddWorkouts", verifyToken, controller.createWorkout); //Should cre
 
 router.put("/EditWorkouts/:id", verifyToken, controller.editWorkout);
 
+router.delete("/:id", verifyToken, controller.deleteWorkout);
+
 module.exports = router;

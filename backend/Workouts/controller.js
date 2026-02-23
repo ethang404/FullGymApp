@@ -20,6 +20,19 @@ async function getWorkoutsList(req, res) {
 	//For now we'll keep as GET and just allow 'week', 'month', 'year', 'all' filters (all is default)
 }
 
+async function getWorkout(req, res) {
+	let workoutId = req.params.id;
+	//shouldn't need user_id here since workout id corresponds to certain user's workout
+
+	try {
+		let workout = await service.GetWorkouts(workoutId);
+		return res.status(200).json({ workout });
+	} catch (error) {
+		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
+		return res.status(500).json({ message: error.message });
+	}
+}
+
 async function createWorkout(req, res) {
 	//req.body should contain everything for a workout
 	/*
@@ -60,13 +73,12 @@ async function createWorkout(req, res) {
 		issuer: "gym-auth-server",
 	});
 	user_id = user.user_id;
-	try{
+	try {
 		let workout = await service.CreateWorkout(req.body, user_id); //workout object (might) also contain exercises/sets
 		return res.status(200).json({ workout });
-	}catch(error){
-		if (error.StatusCode)
-			return res.status(error.StatusCode).json({message: error.message})
-		return res.status(500).json({message: error.message}) 
+	} catch (error) {
+		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
+		return res.status(500).json({ message: error.message });
 	}
 }
 
@@ -82,15 +94,19 @@ async function editWorkout(req, res) {
 		issuer: "gym-auth-server",
 	});
 	user_id = user.user_id;
-	let workoutId = req.params.id
-	try{
+	let workoutId = req.params.id;
+	try {
 		let modified_workout = await service.EditWorkout(req.body, workoutId); //workout object (might) also contain exercises/sets
 		return res.status(200).json({ modified_workout });
-	}catch(error){
-		if (error.StatusCode)
-			return res.status(error.StatusCode).json({message: error.message})
-		return res.status(500).json({message: error.message}) 
+	} catch (error) {
+		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
+		return res.status(500).json({ message: error.message });
 	}
 }
 
-module.exports = { getWorkoutsList, createWorkout, editWorkout };
+async function deleteWorkout(req, res) {
+	let workout_id = req.params.id;
+	await Workout;
+}
+
+module.exports = { getWorkoutsList, getWorkout, createWorkout, editWorkout, deleteWorkout };

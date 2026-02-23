@@ -11,15 +11,68 @@ async function GetWorkouts(user_id, filter = "all") {
 	let now = new Date();
 	let startDate = new Date();
 
-	if (filter == "all") workouts = await WorkoutsModel.findAll({ where: { user_id: user_id } });
-	else if (filter == "week") oneWeekAgo.setDate(startDate.getDate() - 7);
-	else if (filter == "month") oneMonthAgo.setDate(startDate.getDate() - 30);
-	else if (filter == "year") oneYearAgo.setDate(startDate.getDate() - 365);
+	if (filter == "all")
+		return await WorkoutsModel.findAll({
+			where: { user_id: user_id },
+			include: [
+				{
+					model: ExercisesModel, //join w/ exercise model
+					include: [
+						{
+							model: SetsModel, //join with set model
+						},
+					],
+				},
+			],
+			order: [
+				[ExercisesModel, "order_number", "ASC"],
+				[ExercisesModel, SetsModel, "order_number", "ASC"],
+			],
+		});
+	else if (filter == "week") startDate.setDate(startDate.getDate() - 7);
+	else if (filter == "month") startDate.setDate(startDate.getDate() - 30);
+	else if (filter == "year") startDate.setDate(startDate.getDate() - 365);
 
 	workouts = await WorkoutsModel.findAll({
-		where: { workout_date: { [Op.between]: [oneYearAgo, now] }, user_id: user_id },
+		where: { workout_date: { [Op.between]: [startDate, now] }, user_id: user_id },
+		include: [
+			{
+				model: ExercisesModel, //join w/ exercise model
+				include: [
+					{
+						model: SetsModel, //join with set model
+					},
+				],
+			},
+		],
+		order: [
+			[ExercisesModel, "order_number", "ASC"],
+			[ExercisesModel, SetsModel, "order_number", "ASC"],
+		],
 	});
 	return workouts;
+}
+
+async function GetWorkout(workout_id) {
+	const workout = await WorkoutsModel.findByPk(workout_id, {
+		include: [
+			{
+				model: ExercisesModel, //join w/ exercise model
+				include: [
+					{
+						model: SetsModel, //join with set model
+					},
+				],
+			},
+		],
+		order: [
+			[ExercisesModel, "order_number", "ASC"],
+			[ExercisesModel, SetsModel, "order_number", "ASC"],
+		],
+	});
+
+	if (!workout) throw new NotFoundError("No workout found with that workout ID");
+	return workout;
 }
 
 async function CreateWorkout(data, user_id) {
@@ -69,12 +122,12 @@ async function EditWorkout(data, workout_id) {
 	let workout_obj = await WorkoutsModel.findByPk(workout_id);
 	//console.log("Did I find my workout?", workout_obj)
 
-	/* let workout = await workout_obj.update({
+	let workout = await workout_obj.update({
 		name: data.workout_name,
 		workout_date: data.workout_date,
 		notes: data.notes,
 		finished_at: data.finished_at,
-	}); */
+	});
 
 	//grab list of exercises/sets for a workout stored in database.
 	//also loop over each exercise/set for a workout provided in data
@@ -115,13 +168,6 @@ async function EditWorkout(data, workout_id) {
 			}
 		}
 	}
-
-	//stop here and make sure my things are actually being deleted before I try to add new ones
-	//return null;
-	/*console.log("Workout data before update:");
-	console.log("------------------------------");
-	console.log(JSON.stringify(exercisesList, null, 2));
-	console.log("------------------------------");*/
 	console.log("EVERYTHING WORKS SO FAR");
 	for (let exercise of data.exercises) {
 		let exercise_obj = await ExercisesModel.findByPk(exercise.exercise_id);
@@ -176,6 +222,7 @@ async function EditWorkout(data, workout_id) {
 		}
 	}
 
+	/*
 	const exercisesListAfter = await ExercisesModel.findAll({
 		where: { workout_id: workout_id },
 		include: SetsModel,
@@ -183,7 +230,26 @@ async function EditWorkout(data, workout_id) {
 	console.log("Workout data AFTER update:");
 	console.log("------------------------------");
 	console.log(JSON.stringify(exercisesListAfter, null, 2));
-	console.log("------------------------------");
+	console.log("------------------------------");*/
+
+	//lets return entire workout object, that makes more sense than exercise list
+	const workout_modified = await WorkoutsModel.findByPk(workout_id, {
+		include: [
+			{
+				model: ExercisesModel, //join w/ exercise model
+				include: [
+					{
+						model: SetsModel, //join with set model
+					},
+				],
+			},
+		],
+		order: [
+			[ExercisesModel, "order_number", "ASC"],
+			[ExercisesModel, SetsModel, "order_number", "ASC"],
+		],
+	});
+	return workout_modified;
 }
 
-module.exports = { GetWorkouts, CreateWorkout, EditWorkout };
+module.exports = { GetWorkouts, GetWorkout, CreateWorkout, EditWorkout };
