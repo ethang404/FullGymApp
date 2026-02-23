@@ -1,15 +1,11 @@
 //Here I will import all the models->create relationships, and connect to neon POSTGRES database
-const { Sequelize } = require("sequelize");
-
-const sequelize = new Sequelize(process.env.DB_CONNECTION_URL);
-
-const users = require("./users.model")(sequelize, Sequelize.DataTypes);
-const workouts = require("./workouts.model")(sequelize, Sequelize.DataTypes);
-const exercises = require("./exercises.model")(sequelize, Sequelize.DataTypes);
-const sets = require("./sets.model")(sequelize, Sequelize.DataTypes);
-const diaryEntries = require("./diaryEntries.model")(sequelize, Sequelize.DataTypes);
-const savedMeals = require("./savedMeals.model")(sequelize, Sequelize.DataTypes);
-const savedMealIngred = require("./savedMealIngred.model")(sequelize, Sequelize.DataTypes);
+const users = require("./users.model");
+const workouts = require("./workouts.model");
+const exercises = require("./exercises.model");
+const sets = require("./sets.model");
+const diaryEntries = require("./diaryEntries.model");
+const savedMeals = require("./savedMeals.model");
+const savedMealIngred = require("./savedMealIngred.model");
 
 async function testDB() {
 	try {
@@ -133,7 +129,6 @@ function defineRelationships() {
 }
 
 module.exports = {
-	sequelize,
 	users,
 	workouts,
 	exercises,
