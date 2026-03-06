@@ -252,4 +252,8 @@ async function EditWorkout(data, workout_id) {
 	return workout_modified;
 }
 
-module.exports = { GetWorkouts, GetWorkout, CreateWorkout, EditWorkout };
+async function DeleteWorkout(workout_id) {
+	await WorkoutsModel.destroy({ where: { workout_id: workout_id } });
+}
+
+module.exports = { GetWorkouts, GetWorkout, CreateWorkout, EditWorkout, DeleteWorkout };
