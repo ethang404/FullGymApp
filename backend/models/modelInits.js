@@ -7,6 +7,11 @@ const diaryEntries = require("./diaryEntries.model");
 const savedMeals = require("./savedMeals.model");
 const savedMealIngred = require("./savedMealIngred.model");
 
+const { food } = require("./food.model");
+const foodNutrient = require("./foodNutrients.model");
+
+const sequelize = require("./db");
+
 async function testDB() {
 	try {
 		await sequelize.authenticate();
@@ -37,7 +42,6 @@ function defineRelationships() {
 			name: "user_id",
 			allowNull: false,
 		},
-		onDelete: "CASCADE",
 	});
 
 	//workouts has 1 to many exercises (put fk for user_id in workouts)
@@ -55,7 +59,6 @@ function defineRelationships() {
 			name: "workout_id",
 			allowNull: false,
 		},
-		onDelete: "CASCADE",
 	});
 
 	//Each exercise has many sets
@@ -72,7 +75,6 @@ function defineRelationships() {
 			name: "exercise_id",
 			allowNull: false,
 		},
-		onDelete: "CASCADE",
 	});
 
 	//user has many diaryEntries
@@ -90,7 +92,6 @@ function defineRelationships() {
 			name: "user_id",
 			allowNull: false,
 		},
-		onDelete: "CASCADE",
 	});
 
 	//user has many savedMeals
@@ -107,7 +108,6 @@ function defineRelationships() {
 			name: "user_id",
 			allowNull: false,
 		},
-		onDelete: "CASCADE",
 	});
 
 	//savedMeals has many ingrediants
@@ -124,7 +124,37 @@ function defineRelationships() {
 			name: "saved_meal_id",
 			allowNull: false,
 		},
+	});
+
+	//User has many submitted foods
+	users.hasMany(food, {
+		foreignKey: {
+			name: "submitted_by",
+			allowNull: true,
+		},
+	});
+
+	food.belongsTo(users, {
+		foreignKey: {
+			name: "submitted_by",
+			allowNull: true,
+		},
+	});
+
+	//food has many food nutrients
+	food.hasMany(foodNutrient, {
+		foreignKey: {
+			name: "food_id",
+			allowNull: false,
+		},
 		onDelete: "CASCADE",
+	});
+
+	foodNutrient.belongsTo(food, {
+		foreignKey: {
+			name: "food_id",
+			allowNull: false,
+		},
 	});
 }
 
@@ -136,4 +166,6 @@ module.exports = {
 	diaryEntries,
 	savedMeals,
 	savedMealIngred,
+	food,
+	foodNutrient,
 };
