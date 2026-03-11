@@ -43,18 +43,23 @@ export function AxiosInterceptorHandler({ children }: PropsWithChildren) {
 		const responseInterceptor = instance.interceptors.response.use(
 			(resp) => resp,
 			async (error) => {
+				// if access token invalid
 				if (error.response?.status === 401 || error.response?.status === 400) {
 					try {
 						console.log("in response interceptor area-trying to refresh token");
 						const refreshToken = await SecureStore.getItemAsync("refreshToken");
-						const resp = await axios.get(`${process.env.EXPO_PUBLIC_BACKEND_URL}/auth/validToken`, {
-							headers: {
-								Authorization: `Bearer ${refreshToken}`,
-								"Content-Type": "application/json",
-							},
-						});
 
-						// update new token in storage if needed
+						if (!refreshToken) {
+							console.log("No refresh token found - signing out");
+							signOut();
+							return Promise.reject(error);
+						}
+
+						const resp = await axios.post(
+							`${process.env.EXPO_PUBLIC_BACKEND_URL}/auth/refresh`,
+							{ refreshToken }
+						);
+
 						const newToken = resp.data.accessToken;
 						await SecureStore.setItemAsync("accessToken", newToken);
 
@@ -63,15 +68,22 @@ export function AxiosInterceptorHandler({ children }: PropsWithChildren) {
 						console.log("in response interceptor area-trying request with new token");
 						// retry original request
 						return instance(error.config);
-					} catch (err) {
+					} catch (err: any) {
 						console.log("in response interceptor area-Refresh failed");
-						// Refresh failed: sign user out
-						signOut();
+
+						const status = err?.response?.status;
+						//Specifically a auth error, sign out - refreshToken invalid
+						if (status === 400 || status === 401) {
+							signOut();
+						} else {
+							console.log("Refresh failed for non-auth reason", err);
+						}
+
 						return Promise.reject(err);
 					}
 				}
 
-				// Other errors
+				// Other error
 				return Promise.reject(error);
 			}
 		);
