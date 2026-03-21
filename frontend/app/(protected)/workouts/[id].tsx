@@ -1,6 +1,10 @@
 import { useLocalSearchParams } from "expo-router";
-import { View, Text, StyleSheet, TextInput, SafeAreaView } from "react-native";
+import { View, Text, StyleSheet, TextInput, SafeAreaView, ScrollView } from "react-native";
+import { useMemo } from "react";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { Card, DataTable } from "react-native-paper";
+import { useTheme } from "@/theme/ThemeProvider";
+import type { Theme } from "@/theme/colors";
 
 const workouts = [
 	{
@@ -35,7 +39,7 @@ const workouts = [
 	},
 ];
 
-const ExerciseCard = ({ exercise }) => {
+const ExerciseCard = ({ exercise, theme }: { exercise: (typeof workouts)[0]; theme: Theme }) => {
 	return (
 		<Card style={{ marginBottom: 16, borderRadius: 16, elevation: 4 }}>
 			<Card.Title title={exercise.name} />
@@ -57,16 +61,18 @@ const ExerciseCard = ({ exercise }) => {
 				</DataTable>
 
 				<View style={{ marginTop: 12 }}>
-					<Text>Notes</Text>
+					<Text style={{ color: theme.text }}>Notes</Text>
 					<TextInput
 						placeholder={exercise.notes}
+						placeholderTextColor={theme.inputPlaceholder}
 						style={{
 							marginTop: 6,
 							padding: 10,
 							borderRadius: 12,
 							borderWidth: 1,
-							borderColor: "#ddd",
-							backgroundColor: "#fafafa",
+							borderColor: theme.inputBorder,
+							backgroundColor: theme.inputBg,
+							color: theme.text,
 						}}
 					/>
 				</View>
@@ -77,20 +83,38 @@ const ExerciseCard = ({ exercise }) => {
 
 export default function Workout() {
 	const { id } = useLocalSearchParams();
+	const { theme } = useTheme();
+
+	const styles = useMemo(
+		() =>
+			StyleSheet.create({
+				container: {
+					flex: 1,
+					backgroundColor: theme.background,
+					padding: 16,
+				},
+				scrollContent: {
+					paddingBottom: 24,
+				},
+			}),
+		[theme],
+	);
 
 	return (
-		<SafeAreaView style={styles.container}>
-			{workouts.map((exercise) => (
-				<ExerciseCard key={exercise.id} exercise={exercise} />
-			))}
-		</SafeAreaView>
+		<KeyboardAwareScrollView
+			style={{ flex: 1, backgroundColor: theme.background }}
+			contentContainerStyle={styles.scrollContent}
+			enableOnAndroid
+			extraScrollHeight={40}
+			keyboardShouldPersistTaps="handled"
+		>
+			<SafeAreaView style={styles.container}>
+				<ScrollView>
+					{workouts.map((exercise) => (
+						<ExerciseCard key={exercise.id} exercise={exercise} theme={theme} />
+					))}
+				</ScrollView>
+			</SafeAreaView>
+		</KeyboardAwareScrollView>
 	);
 }
-
-const styles = StyleSheet.create({
-	container: {
-		flex: 1,
-		justifyContent: "center",
-		alignItems: "center",
-	},
-});

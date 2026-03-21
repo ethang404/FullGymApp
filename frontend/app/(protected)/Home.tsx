@@ -1,200 +1,147 @@
-import { Text, View, StyleSheet, SafeAreaView, FlatList, Pressable } from "react-native";
-import { useState } from "react";
+import { Text, View, StyleSheet, FlatList, Pressable, ScrollView, TouchableOpacity } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useState, useMemo } from "react";
+import { router } from "expo-router";
 import { Button } from "react-native-paper";
-//import { Card, Button, Text } from "react-native-paper";
+import { useTheme } from "@/theme/ThemeProvider";
 
 export default function Home() {
-	const workouts = [
-		{ id: "1", title: "Push Day", date: "2025-08-10" },
-		{ id: "2", title: "Pull Day", date: "2025-08-12" },
-		{ id: "3", title: "Leg Day", date: "2025-08-14" },
-		{ id: "4", title: "Push Day", date: "2025-08-10" },
-		{ id: "5", title: "Pull Day", date: "2025-08-12" },
-		{ id: "6", title: "Leg Day", date: "2025-08-14" },
-		{ id: "7", title: "Push Day", date: "2025-08-10" },
-		{ id: "8", title: "Pull Day", date: "2025-08-12" },
-		{ id: "9", title: "Leg Day", date: "2025-08-14" },
-		{ id: "10", title: "Push Day", date: "2025-08-10" },
-		{ id: "11", title: "Pull Day", date: "2025-08-12" },
-		{ id: "12", title: "Leg Day", date: "2025-08-14" },
-	];
+	const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+	const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+	const today = new Date();
+	const dayName = days[today.getDay()];
 
-	const widgetPages = [
-		{
-			title: "Overview",
-			data: {
-				totalWorkouts: 12,
-				totalSets: 145,
-				avgDuration: "1h 15m",
-				lastWorkout: "2025-10-10",
-			},
-		},
-		{
-			title: "Volume",
-			data: {
-				totalWeightLifted: "42,500 lbs",
-				avgPerWorkout: "3,540 lbs",
-				bestDay: "2025-10-09",
-			},
-		},
-		{
-			title: "PRs",
-			data: {
-				benchPress: "225 lbs",
-				squat: "315 lbs",
-				deadlift: "365 lbs",
-				bestLift: "Deadlift",
-			},
-		},
-	];
+	const { theme } = useTheme();
 
-	const [pageIndex, setPageIndex] = useState(0);
-	const page = widgetPages[pageIndex];
+	const styles = useMemo(
+		() =>
+			StyleSheet.create({
+				container: {
+					flex: 1,
+					backgroundColor: theme.background,
+				},
+
+				InnerHeader: {
+					flexDirection: "row",
+					justifyContent: "space-between",
+					alignItems: "center",
+					paddingBottom: 20,
+				},
+				workoutCard: {
+					borderRadius: 20,
+					padding: 20,
+					marginHorizontal: 16,
+					marginVertical: 8,
+					backgroundColor: theme.primary,
+				},
+				//Split workout card into [text] [Button] like our header area
+				InnerWorkoutCard: {
+					flexDirection: "row",
+					justifyContent: "space-between",
+					alignItems: "center",
+				},
+				//targeting left [text] area
+				workoutCardTextBlock: {
+					flex: 1,
+					marginRight: 12,
+				},
+
+				//applying sylization to the [text] section
+				workoutCardLabel: {
+					fontSize: 11,
+					fontWeight: "600",
+					color: theme.textInverse,
+					letterSpacing: 1.2,
+					textTransform: "uppercase",
+					marginBottom: 8,
+					opacity: 0.7,
+				},
+				workoutCardTitle: {
+					fontSize: 26,
+					fontWeight: "700",
+					color: theme.textInverse,
+					marginBottom: 4,
+				},
+				workoutCardSubtitle: {
+					fontSize: 13,
+					color: theme.textInverse,
+					opacity: 0.75,
+				},
+
+				//[button] section
+				workoutStartButton: {
+					backgroundColor: "rgba(0,0,0,0.15)",
+					borderRadius: 50,
+					paddingVertical: 10,
+					paddingHorizontal: 18,
+					borderWidth: 1,
+					borderColor: "rgba(255,255,255,0.25)",
+				},
+				workoutStartButtonText: {
+					color: theme.textInverse,
+					fontWeight: "600",
+					fontSize: 14,
+				},
+			}),
+		[theme],
+	);
 
 	return (
 		<SafeAreaView style={styles.container}>
-			{/* Active workout pill */}
-			<View style={styles.activeWork}>
-				<Text style={styles.activeWorkoutText}>Active Workout</Text>
-			</View>
-
-			<View style={widget.container}>
-				<View style={widget.filters}>
-					<Button>Week</Button>
-					<Button>Month</Button>
-					<Button>Year</Button>
-					<Button>All</Button>
-				</View>
-				<Text style={widget.title}>Workout at a Glance</Text>
-				<View style={widget.content}>
-					{Object.entries(page.data).map(([key, value]) => (
-						<Text key={key} style={widget.text}>
-							{key}: {value}
-						</Text>
-					))}
-				</View>
-
-				<View style={widget.dots}>
-					{widgetPages.map((_, idx) => (
+			<ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }}>
+				<View style={styles.InnerHeader}>
+					<View>
 						<Text
-							key={idx}
-							style={[widget.dot, idx === pageIndex && widget.activeDot]}
-							onPress={() => setPageIndex(idx)}
+							style={{
+								color: theme.textMuted,
+								fontSize: 12,
+								letterSpacing: 1.2,
+								textTransform: "uppercase",
+								marginBottom: 4,
+							}}
 						>
-							•
+							{dayName}, {months[today.getMonth()]} {today.getDate()}
 						</Text>
-					))}
-				</View>
-			</View>
+						<Text
+							style={{
+								color: theme.text,
+								fontSize: 24,
+								fontWeight: "700",
+							}}
+						>
+							Good morning 👋
+						</Text>
+					</View>
 
-			<FlatList
-				style={styles.list}
-				data={workouts}
-				keyExtractor={(item) => item.id}
-				renderItem={({ item }) => (
-					<Pressable onPress={() => console.log("Pressed:", item.title)}>
-						<View style={styles.workoutItem}>
-							<Text style={styles.workoutTitle}>{item.title}</Text>
-							<Text style={styles.workoutDate}>{item.date}</Text>
+					<View
+						style={{
+							width: 40,
+							height: 40,
+							borderRadius: 20,
+							backgroundColor: theme.primary,
+							alignItems: "center",
+							justifyContent: "center",
+						}}
+					>
+						<Text style={{ color: "#fff", fontWeight: "600", fontSize: 16 }}>J</Text>
+					</View>
+				</View>
+
+				<View style={styles.workoutCard}>
+					<Text style={styles.workoutCardLabel}>TODAY'S WORKOUT</Text>
+
+					<View style={styles.InnerWorkoutCard}>
+						<View style={styles.workoutCardTextBlock}>
+							<Text style={styles.workoutCardTitle}>Push Day</Text>
+							<Text style={styles.workoutCardSubtitle}>Chest · Shoulders · Triceps</Text>
 						</View>
-					</Pressable>
-				)}
-			/>
+
+						<TouchableOpacity style={styles.workoutStartButton}>
+							<Text style={styles.workoutStartButtonText}>Start →</Text>
+						</TouchableOpacity>
+					</View>
+				</View>
+			</ScrollView>
 		</SafeAreaView>
 	);
 }
-
-const widget = StyleSheet.create({
-	container: {
-		backgroundColor: "#EBE8E2",
-		borderRadius: 10,
-		borderWidth: 1,
-		borderColor: "#ccc",
-		padding: 0,
-		marginVertical: 10,
-		width: "90%",
-		alignSelf: "center",
-	},
-	filters: {
-		flexDirection: "row",
-		justifyContent: "space-around",
-		marginBottom: 10,
-	},
-	title: {
-		fontSize: 18,
-		alignSelf: "center",
-		paddingBottom: 30,
-	},
-	content: {
-		marginBottom: 20,
-	},
-	text: {
-		fontSize: 14,
-		marginBottom: 5,
-	},
-	dots: {
-		flexDirection: "row",
-		justifyContent: "center",
-	},
-	dot: {
-		fontSize: 28,
-		color: "#aaa",
-		marginHorizontal: 4,
-	},
-	activeDot: {
-		color: "#007AFF",
-	},
-});
-
-const styles = StyleSheet.create({
-	container: {
-		flex: 1,
-		alignItems: "center",
-		backgroundColor: "#ecf0f1",
-		padding: 8,
-	},
-	activeWork: {
-		borderRadius: 99,
-		backgroundColor: "#ADD8E6",
-		paddingVertical: 8,
-		paddingHorizontal: 16,
-		marginVertical: 20,
-	},
-	activeWorkoutText: {
-		fontSize: 20,
-		fontWeight: "bold",
-		color: "#000",
-	},
-
-	list: {
-		flex: 1,
-		width: "100%",
-		paddingHorizontal: 8,
-	},
-	workoutItem: {
-		flexDirection: "row",
-		justifyContent: "space-between",
-		alignItems: "center",
-		backgroundColor: "#fff",
-		borderRadius: 8,
-		padding: 12,
-		marginVertical: 6,
-
-		// shadow for iOS
-		shadowColor: "#000",
-		shadowOffset: { width: 0, height: 2 },
-		shadowOpacity: 0.1,
-		shadowRadius: 4,
-		// shadow for Android
-		elevation: 2,
-	},
-	workoutTitle: {
-		fontSize: 16,
-		fontWeight: "600",
-		color: "#333",
-	},
-	workoutDate: {
-		fontSize: 12,
-		color: "#666",
-	},
-});
