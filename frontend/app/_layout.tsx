@@ -1,19 +1,15 @@
 import { Stack } from "expo-router";
 import { AuthProvider, AuthContext } from "@/utils/AuthProvider";
+import { ThemeProvider } from "@/theme/ThemeProvider";
 import { useContext } from "react";
 import { AxiosInterceptorHandler } from "@/utils/AxiosInterceptorHandler";
-
-//import global navbar (if auth)
-import NavBar from "@/components/NavBar";
-
-//<Stack.Screen name="hidden" />
 
 function AppStack() {
 	const { isValidUser } = useContext(AuthContext);
 	return (
 		<Stack>
 			<Stack.Protected guard={!isValidUser}>
-				<Stack.Screen name="login" />
+				<Stack.Screen name="login" options={{ headerShown: false }} />
 			</Stack.Protected>
 
 			<Stack.Protected guard={isValidUser}>
@@ -25,11 +21,13 @@ function AppStack() {
 
 export default function AppLayout() {
 	return (
-		<AuthProvider>
-			<AxiosInterceptorHandler>
-				<AppStack />
-			</AxiosInterceptorHandler>
-		</AuthProvider>
+		<ThemeProvider>
+			<AuthProvider>
+				<AxiosInterceptorHandler>
+					<AppStack />
+				</AxiosInterceptorHandler>
+			</AuthProvider>
+		</ThemeProvider>
 	);
 }
 
