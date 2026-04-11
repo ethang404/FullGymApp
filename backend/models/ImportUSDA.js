@@ -20,13 +20,13 @@ const sequelize = require("./db");
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
 
 // Path to the folder containing all the USDA CSV files
-const CSV_DIR = "C:\\Users\\Ethan\\Downloads\\FoodData_Central_csv_2025-12-18\\FoodData_Central_csv_2025-12-18";
+const CSV_DIR = "C:\\Users\\Ethan\\OneDrive\\Desktop\\PersonalProjects\\DataImport\\FoodData_Central_csv_2025-12-18";
 
 // How many rows to insert at once
 // Higher = faster but more memory usage
 const BATCH_SIZE = 1000;
 
-const TEST_LIMIT = 100;
+const TEST_LIMIT = null;
 
 // Only import these food types — skip survey/lab/agricultural data
 const ALLOWED_DATA_TYPES = ["branded_food", "foundation_food", "sr_legacy_food"];

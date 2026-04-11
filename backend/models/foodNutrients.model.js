@@ -32,7 +32,7 @@ const foodNutrient = sequelize.define(
 		amount_per_100g: {
 			// the actual value per 100g of the food
 			// all math uses this. multiply by (logged_grams / 100)
-			type: DataTypes.DECIMAL(10, 4), //4th decimal place for accuracy
+			type: DataTypes.DECIMAL, //4th decimal place for accuracy
 			allowNull: false,
 		},
 	},

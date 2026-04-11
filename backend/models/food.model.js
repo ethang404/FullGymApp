@@ -35,7 +35,7 @@ const food = sequelize.define(
 		serving_size_g: {
 			// serving size in grams e.g. 140
 			// used to convert "1 serving" → grams for math
-			type: DataTypes.DECIMAL(10, 2),
+			type: DataTypes.DECIMAL,
 			allowNull: true,
 		},
 		serving_size_label: {
