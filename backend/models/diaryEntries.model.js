@@ -4,62 +4,51 @@ const sequelize = require("./db");
 const diary_entries = sequelize.define(
 	"diaryentries",
 	{
-		entry_id: {
-			type: DataTypes.UUID,
+		id: {
+			type: DataTypes.INTEGER,
 			primaryKey: true,
-			defaultValue: DataTypes.UUIDV4,
+			autoIncrement: true,
 		},
 		user_id: {
-			//foreign key
 			type: DataTypes.INTEGER,
 			allowNull: false,
 		},
-		entry_date: {
-			type: DataTypes.DATEONLY,
+		food_id: {
+			type: DataTypes.INTEGER,
+			allowNull: false,
 		},
 		meal_type: {
-			//breakfest/lunch/dinner
-			type: DataTypes.STRING,
+			type: DataTypes.ENUM("breakfast", "lunch", "dinner", "snack"),
 			allowNull: false,
 		},
-		spoonacular_id: {
-			//id of food
-			type: DataTypes.INTEGER,
-		},
-		food_name: {
-			type: DataTypes.STRING,
+		logged_at: {
+			type: DataTypes.DATEONLY,
 			allowNull: false,
 		},
 		quantity: {
-			type: DataTypes.INTEGER,
-			defaultValue: 1,
-		},
-		units: {
-			type: DataTypes.STRING,
-		},
-		notes: {
-			type: DataTypes.STRING,
-		},
-		date_added: {
-			type: DataTypes.DATEONLY,
-		},
-		protein: {
 			type: DataTypes.DECIMAL,
+			allowNull: false,
 		},
-		carbs: {
-			type: DataTypes.DECIMAL,
-		},
-		fats: {
-			type: DataTypes.DECIMAL,
-		},
-		calories: {
-			type: DataTypes.DECIMAL,
+		unit: {
+			type: DataTypes.TEXT,
+			allowNull: false,
+			// e.g. 'serving', 'g', 'oz', 'cup'. Whatever is available for that food
 		},
 	},
 	{
-		tableName: "diary_entries",
-		timestamps: false,
+		tableName: "food_log_entries",
+		timestamps: true,
 		underscored: true,
+		indexes: [
+			{
+				// most common query: get all entries for a user on a given day
+				fields: ["user_id", "logged_at"],
+			},
+			{
+				// for queries like "all days this user logged this food"
+				fields: ["user_id", "food_id"],
+			},
+		],
 	},
 );
 

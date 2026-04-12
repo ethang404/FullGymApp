@@ -94,6 +94,21 @@ function defineRelationships() {
 		},
 	});
 
+	foods.hasMany(diaryEntries, {
+		foreignKey: {
+			name: "food_id",
+			allowNull: false,
+		},
+		onDelete: "CASCADE",
+	});
+
+	diaryEntries.belongsTo(foods, {
+		foreignKey: {
+			name: "food_id",
+			allowNull: false,
+		},
+	});
+
 	//user has many savedMeals
 	users.hasMany(savedMeals, {
 		foreignKey: {

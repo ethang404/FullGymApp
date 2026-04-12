@@ -19,13 +19,15 @@ router.get("/protected", verifyToken, (req, res) => {
 //2 Users should be able to add food enteries to diary to track what they ate in a day
 
 //endpoints for foods (CRUD stuff)
-router.get("/", verifyToken, controller.searchFoods);//query for food item
-router.post("/", verifyToken, controller.createFood);//Add new food item by user
+// Foods
+router.get("/foods", verifyToken, controller.searchFoods);
+router.post("/foods", verifyToken, controller.createFood);
 
-router.get("/:id", verifyToken, controller.getWorkout); //get one workout
-router.post("/", verifyToken, controller.createWorkout); //Should create workout/sets/reps for user in one call
-router.put("/:id", verifyToken, controller.editWorkout);
-router.delete("/:id", verifyToken, controller.deleteWorkout);
+// Diary Entries
+router.get("/diary", verifyToken, controller.getDiaryEntries);
+router.post("/diary", verifyToken, controller.addDiaryEntry);
+router.put("/diary/:id", verifyToken, controller.editDiaryEntry);
+router.delete("/diary/:id", verifyToken, controller.deleteDiaryEntry);
 
 //endpoints for creating new reciepes
 
