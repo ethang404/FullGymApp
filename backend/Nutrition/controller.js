@@ -41,6 +41,17 @@ async function createFood(req, res) {
 //for a time frame of dates get all meals
 //for a time frame of dates get a certain type of meal
 
+async function getDiaryEntries(req, res){
+	const {begin_date, end_date, meal} = req.query
+	try {
+		const food = await service.getDiaryEntries(begin_date, end_date, meal);
+		return res.status(201).json({ food });
+	} catch (error) {
+		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
+		return res.status(500).json({ message: error.message });
+	}
+}
+
 //(type of meal == breaktis or something)
 
-module.exports = { searchFoods };
+module.exports = { searchFoods, createFood, getDiaryEntries };

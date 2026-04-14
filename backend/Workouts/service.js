@@ -3,6 +3,8 @@ const ExercisesModel = require("../models/modelInits").exercises;
 const SetsModel = require("../models/modelInits").sets;
 const UsersModel = require("../models/modelInits").users;
 
+const { Op } = require("sequelize");
+
 //error imports
 const { GeneralError, NotFoundError, DataError, UnauthorizedError, ForbiddenError } = require("../error");
 
