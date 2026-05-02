@@ -10,8 +10,7 @@ const food = sequelize.define(
 			autoIncrement: true,
 		},
 		fdc_id: {
-			// USDA's unique ID for food from DB
-			// null if user submitted their own food
+			// USDA's unique ID - null if user submitted
 			type: DataTypes.INTEGER,
 			unique: true,
 			allowNull: true,
@@ -21,45 +20,27 @@ const food = sequelize.define(
 			allowNull: false,
 		},
 		brand: {
-			// e.g. "Walmart", "Chobani"
-			// null for generic whole foods like "chicken breast"
+			// e.g. "Walmart", "Chobani" - null for generic whole foods
 			type: DataTypes.TEXT,
 			allowNull: true,
 		},
 		barcode: {
 			// for barcode scanning via Open Food Facts
-			// null if not a packaged product
-			type: DataTypes.TEXT,
-			allowNull: true,
-		},
-		serving_size_g: {
-			// serving size in grams e.g. 140
-			// used to convert "1 serving" → grams for math
-			type: DataTypes.DECIMAL(10, 2),
-			allowNull: true,
-		},
-		serving_size_label: {
-			// serving size: "1 cup", "3 oz"
 			type: DataTypes.TEXT,
 			allowNull: true,
 		},
 		source: {
-			// where food came from
-			// 'usda' = USDA database
-			// 'user_submitted' = user added
+			// 'usda', 'openfoodfacts', 'user_submitted'
 			type: DataTypes.TEXT,
 			allowNull: false,
 		},
 		submitted_by: {
-			// FK: null if source is USDA
-			// set to user's id if source is 'user_submitted'
+			// FK to users.id - null if source is not user_submitted
 			type: DataTypes.INTEGER,
 			allowNull: true,
 		},
 		is_deleted: {
-			// soft delete to delete foods if user submits bad data
-			// because users may have diary entries referencing this food
-			// instead we hide it from search results
+			// soft delete - hides from search but preserves diary/recipe references
 			type: DataTypes.BOOLEAN,
 			defaultValue: false,
 			allowNull: false,
@@ -72,17 +53,17 @@ const food = sequelize.define(
 	},
 );
 
-//Creates gini index's to use tsvector so better searching.
+// GIN indexes for full-text + trigram search
 const addSearchIndexes = async () => {
 	await sequelize.query(`CREATE EXTENSION IF NOT EXISTS pg_trgm;`);
 	await sequelize.query(`
-    CREATE INDEX IF NOT EXISTS foods_name_trgm_idx 
-    ON foods USING GIN (name gin_trgm_ops);
-  `);
+		CREATE INDEX IF NOT EXISTS foods_name_trgm_idx
+		ON foods USING GIN (name gin_trgm_ops);
+	`);
 	await sequelize.query(`
-    CREATE INDEX IF NOT EXISTS foods_name_fts_idx 
-    ON foods USING GIN (to_tsvector('english', name));
-  `);
+		CREATE INDEX IF NOT EXISTS foods_name_fts_idx
+		ON foods USING GIN (to_tsvector('english', name));
+	`);
 };
 
 module.exports = { food, addSearchIndexes };

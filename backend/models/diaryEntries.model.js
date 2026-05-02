@@ -1,66 +1,73 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("./db");
 
-const diary_entries = sequelize.define(
+const diaryEntries = sequelize.define(
 	"diaryentries",
 	{
-		entry_id: {
-			type: DataTypes.UUID,
+		id: {
+			type: DataTypes.INTEGER,
 			primaryKey: true,
-			defaultValue: DataTypes.UUIDV4,
+			autoIncrement: true,
 		},
 		user_id: {
-			//foreign key
 			type: DataTypes.INTEGER,
 			allowNull: false,
 		},
-		entry_date: {
-			type: DataTypes.DATEONLY,
+		food_id: {
+			// set when logging a food directly, null when logging a recipe
+			type: DataTypes.INTEGER,
+			allowNull: true,
+		},
+		recipe_id: {
+			// set when logging a recipe, null when logging a food
+			// FK to recipes.recipe_id
+			type: DataTypes.INTEGER,
+			allowNull: true,
 		},
 		meal_type: {
-			//breakfest/lunch/dinner
-			type: DataTypes.STRING,
+			type: DataTypes.ENUM("breakfast", "lunch", "dinner", "snack"),
 			allowNull: false,
 		},
-		spoonacular_id: {
-			//id of food
-			type: DataTypes.INTEGER,
-		},
-		food_name: {
-			type: DataTypes.STRING,
+		logged_at: {
+			type: DataTypes.DATEONLY,
 			allowNull: false,
 		},
 		quantity: {
-			type: DataTypes.INTEGER,
-			defaultValue: 1,
-		},
-		units: {
-			type: DataTypes.STRING,
-		},
-		notes: {
-			type: DataTypes.STRING,
-		},
-		date_added: {
-			type: DataTypes.DATEONLY,
-		},
-		protein: {
+			// for food entries: amount in whatever unit (e.g. 4 if unit is "tbsp")
+			// for recipe entries: number of servings relative to recipe.servings
+			//   e.g. recipe.servings=4, quantity=2 → user ate half the recipe
 			type: DataTypes.DECIMAL,
+			allowNull: false,
 		},
-		carbs: {
-			type: DataTypes.DECIMAL,
-		},
-		fats: {
-			type: DataTypes.DECIMAL,
-		},
-		calories: {
-			type: DataTypes.DECIMAL,
+		unit: {
+			// for food entries: matches a label in food_serving_sizes for this food
+			//   e.g. "g", "tbsp", "serving", "slice"
+			//   "g" and "kg" are universal - no food_serving_sizes lookup needed
+			//   everything else is looked up by (food_id, label) at calc time
+			// for recipe entries: always "serving"
+			type: DataTypes.TEXT,
+			allowNull: false,
 		},
 	},
 	{
 		tableName: "diary_entries",
-		timestamps: false,
+		timestamps: true,
 		underscored: true,
+		indexes: [{ fields: ["user_id", "logged_at"] }, { fields: ["user_id", "food_id"] }, { fields: ["user_id", "recipe_id"] }],
 	},
 );
 
-module.exports = diary_entries;
+// DB-level constraint: exactly one of food_id or recipe_id must be set
+// Run this once after sync - IF NOT EXISTS so safe to call repeatedly
+const addDiaryConstraint = async () => {
+	await sequelize.query(`
+		ALTER TABLE diary_entries
+		ADD CONSTRAINT IF NOT EXISTS chk_food_or_recipe
+		CHECK (
+			(food_id IS NOT NULL AND recipe_id IS NULL) OR
+			(food_id IS NULL AND recipe_id IS NOT NULL)
+		);
+	`);
+};
+
+module.exports = { diaryEntries, addDiaryConstraint };

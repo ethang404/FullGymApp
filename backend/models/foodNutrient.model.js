@@ -10,29 +10,31 @@ const foodNutrient = sequelize.define(
 			autoIncrement: true,
 		},
 		food_id: {
-			type: DataTypes.INTEGER, //FK
+			type: DataTypes.INTEGER,
 			allowNull: false,
 		},
 		nutrient_id: {
-			// USDA's ID for the nutrient type
-			//Corresponds to type of nutriet. 1008 = Calories, 1003 = Protein
+			// USDA nutrient type ID
+			// e.g. 1008=calories, 1003=protein, 1004=fat, 1005=carbs
 			type: DataTypes.INTEGER,
 			allowNull: false,
 		},
 		nutrient_name: {
-			// "Protein", "Vitamin C"
+			// "Protein", "Sodium", "Vitamin D"
 			type: DataTypes.TEXT,
 			allowNull: false,
 		},
 		unit: {
-			// unit of measurement for this nutrient (g/kg etc)
+			// display unit only - never used in math
+			// "g", "mg", "ug", "kcal"
 			type: DataTypes.TEXT,
 			allowNull: false,
 		},
 		amount_per_100g: {
-			// the actual value per 100g of the food
-			// all math uses this. multiply by (logged_grams / 100)
-			type: DataTypes.DECIMAL, //4th decimal place for accuracy
+			// always normalized to per 100g regardless of the food's actual serving size
+			// back-calculated at import: (amount_per_serving / serving_size_g) * 100
+			// all macro math uses this: amount_per_100g * (logged_grams / 100)
+			type: DataTypes.DECIMAL,
 			allowNull: false,
 		},
 	},
@@ -41,17 +43,10 @@ const foodNutrient = sequelize.define(
 		timestamps: true,
 		underscored: true,
 		indexes: [
-			{
-				// most common query: get all nutrients for a food
-				fields: ["food_id"],
-			},
-			{
-				// for queries like "find all foods high in vitamin D"
-				fields: ["nutrient_id"],
-			},
+			{ fields: ["food_id"] },
+			{ fields: ["nutrient_id"] },
 			{
 				// prevents duplicate nutrient rows for the same food
-				// e.g. can't have two "Protein" rows for the same food
 				unique: true,
 				fields: ["food_id", "nutrient_id"],
 			},
