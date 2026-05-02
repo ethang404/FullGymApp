@@ -1,34 +1,47 @@
 const express = require("express");
 const router = express.Router();
-
-//import middlwear
-const verifyToken = require("../Middlewear/token");
 const controller = require("./controller");
+const verifyToken = require("../Middlewear/token");
 
-//router.get("/protected",)
-
-router.get("/protected", verifyToken, (req, res) => {
-	res.send("Birds home page");
-});
-
-//okay so what's important the user should be able to do regarding nutrition
-
-//1. Be able to add foods to the foods table, either through scanning or manually
-//1.1 doing do should add corresponding food nutrients
-
-//2 Users should be able to add food enteries to diary to track what they ate in a day
-
-//endpoints for foods (CRUD stuff)
-// Foods
+// ---------------------------------------------
+// Foods -> For users to enter/retrieve foods
+// ---------------------------------------------
+// GET  query looks like: /foods?query=chicken          search existing foods by keyword (index'd with GIN to find mispells/subwords)
+// POST /foods                        create new food + food nutrients with it
 router.get("/foods", verifyToken, controller.searchFoods);
 router.post("/foods", verifyToken, controller.createFood);
 
+// ---------------------------------------------
 // Diary Entries
+// ---------------------------------------------
+// GET   endpoint looks like: /diary?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD&meal_type=breakfast
 router.get("/diary", verifyToken, controller.getDiaryEntries);
 router.post("/diary", verifyToken, controller.addDiaryEntry);
 router.put("/diary/:id", verifyToken, controller.editDiaryEntry);
 router.delete("/diary/:id", verifyToken, controller.deleteDiaryEntry);
 
-//endpoints for creating new reciepes
+// ---------------------------------------------
+// Recipes (Saved Meals)
+// ---------------------------------------------
+//Basic crud endpoints for updating and creating and deleting recipes
+// And adding/removing/updating recipe ingrediants
+// POST   /recipes                            create recipe + ingredients in one go
+// PUT    /recipes/:id                        update name / description
+// DELETE /recipes/:id                        delete recipe (cascades ingredients)
+// POST   /recipes/:id/ingredients            add ingredient to existing recipe
+// DELETE /recipes/:id/ingredients/:iid       remove one ingredient
+
+router.get("/recipes", verifyToken, controller.getRecipes);
+router.get("/recipes/:id", verifyToken, controller.getRecipe);
+
+router.post("/recipes", verifyToken, controller.createRecipe);
+router.put("/recipes/:id", verifyToken, controller.updateRecipe);
+router.delete("/recipes/:id", verifyToken, controller.deleteRecipe);
+
+//REMOVE THESE:
+
+//recipe ingrediant specific
+router.post("/recipes/:id/ingredients", verifyToken, controller.addRecipeIngredient);
+router.delete("/recipes/:id/ingredients/:ingredient_id", verifyToken, controller.removeRecipeIngredient);
 
 module.exports = router;
