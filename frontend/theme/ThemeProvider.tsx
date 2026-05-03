@@ -1,37 +1,47 @@
-import React, { createContext, useContext, useState, type PropsWithChildren, useEffect } from "react";
-import { useColorScheme } from "react-native";
+import React, { createContext, useContext, useState, useEffect, type PropsWithChildren } from "react";
 import * as SecureStore from "expo-secure-store";
 import { themes, type Theme, type ThemeName } from "./colors";
 
-interface themeContextType {
-	name: ThemeName; //really just a string constrained to specific values
+const THEME_KEY = "app_theme";
+
+interface ThemeContextType {
+	name: ThemeName;
 	theme: Theme;
 	setTheme: (themeName: ThemeName) => void;
 }
 
-const ThemeContext = createContext<themeContextType>({
-	//default values here
+const ThemeContext = createContext<ThemeContextType>({
 	name: "kratosRed",
 	theme: themes.kratosRed,
 	setTheme: () => {},
 });
 
 export function ThemeProvider({ children }: PropsWithChildren) {
-	const [name, setName] = useState<ThemeName>("kratosRed"); //set theme name here
+	const [name, setName] = useState<ThemeName>("kratosRed");
 
-	const theme = themes[name];
+	// Load persisted theme on mount
+	useEffect(() => {
+		SecureStore.getItemAsync(THEME_KEY).then((saved) => {
+			if (saved && saved in themes) {
+				setName(saved as ThemeName);
+			}
+		});
+	}, []);
 
 	async function setTheme(themeName: ThemeName) {
 		setName(themeName);
+		await SecureStore.setItemAsync(THEME_KEY, themeName);
 	}
 
-	return <ThemeContext value={{ name, theme, setTheme }}>{children}</ThemeContext>;
+	return (
+		<ThemeContext value={{ name, theme: themes[name], setTheme }}>
+			{children}
+		</ThemeContext>
+	);
 }
 
 export function useTheme() {
 	const context = useContext(ThemeContext);
-	if (!context) {
-		throw new Error("useTheme must be used within a ThemeProvider");
-	}
+	if (!context) throw new Error("useTheme must be used within a ThemeProvider");
 	return context;
 }
