@@ -8,6 +8,7 @@ export const instance = axios.create({
 	headers: {
 		"Content-Type": "application/json",
 	},
+	timeout: 10000,
 });
 
 export const authInstance = axios.create({
@@ -15,6 +16,7 @@ export const authInstance = axios.create({
 	headers: {
 		"Content-Type": "application/json",
 	},
+	timeout: 5000,
 });
 
 export function AxiosInterceptorHandler({ children }: PropsWithChildren) {
@@ -55,10 +57,7 @@ export function AxiosInterceptorHandler({ children }: PropsWithChildren) {
 							return Promise.reject(error);
 						}
 
-						const resp = await axios.post(
-							`${process.env.EXPO_PUBLIC_BACKEND_URL}/auth/refresh`,
-							{ refreshToken }
-						);
+						const resp = await axios.post(`${process.env.EXPO_PUBLIC_BACKEND_URL}/auth/refresh`, { refreshToken });
 
 						const newToken = resp.data.accessToken;
 						await SecureStore.setItemAsync("accessToken", newToken);
@@ -85,14 +84,13 @@ export function AxiosInterceptorHandler({ children }: PropsWithChildren) {
 
 				// Other error
 				return Promise.reject(error);
-			}
+			},
 		);
 
 		const responseAuthInterceptor = authInstance.interceptors.response.use(
 			async function loginRegister(resp) {
 				console.log("In response Auth interceptor (passing)");
-				if (resp.data?.refreshToken)
-					await SecureStore.setItemAsync("refreshToken", resp.data.refreshToken);
+				if (resp.data?.refreshToken) await SecureStore.setItemAsync("refreshToken", resp.data.refreshToken);
 
 				if (resp.data?.accessToken) {
 					await SecureStore.setItemAsync("accessToken", resp.data.accessToken);
@@ -105,7 +103,7 @@ export function AxiosInterceptorHandler({ children }: PropsWithChildren) {
 				console.log("In response Auth interceptor (FAILING)");
 				//if user fails to login/register, simply return and let original call handle GUI updates accordingly
 				return Promise.reject(error);
-			}
+			},
 		);
 
 		// Cleanup on unmount

@@ -141,20 +141,54 @@ function formatFood(food) {
  */
 async function CreateFood(data, user_id) {
 	if (!data.name?.trim()) throw new DataError("Food name is required");
-	if (!Array.isArray(data.nutrients) || data.nutrients.length === 0) throw new DataError("At least one nutrient is required");
-	if (!Array.isArray(data.serving_sizes) || data.serving_sizes.length === 0) throw new DataError("At least one serving size is required");
 
+	if (!Array.isArray(data.nutrients) || data.nutrients.length === 0) {
+		throw new DataError("At least one nutrient is required");
+	}
+
+	if (!Array.isArray(data.serving_sizes) || data.serving_sizes.length === 0) {
+		throw new DataError("At least one serving size is required");
+	}
+
+	if (!data.serving || data.serving.quantity == null || !data.serving.unit) {
+		throw new DataError("A base serving (quantity + unit) is required");
+	}
+
+	// ─── Validate nutrients ─────────────────────────────────────
 	for (const n of data.nutrients) {
 		if (!n.nutrient_id) throw new DataError("Each nutrient must have a nutrient_id");
 		if (!n.nutrient_name?.trim()) throw new DataError("Each nutrient must have a nutrient_name");
 		if (!n.unit?.trim()) throw new DataError("Each nutrient must have a unit");
-		if (n.amount_per_100g == null || isNaN(n.amount_per_100g)) throw new DataError("Each nutrient must have a valid amount_per_100g");
+		if (n.amount == null || isNaN(n.amount)) {
+			throw new DataError("Each nutrient must have a valid amount (per serving)");
+		}
 	}
 
 	for (const s of data.serving_sizes) {
 		if (!s.label?.trim()) throw new DataError("Each serving size must have a label");
-		if (s.weight_g == null || isNaN(s.weight_g) || s.weight_g <= 0) throw new DataError("Each serving size must have a valid weight_g");
+		if (s.weight_g == null || isNaN(s.weight_g) || s.weight_g <= 0) {
+			throw new DataError("Each serving size must have a valid weight_g");
+		}
 	}
+
+	let grams;
+	try {
+		grams = toGrams(parseFloat(data.serving.quantity), data.serving.unit, data.serving_sizes);
+	} catch (err) {
+		throw new DataError(`Invalid serving unit: ${data.serving.unit}`);
+	}
+
+	if (grams <= 0) throw new DataError("Serving must resolve to > 0 grams");
+
+	//Normalize to per 100g so user passes in whatever
+	const multiplier = 100 / grams;
+
+	const normalizedNutrients = data.nutrients.map((n) => ({
+		nutrient_id: n.nutrient_id,
+		nutrient_name: n.nutrient_name.trim(),
+		unit: n.unit.trim(),
+		amount_per_100g: parseFloat((n.amount * multiplier).toFixed(4)),
+	}));
 
 	const result = await sequelize.transaction(async (t) => {
 		const newFood = await FoodModel.create(
@@ -169,11 +203,11 @@ async function CreateFood(data, user_id) {
 		);
 
 		await FoodNutrientModel.bulkCreate(
-			data.nutrients.map((n) => ({
+			normalizedNutrients.map((n) => ({
 				food_id: newFood.id,
 				nutrient_id: n.nutrient_id,
-				nutrient_name: n.nutrient_name.trim(),
-				unit: n.unit.trim(),
+				nutrient_name: n.nutrient_name,
+				unit: n.unit,
 				amount_per_100g: n.amount_per_100g,
 			})),
 			{ transaction: t, ignoreDuplicates: true },
@@ -193,11 +227,8 @@ async function CreateFood(data, user_id) {
 
 	return formatFood({
 		...result.toJSON(),
-		foodNutrients: [],
-		foodServingSizes: data.serving_sizes.map((s) => ({
-			label: s.label,
-			weight_g: s.weight_g,
-		})),
+		foodNutrients: normalizedNutrients,
+		foodServingSizes: data.serving_sizes,
 	});
 }
 

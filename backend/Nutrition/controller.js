@@ -22,9 +22,9 @@ function handleError(res, error) {
 
 // /foods?query=chicken
 async function searchFoods(req, res) {
-	const { query } = req.query;
+	const { q } = req.query;
 	try {
-		const foods = await service.SearchFoods(query);
+		const foods = await service.SearchFoods(q);
 		return res.status(200).json({ foods });
 	} catch (error) {
 		return handleError(res, error);
