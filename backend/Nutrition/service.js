@@ -108,25 +108,26 @@ async function SearchFoods(query) {
 }
 
 function formatFood(food) {
-	const macros = {};
-	for (const n of food.foodNutrients ?? []) {
-		macros[n.nutrient_name.toLowerCase()] = parseFloat(n.amount_per_100g);
-	}
+  const macros = {};
+  for (const n of food.foodNutrients ?? []) {
+    macros[n.nutrient_name.toLowerCase()] = parseFloat(n.amount_per_100g);
+  }
 
-	return {
-		id: food.id,
-		fdc_id: food.fdc_id,
-		name: food.name,
-		brand: food.brand,
-		barcode: food.barcode,
-		source: food.source,
-		// available units the user can log this food in
-		serving_sizes: (food.foodServingSizes ?? []).map((s) => ({
-			label: s.label,
-			weight_g: parseFloat(s.weight_g),
-		})),
-		macros_per_100g: macros,
-	};
+  return {
+    id: food.id,
+    name: food.name,
+    brand: food.brand,
+    serving_sizes: (food.foodServingSizes ?? []).map((s) => ({
+      label: s.label,
+      weight_g: parseFloat(s.weight_g),
+    })),
+    macros_per_100g: macros,
+    // Flattened for frontend preview math
+    calories_per_100g: macros["energy"] ?? 0,
+    protein_per_100g: macros["protein"] ?? 0,
+    carbs_per_100g: macros["carbohydrate, by difference"] ?? 0,
+    fat_per_100g: macros["total lipid (fat)"] ?? 0,
+  };
 }
 
 /**

@@ -47,13 +47,14 @@ interface MealSection {
 }
 
 interface FoodSearchResult {
-	id: string;
-	name: string;
-	brand?: string;
-	calories_per_100g: number;
-	protein_per_100g: number;
-	carbs_per_100g: number;
-	fat_per_100g: number;
+  id: string;
+  name: string;
+  brand?: string;
+  calories_per_100g: number;
+  protein_per_100g: number;
+  carbs_per_100g: number;
+  fat_per_100g: number;
+  serving_sizes: { label: string; weight_g: number }[];
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -117,7 +118,159 @@ function MacroBar({ label, current, goal, color, textColor }: { label: string; c
 	);
 }
 
-function AddFoodToDatabaseModal({
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const NUTRIENTS = [
+	{ nutrient_id: 1008, nutrient_name: "Energy", unit: "kcal", label: "Calories", color: null },
+	{ nutrient_id: 1003, nutrient_name: "Protein", unit: "g", label: "Protein", color: "#4ADE80" },
+	{ nutrient_id: 1005, nutrient_name: "Carbohydrate, by difference", unit: "g", label: "Carbs", color: "#38BDF8" },
+	{ nutrient_id: 1004, nutrient_name: "Total lipid (fat)", unit: "g", label: "Fat", color: "#FB923C" },
+];
+
+const SERVING_PRESETS = [
+	{ label: "g", autoGrams: true },
+	{ label: "oz", autoGrams: false },
+	{ label: "cup", autoGrams: false },
+	{ label: "tbsp", autoGrams: false },
+	{ label: "tsp", autoGrams: false },
+	{ label: "piece", autoGrams: false },
+	{ label: "slice", autoGrams: false },
+	{ label: "scoop", autoGrams: false },
+	{ label: "serving", autoGrams: false },
+	{ label: "handful", autoGrams: false },
+	{ label: "packet", autoGrams: false },
+];
+
+const MAX_SERVINGS = 5;
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface ServingRow {
+	id: number;
+	label: string;
+	quantity: string;
+	weight_g: string; // grams for this serving — ignored when label === "g"
+}
+
+interface NutrientRow {
+	nutrient_id: number;
+	nutrient_name: string;
+	unit: string;
+	label: string;
+	color: string | null;
+	amount: string;
+}
+
+// ─── Helper ───────────────────────────────────────────────────────────────────
+
+function resolveGrams(row: ServingRow): number {
+	if (row.label === "g") return parseFloat(row.quantity) || 0;
+	return parseFloat(row.weight_g) || 0;
+}
+
+// ─── Preset picker ────────────────────────────────────────────────────────────
+
+function PresetPicker({
+	value,
+	onSelect,
+	usedLabels,
+	theme,
+}: {
+	value: string;
+	onSelect: (label: string) => void;
+	usedLabels: string[];
+	theme: any;
+}) {
+	const [open, setOpen] = useState(false);
+
+	return (
+		<View>
+			<TouchableOpacity
+				onPress={() => setOpen(true)}
+				style={{
+					flexDirection: "row",
+					alignItems: "center",
+					justifyContent: "space-between",
+					backgroundColor: theme.cardBgAlt,
+					borderRadius: 10,
+					borderWidth: 1,
+					borderColor: theme.border,
+					paddingHorizontal: 12,
+					paddingVertical: 11,
+					gap: 6,
+					minWidth: 90,
+				}}
+			>
+				<Text style={{ fontSize: 14, fontWeight: "600", color: theme.text }}>{value}</Text>
+				<FontAwesome5 name="chevron-down" size={10} color={theme.textMuted} />
+			</TouchableOpacity>
+
+			<Modal visible={open} transparent animationType="fade">
+				<Pressable
+					style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", paddingHorizontal: 40 }}
+					onPress={() => setOpen(false)}
+				>
+					<Pressable onPress={(e) => e.stopPropagation()}>
+						<View
+							style={{
+								backgroundColor: theme.cardBg,
+								borderRadius: 16,
+								borderWidth: 1,
+								borderColor: theme.border,
+								overflow: "hidden",
+							}}
+						>
+							<View style={{ paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderColor: theme.border }}>
+								<Text style={{ fontSize: 13, fontWeight: "700", color: theme.textMuted, letterSpacing: 0.8, textTransform: "uppercase" }}>
+									Select unit
+								</Text>
+							</View>
+							{SERVING_PRESETS.map((p, i) => {
+								const isUsed = usedLabels.includes(p.label) && p.label !== value;
+								return (
+									<TouchableOpacity
+										key={p.label}
+										onPress={() => {
+											if (!isUsed) {
+												onSelect(p.label);
+												setOpen(false);
+											}
+										}}
+										style={{
+											flexDirection: "row",
+											alignItems: "center",
+											justifyContent: "space-between",
+											paddingHorizontal: 16,
+											paddingVertical: 13,
+											borderBottomWidth: i < SERVING_PRESETS.length - 1 ? 1 : 0,
+											borderColor: theme.border,
+											opacity: isUsed ? 0.35 : 1,
+										}}
+									>
+										<Text
+											style={{
+												fontSize: 15,
+												color: p.label === value ? theme.primary : theme.text,
+												fontWeight: p.label === value ? "700" : "400",
+											}}
+										>
+											{p.label}
+										</Text>
+										{p.label === value && <FontAwesome5 name="check" size={12} color={theme.primary} />}
+									</TouchableOpacity>
+								);
+							})}
+						</View>
+					</Pressable>
+				</Pressable>
+			</Modal>
+		</View>
+	);
+}
+
+// ─── Main modal ───────────────────────────────────────────────────────────────
+
+export function AddFoodToDatabaseModal({
 	visible,
 	prefillName = "",
 	onClose,
@@ -127,58 +280,123 @@ function AddFoodToDatabaseModal({
 	visible: boolean;
 	prefillName?: string;
 	onClose: () => void;
-	onSaved: (food: FoodSearchResult) => void;
+	onSaved: (food: any) => void;
 	theme: any;
 }) {
 	const [name, setName] = useState(prefillName);
 	const [brand, setBrand] = useState("");
-	const [calories, setCalories] = useState("");
-	const [protein, setProtein] = useState("");
-	const [carbs, setCarbs] = useState("");
-	const [fat, setFat] = useState("");
-	const [saving, setSaving] = useState(false);
+	const [referenceId, setReferenceId] = useState(1);
+	const [servings, setServings] = useState<ServingRow[]>([
+		{ id: 1, label: "g", quantity: "100", weight_g: "" },
+	]);
+	const [nextId, setNextId] = useState(2);
+	const [nutrients, setNutrients] = useState<NutrientRow[]>(
+		NUTRIENTS.map((n) => ({ ...n, amount: "" }))
+	);
 	const [errors, setErrors] = useState<Record<string, string>>({});
-	const [servingSize, setServingSize] = useState("100");
-	const [unit, setUnit] = useState("g");
+	const [saving, setSaving] = useState(false);
 
 	useEffect(() => {
-		if (visible) {
-			setName(prefillName);
-			setBrand("");
-			setCalories("");
-			setProtein("");
-			setCarbs("");
-			setFat("");
-			setErrors({});
-		}
+		if (!visible) return;
+		setName(prefillName);
+		setBrand("");
+		setReferenceId(1);
+		setServings([{ id: 1, label: "g", quantity: "100", weight_g: "" }]);
+		setNextId(2);
+		setNutrients(NUTRIENTS.map((n) => ({ ...n, amount: "" })));
+		setErrors({});
 	}, [visible, prefillName]);
 
-	function validate() {
+	function addServing() {
+		if (servings.length >= MAX_SERVINGS) return;
+		const usedLabels = servings.map((s) => s.label);
+		const next = SERVING_PRESETS.find((p) => !usedLabels.includes(p.label));
+		setServings((prev) => [
+			...prev,
+			{ id: nextId, label: next?.label ?? "cup", quantity: "1", weight_g: "" },
+		]);
+		setNextId((n) => n + 1);
+	}
+
+	function updateServing(id: number, field: keyof ServingRow, value: string) {
+		setServings((prev) =>
+			prev.map((s) => {
+				if (s.id !== id) return s;
+				const updated = { ...s, [field]: value };
+				if (field === "label" && value === "g") updated.weight_g = "";
+				return updated;
+			})
+		);
+	}
+
+	function removeServing(id: number) {
+		setServings((prev) => prev.filter((s) => s.id !== id));
+		if (referenceId === id) {
+			const remaining = servings.filter((s) => s.id !== id);
+			setReferenceId(remaining[0]?.id ?? -1);
+		}
+	}
+
+	function updateNutrient(nutrient_id: number, amount: string) {
+		setNutrients((prev) =>
+			prev.map((n) => (n.nutrient_id === nutrient_id ? { ...n, amount } : n))
+		);
+	}
+
+	const usedLabels = servings.map((s) => s.label);
+	const referenceRow = servings.find((s) => s.id === referenceId) ?? servings[0];
+
+	function validate(): Record<string, string> {
 		const e: Record<string, string> = {};
-		if (!name.trim()) e.name = "Name is required";
-		if (!calories.trim() || isNaN(Number(calories))) e.calories = "Enter a valid number";
+		if (!name.trim()) e.name = "Required";
+
+		const calRow = nutrients.find((n) => n.nutrient_id === 1008);
+		if (!calRow?.amount.trim() || isNaN(Number(calRow.amount))) e.calories = "Required";
+
+		servings.forEach((s) => {
+			const qty = parseFloat(s.quantity);
+			if (!s.quantity || isNaN(qty) || qty <= 0) e[`qty_${s.id}`] = "Required";
+			if (s.label !== "g") {
+				const w = parseFloat(s.weight_g);
+				if (!s.weight_g || isNaN(w) || w <= 0) e[`wt_${s.id}`] = "Enter gram weight";
+			}
+		});
+
 		return e;
 	}
 
 	async function handleSave() {
 		const e = validate();
-		if (Object.keys(e).length > 0) {
-			setErrors(e);
-			return;
-		}
+		if (Object.keys(e).length > 0) { setErrors(e); return; }
 		setSaving(true);
 		try {
-			const res = await instance.post("/nutrition/foods", {
+			const serving_sizes = servings.map((s) => ({
+				label: s.label,
+				weight_g: resolveGrams(s),
+			}));
+
+			const ref = referenceRow;
+			const serving = {
+				quantity: parseFloat(ref.quantity),
+				unit: ref.label,
+			};
+
+			const payload = {
 				name: name.trim(),
 				brand: brand.trim() || undefined,
-				calories_per_100g: Number(calories),
-				protein_per_100g: Number(protein) || 0,
-				carbs_per_100g: Number(carbs) || 0,
-				fat_per_100g: Number(fat) || 0,
+				nutrients: nutrients
+					.filter((n) => n.amount.trim() !== "" && !isNaN(Number(n.amount)))
+					.map((n) => ({
+						nutrient_id: n.nutrient_id,
+						nutrient_name: n.nutrient_name,
+						unit: n.unit,
+						amount: Number(n.amount),
+					})),
+				serving_sizes,
+				serving,
+			};
 
-				serving_size: Number(servingSize) || 100,
-				serving_unit: unit,
-			});
+			const res = await instance.post("/nutrition/foods", payload);
 			onSaved(res.data.food);
 		} catch (err) {
 			console.error("Add food error:", err);
@@ -187,22 +405,43 @@ function AddFoodToDatabaseModal({
 		}
 	}
 
-	const input = {
-		backgroundColor: theme.cardBgAlt,
-		borderRadius: 10,
-		borderWidth: 1,
-		borderColor: theme.border,
-		paddingHorizontal: 14,
-		paddingVertical: 11,
-		fontSize: 15,
-		color: theme.text,
+	const s = {
+		input: {
+			backgroundColor: theme.cardBgAlt,
+			borderRadius: 10,
+			borderWidth: 1,
+			borderColor: theme.border,
+			paddingHorizontal: 14,
+			paddingVertical: 11,
+			fontSize: 15,
+			color: theme.text,
+		} as const,
+		err: { borderColor: theme.error } as const,
+		label: {
+			fontSize: 11,
+			fontWeight: "700" as const,
+			color: theme.textMuted,
+			letterSpacing: 0.8,
+			textTransform: "uppercase" as const,
+			marginBottom: 6,
+		},
+		sectionTitle: {
+			fontSize: 14,
+			fontWeight: "700" as const,
+			color: theme.text,
+			marginBottom: 2,
+		},
+		errorText: { fontSize: 11, color: theme.error, marginTop: 3 },
+		divider: { height: 1, backgroundColor: theme.border, marginVertical: 16 },
 	};
-	const label = { fontSize: 11, fontWeight: "700" as const, color: theme.textMuted, letterSpacing: 0.8, textTransform: "uppercase" as const };
 
 	return (
 		<Modal visible={visible} transparent animationType="slide">
 			<KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-				<Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" }} onPress={onClose}>
+				<Pressable
+					style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" }}
+					onPress={onClose}
+				>
 					<Pressable onPress={(e) => e.stopPropagation()}>
 						<View
 							style={{
@@ -214,7 +453,20 @@ function AddFoodToDatabaseModal({
 								borderColor: theme.border,
 							}}
 						>
-							<View style={{ width: 36, height: 4, backgroundColor: theme.border, borderRadius: 2, alignSelf: "center", marginTop: 12, marginBottom: 8 }} />
+							{/* Handle */}
+							<View
+								style={{
+									width: 36,
+									height: 4,
+									backgroundColor: theme.border,
+									borderRadius: 2,
+									alignSelf: "center",
+									marginTop: 12,
+									marginBottom: 8,
+								}}
+							/>
+
+							{/* Header */}
 							<View
 								style={{
 									flexDirection: "row",
@@ -226,116 +478,271 @@ function AddFoodToDatabaseModal({
 									borderColor: theme.border,
 								}}
 							>
-								<TouchableOpacity onPress={onClose} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+								<TouchableOpacity
+									onPress={onClose}
+									style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+								>
 									<FontAwesome5 name="arrow-left" size={12} color={theme.primary} />
-									<Text style={{ fontSize: 13, color: theme.primary }}>Back to search</Text>
+									<Text style={{ fontSize: 13, color: theme.primary }}>Back</Text>
 								</TouchableOpacity>
 								<Text style={{ fontSize: 16, fontWeight: "700", color: theme.text }}>Add new food</Text>
-								<View style={{ width: 90 }} />
+								<View style={{ width: 60 }} />
 							</View>
 
-							<ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 12 }}>
+							<ScrollView
+								keyboardShouldPersistTaps="handled"
+								contentContainerStyle={{ padding: 16, gap: 12 }}
+								showsVerticalScrollIndicator={false}
+							>
+								{/* ── Basic info ───────────────────────────────── */}
+								<Text style={s.sectionTitle}>Basic info</Text>
+
 								<View style={{ gap: 4 }}>
-									<Text style={label}>Food name *</Text>
+									<Text style={s.label}>Food name *</Text>
 									<TextInput
-										style={[input, errors.name && { borderColor: theme.error }]}
+										style={[s.input, errors.name && s.err]}
 										value={name}
 										onChangeText={setName}
-										placeholder="e.g. Brown rice, cooked"
+										placeholder="e.g. Oat milk, Brown rice"
 										placeholderTextColor={theme.textTertiary}
 									/>
-									{errors.name && <Text style={{ fontSize: 11, color: theme.error }}>{errors.name}</Text>}
+									{errors.name && <Text style={s.errorText}>{errors.name}</Text>}
 								</View>
+
 								<View style={{ gap: 4 }}>
-									<Text style={label}>Brand (optional)</Text>
-									<TextInput style={input} value={brand} onChangeText={setBrand} placeholder="e.g. Tesco, Quaker" placeholderTextColor={theme.textTertiary} />
-								</View>
-								<View style={{ gap: 4 }}>
-									<Text style={label}>Calories per 100g *</Text>
+									<Text style={s.label}>Brand (optional)</Text>
 									<TextInput
-										style={[input, errors.calories && { borderColor: theme.error }]}
-										value={calories}
-										onChangeText={setCalories}
-										placeholder="e.g. 130"
+										style={s.input}
+										value={brand}
+										onChangeText={setBrand}
+										placeholder="e.g. Quaker, Oatly"
 										placeholderTextColor={theme.textTertiary}
-										keyboardType="numeric"
 									/>
-									{errors.calories && <Text style={{ fontSize: 11, color: theme.error }}>{errors.calories}</Text>}
 								</View>
-								<Text style={label}>Macros per 100g</Text>
-								<View style={{ flexDirection: "row", gap: 10 }}>
-									{[
-										["Protein (g)", "#4ADE80", protein, setProtein],
-										["Carbs (g)", "#38BDF8", carbs, setCarbs],
-										["Fat (g)", "#FB923C", fat, setFat],
-									].map(([l, c, v, fn]) => (
-										<View key={l as string} style={{ flex: 1, gap: 4 }}>
-											<Text style={[label, { color: c as string }]}>{l as string}</Text>
+
+								<View style={s.divider} />
+
+								{/* ── Serving sizes ────────────────────────────── */}
+								<View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
+									<View>
+										<Text style={s.sectionTitle}>Serving sizes</Text>
+										<Text style={{ fontSize: 12, color: theme.textMuted, marginBottom: 10 }}>
+											Pick which serving your nutrition label uses, then add others.
+										</Text>
+									</View>
+									{servings.length < MAX_SERVINGS && (
+										<TouchableOpacity
+											onPress={addServing}
+											style={{
+												flexDirection: "row",
+												alignItems: "center",
+												gap: 5,
+												paddingHorizontal: 10,
+												paddingVertical: 6,
+												borderRadius: 8,
+												borderWidth: 1,
+												borderColor: theme.primary,
+											}}
+										>
+											<FontAwesome5 name="plus" size={10} color={theme.primary} />
+											<Text style={{ fontSize: 12, color: theme.primary, fontWeight: "600" }}>Add</Text>
+										</TouchableOpacity>
+									)}
+								</View>
+
+								{servings.map((row) => {
+									const isGrams = row.label === "g";
+									const isRef = row.id === referenceId;
+									const hasQtyErr = !!errors[`qty_${row.id}`];
+									const hasWtErr = !!errors[`wt_${row.id}`];
+
+									return (
+										<View
+											key={row.id}
+											style={{
+												borderRadius: 12,
+												borderWidth: 1.5,
+												borderColor: isRef ? theme.primary : theme.border,
+												backgroundColor: isRef ? theme.primary + "08" : theme.cardBgAlt,
+												padding: 12,
+												gap: 10,
+											}}
+										>
+											{/* Radio + remove */}
+											<View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+												<TouchableOpacity
+													onPress={() => setReferenceId(row.id)}
+													style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+												>
+													<View
+														style={{
+															width: 18,
+															height: 18,
+															borderRadius: 9,
+															borderWidth: 2,
+															borderColor: isRef ? theme.primary : theme.border,
+															alignItems: "center",
+															justifyContent: "center",
+														}}
+													>
+														{isRef && (
+															<View
+																style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: theme.primary }}
+															/>
+														)}
+													</View>
+													<Text
+														style={{
+															fontSize: 12,
+															fontWeight: "600",
+															color: isRef ? theme.primary : theme.textMuted,
+														}}
+													>
+														{isRef ? "Macros entered for this serving" : "Set as macro reference"}
+													</Text>
+												</TouchableOpacity>
+
+												{servings.length > 1 && (
+													<TouchableOpacity
+														onPress={() => removeServing(row.id)}
+														hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+													>
+														<FontAwesome5 name="times" size={12} color={theme.textMuted} />
+													</TouchableOpacity>
+												)}
+											</View>
+
+											{/* Inputs */}
+											<View style={{ flexDirection: "row", gap: 8, alignItems: "flex-start" }}>
+												<View style={{ gap: 4 }}>
+													<Text style={s.label}>Unit</Text>
+													<PresetPicker
+														value={row.label}
+														onSelect={(label) => updateServing(row.id, "label", label)}
+														usedLabels={usedLabels}
+														theme={theme}
+													/>
+												</View>
+
+												<View style={{ width: 72, gap: 4 }}>
+													<Text style={s.label}>Qty</Text>
+													<TextInput
+														style={[s.input, hasQtyErr && s.err]}
+														value={row.quantity}
+														onChangeText={(v) => updateServing(row.id, "quantity", v)}
+														keyboardType="numeric"
+														placeholder="1"
+														placeholderTextColor={theme.textTertiary}
+													/>
+													{hasQtyErr && <Text style={s.errorText}>{errors[`qty_${row.id}`]}</Text>}
+												</View>
+
+												{!isGrams && (
+													<View style={{ flex: 1, gap: 4 }}>
+														<Text style={s.label}>= grams</Text>
+														<TextInput
+															style={[s.input, hasWtErr && s.err]}
+															value={row.weight_g}
+															onChangeText={(v) => updateServing(row.id, "weight_g", v)}
+															keyboardType="numeric"
+															placeholder="e.g. 240"
+															placeholderTextColor={theme.textTertiary}
+														/>
+														{hasWtErr && <Text style={s.errorText}>{errors[`wt_${row.id}`]}</Text>}
+													</View>
+												)}
+											</View>
+
+											{/* Summary line */}
+											<Text style={{ fontSize: 12, color: isRef ? theme.primary : theme.textMuted }}>
+												{isGrams
+													? `${row.quantity || "?"} g`
+													: `${row.quantity || "?"} ${row.label}${row.weight_g ? ` = ${row.weight_g} g` : ""}`}
+											</Text>
+										</View>
+									);
+								})}
+
+								<View style={s.divider} />
+
+								{/* ── Macros ───────────────────────────────────── */}
+								<View style={{ marginBottom: 4 }}>
+									<Text style={s.sectionTitle}>
+										Macros for{" "}
+										<Text style={{ color: theme.primary }}>
+											{referenceRow
+												? referenceRow.label === "g"
+													? `${referenceRow.quantity || "?"} g`
+													: `${referenceRow.quantity || "?"} ${referenceRow.label}${referenceRow.weight_g ? ` (${referenceRow.weight_g} g)` : ""}`
+												: "selected serving"}
+										</Text>
+									</Text>
+									<Text style={{ fontSize: 12, color: theme.textMuted, marginTop: 2 }}>
+										Copy the values from the nutrition label for that serving.
+									</Text>
+								</View>
+
+								{/* Calories */}
+								{nutrients
+									.filter((n) => n.nutrient_id === 1008)
+									.map((n) => (
+										<View key={n.nutrient_id} style={{ gap: 4 }}>
+											<Text style={s.label}>Calories (kcal) *</Text>
 											<TextInput
-												style={input}
-												value={v as string}
-												onChangeText={fn as any}
-												placeholder="0"
+												style={[s.input, errors.calories && s.err]}
+												value={n.amount}
+												onChangeText={(v) => updateNutrient(n.nutrient_id, v)}
+												placeholder="e.g. 150"
 												placeholderTextColor={theme.textTertiary}
 												keyboardType="numeric"
 											/>
+											{errors.calories && <Text style={s.errorText}>{errors.calories}</Text>}
 										</View>
 									))}
-								</View>
-								<View style={{ gap: 4 }}>
-									<Text style={label}>Serving size</Text>
 
-									<View style={{ flexDirection: "row", gap: 8 }}>
-										<TextInput
-											style={[input, { flex: 1 }]}
-											value={servingSize}
-											onChangeText={setServingSize}
-											placeholder="e.g. 100"
-											keyboardType="numeric"
-											placeholderTextColor={theme.textTertiary}
-										/>
-
-										<ScrollView horizontal showsHorizontalScrollIndicator={false}>
-											{["g", "ml", "oz", "cup", "tbsp", "tsp"].map((u) => (
-												<TouchableOpacity
-													key={u}
-													onPress={() => setUnit(u)}
-													style={{
-														paddingHorizontal: 12,
-														height: 44,
-														justifyContent: "center",
-														borderRadius: 8,
-														borderWidth: 1,
-														borderColor: unit === u ? theme.primary : theme.border,
-														backgroundColor: unit === u ? theme.primary : "transparent",
-														marginRight: 6,
-													}}
-												>
-													<Text
-														style={{
-															color: unit === u ? theme.textInverse : theme.textMuted,
-															fontWeight: "600",
-														}}
-													>
-														{u}
-													</Text>
-												</TouchableOpacity>
-											))}
-										</ScrollView>
-									</View>
+								{/* Protein / Carbs / Fat */}
+								<View style={{ flexDirection: "row", gap: 10 }}>
+									{nutrients
+										.filter((n) => n.nutrient_id !== 1008)
+										.map((n) => (
+											<View key={n.nutrient_id} style={{ flex: 1, gap: 4 }}>
+												<Text style={[s.label, { color: n.color ?? theme.textMuted }]}>
+													{n.label} (g)
+												</Text>
+												<TextInput
+													style={s.input}
+													value={n.amount}
+													onChangeText={(v) => updateNutrient(n.nutrient_id, v)}
+													placeholder="0"
+													placeholderTextColor={theme.textTertiary}
+													keyboardType="numeric"
+												/>
+											</View>
+										))}
 								</View>
-								<Text style={{ fontSize: 11, color: theme.textTertiary }}>All values are per 100g.</Text>
+
+								<View style={{ height: 24 }} />
 							</ScrollView>
 
+							{/* Save */}
 							<TouchableOpacity
 								onPress={handleSave}
 								disabled={saving}
-								style={{ marginHorizontal: 16, marginBottom: 16, backgroundColor: theme.primary, borderRadius: 12, paddingVertical: 14, alignItems: "center" }}
+								style={{
+									marginHorizontal: 16,
+									marginBottom: 16,
+									backgroundColor: theme.primary,
+									borderRadius: 12,
+									paddingVertical: 14,
+									alignItems: "center",
+								}}
 							>
 								{saving ? (
 									<ActivityIndicator color={theme.textInverse} />
 								) : (
-									<Text style={{ fontSize: 15, fontWeight: "700", color: theme.textInverse }}>Save to database</Text>
+									<Text style={{ fontSize: 15, fontWeight: "700", color: theme.textInverse }}>
+										Save to database
+									</Text>
 								)}
 							</TouchableOpacity>
 						</View>
