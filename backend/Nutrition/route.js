@@ -35,13 +35,7 @@ router.get("/recipes", verifyToken, controller.getRecipes);
 router.get("/recipes/:id", verifyToken, controller.getRecipe);
 
 router.post("/recipes", verifyToken, controller.createRecipe);
-router.put("/recipes/:id", verifyToken, controller.updateRecipe);
+router.put("/recipes/:id", verifyToken, controller.editRecipe);
 router.delete("/recipes/:id", verifyToken, controller.deleteRecipe);
-
-//REMOVE THESE:
-
-//recipe ingrediant specific
-router.post("/recipes/:id/ingredients", verifyToken, controller.addRecipeIngredient);
-router.delete("/recipes/:id/ingredients/:ingredient_id", verifyToken, controller.removeRecipeIngredient);
 
 module.exports = router;
