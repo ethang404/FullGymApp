@@ -11,12 +11,14 @@ import {
 	KeyboardAvoidingView,
 	Platform,
 	Pressable,
+	Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useMemo, useEffect, useState, useRef } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
+import { CameraView, useCameraPermissions } from "expo-camera";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -125,11 +127,6 @@ function todayISO() {
 	return new Date().toISOString().split("T")[0];
 }
 
-/**
- * Diary entries from the backend return nutrients two ways:
- *  - Food:   { [nutrient_id: number]: amount_string }  e.g. { 1008: "320.0000", 1003: "28.0000" }
- *  - Recipe: { calories, protein, carbs, fat }         (named keys from scaleMacros)
- */
 function extractMacros(nutrients: Record<number, string> | Nutrients | null): Nutrients {
 	if (!nutrients) return { calories: 0, protein: 0, carbs: 0, fat: 0 };
 	if ("calories" in nutrients) return nutrients as Nutrients;
@@ -359,17 +356,13 @@ export function AddFoodToDatabaseModal({
 		setSaving(true);
 		try {
 			const serving_sizes = servings.map((s) => ({ label: s.label, weight_g: resolveGrams(s) }));
-
-			// Build nutrients array — only include keys that have values
-			// Backend CreateFood expects: { nutrient_id, nutrient_name (display key), unit, nutrient_amount }
-			// and checks: NUTRIENT_MAP[n.nutrient_name] — so nutrient_name must be the map key (e.g. "calories")
 			const nutrients = Object.entries(nutrientValues)
 				.filter(([, val]) => val.trim() !== "" && !isNaN(Number(val)))
 				.map(([key]) => {
 					const meta = NUTRIENT_MAP[key];
 					return {
 						nutrient_id: meta.nutrient_id,
-						nutrient_name: key, // backend: NUTRIENT_MAP[n.nutrient_name]
+						nutrient_name: key,
 						unit: meta.unit,
 						nutrient_amount: Number(nutrientValues[key]),
 					};
@@ -608,7 +601,6 @@ export function AddFoodToDatabaseModal({
 									const filledCount = section.keys.filter((k) => nutrientValues[k]?.trim()).length;
 									return (
 										<View key={section.title} style={{ borderRadius: 12, borderWidth: 1, borderColor: theme.border, overflow: "hidden", marginBottom: 2 }}>
-											{/* Collapsible header */}
 											<TouchableOpacity
 												onPress={() => toggleSection(section.title)}
 												style={{
@@ -640,10 +632,8 @@ export function AddFoodToDatabaseModal({
 
 											{isExpanded && (
 												<View style={{ padding: 14, gap: 10 }}>
-													{/* Calories always full-width */}
 													{section.keys.includes("calories") &&
 														(() => {
-															const meta = NUTRIENT_MAP["calories"];
 															return (
 																<View style={{ gap: 4 }}>
 																	<Text style={lbl}>Calories (kcal) *</Text>
@@ -660,7 +650,6 @@ export function AddFoodToDatabaseModal({
 															);
 														})()}
 
-													{/* Remaining keys in 2-column grid */}
 													{(() => {
 														const others = section.keys.filter((k) => k !== "calories");
 														const rows: string[][] = [];
@@ -713,6 +702,151 @@ export function AddFoodToDatabaseModal({
 					</Pressable>
 				</Pressable>
 			</KeyboardAvoidingView>
+		</Modal>
+	);
+}
+
+// ─── BarcodeScannerModal ──────────────────────────────────────────────────────
+
+function BarcodeScannerModal({
+	visible,
+	onClose,
+	onScanned,
+	theme,
+}: {
+	visible: boolean;
+	onClose: () => void;
+	onScanned: (barcode: string) => void;
+	theme: any;
+}) {
+	const [permission, requestPermission] = useCameraPermissions();
+	const scannedRef = useRef(false);
+
+	// Reset the scanned guard each time the modal opens
+	useEffect(() => {
+		if (visible) scannedRef.current = false;
+	}, [visible]);
+
+	async function ensurePermission() {
+		if (!permission?.granted) {
+			const result = await requestPermission();
+			if (!result.granted) {
+				Alert.alert("Camera access required", "Please allow camera access in Settings to scan barcodes.");
+			}
+		}
+	}
+
+	useEffect(() => {
+		if (visible) ensurePermission();
+	}, [visible]);
+
+	function handleBarcodeScanned({ data }: { data: string }) {
+		if (scannedRef.current) return;
+		scannedRef.current = true;
+		onScanned(data);
+	}
+
+	if (!visible) return null;
+
+	return (
+		<Modal visible={visible} animationType="slide" statusBarTranslucent>
+			<View style={{ flex: 1, backgroundColor: "#000" }}>
+				{permission?.granted ? (
+					<CameraView
+						style={{ flex: 1 }}
+						facing="back"
+						barcodeScannerSettings={{ barcodeTypes: ["ean13", "ean8", "upc_a", "upc_e", "code128", "code39", "qr"] }}
+						onBarcodeScanned={handleBarcodeScanned}
+					>
+						{/* Dark overlay with cutout hint */}
+						<View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+							{/* Top overlay */}
+							<View style={{ position: "absolute", top: 0, left: 0, right: 0, height: "30%", backgroundColor: "rgba(0,0,0,0.55)" }} />
+							{/* Bottom overlay */}
+							<View style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: "35%", backgroundColor: "rgba(0,0,0,0.55)" }} />
+							{/* Left overlay */}
+							<View style={{ position: "absolute", top: "30%", bottom: "35%", left: 0, width: "8%", backgroundColor: "rgba(0,0,0,0.55)" }} />
+							{/* Right overlay */}
+							<View style={{ position: "absolute", top: "30%", bottom: "35%", right: 0, width: "8%", backgroundColor: "rgba(0,0,0,0.55)" }} />
+
+							{/* Scan frame */}
+							<View
+								style={{
+									width: "84%",
+									aspectRatio: 2.2,
+									borderRadius: 12,
+									borderWidth: 2,
+									borderColor: theme.primary,
+									shadowColor: theme.primary,
+									shadowOpacity: 0.6,
+									shadowRadius: 8,
+								}}
+							>
+								{/* Corner accents */}
+								{[
+									{ top: -2, left: -2, borderTopWidth: 3, borderLeftWidth: 3, borderTopLeftRadius: 12 },
+									{ top: -2, right: -2, borderTopWidth: 3, borderRightWidth: 3, borderTopRightRadius: 12 },
+									{ bottom: -2, left: -2, borderBottomWidth: 3, borderLeftWidth: 3, borderBottomLeftRadius: 12 },
+									{ bottom: -2, right: -2, borderBottomWidth: 3, borderRightWidth: 3, borderBottomRightRadius: 12 },
+								].map((s, i) => (
+									<View key={i} style={[{ position: "absolute", width: 24, height: 24, borderColor: theme.primary }, s]} />
+								))}
+							</View>
+
+							{/* Hint text below frame */}
+							<View style={{ position: "absolute", bottom: "28%", alignItems: "center", gap: 6 }}>
+								<FontAwesome5 name="barcode" size={18} color="rgba(255,255,255,0.6)" />
+								<Text style={{ color: "rgba(255,255,255,0.7)", fontSize: 14, fontWeight: "600" }}>Align barcode within the frame</Text>
+							</View>
+						</View>
+					</CameraView>
+				) : (
+					<View style={{ flex: 1, justifyContent: "center", alignItems: "center", gap: 16, paddingHorizontal: 32 }}>
+						<FontAwesome5 name="camera" size={40} color="rgba(255,255,255,0.4)" />
+						<Text style={{ color: "#fff", fontSize: 16, fontWeight: "700", textAlign: "center" }}>Camera permission required</Text>
+						<Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 14, textAlign: "center" }}>Allow camera access to scan barcodes.</Text>
+						<TouchableOpacity
+							onPress={requestPermission}
+							style={{ backgroundColor: theme.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 }}
+						>
+							<Text style={{ color: "#fff", fontWeight: "700" }}>Grant Permission</Text>
+						</TouchableOpacity>
+					</View>
+				)}
+
+				{/* Close button */}
+				<TouchableOpacity
+					onPress={onClose}
+					style={{
+						position: "absolute",
+						top: Platform.OS === "ios" ? 56 : 24,
+						right: 20,
+						width: 40,
+						height: 40,
+						borderRadius: 20,
+						backgroundColor: "rgba(0,0,0,0.6)",
+						alignItems: "center",
+						justifyContent: "center",
+						borderWidth: 1,
+						borderColor: "rgba(255,255,255,0.2)",
+					}}
+				>
+					<FontAwesome5 name="times" size={14} color="#fff" />
+				</TouchableOpacity>
+
+				{/* Title bar */}
+				<View
+					style={{
+						position: "absolute",
+						top: Platform.OS === "ios" ? 56 : 24,
+						left: 20,
+						right: 80,
+					}}
+				>
+					<Text style={{ color: "#fff", fontSize: 17, fontWeight: "800" }}>Scan Barcode</Text>
+					<Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, marginTop: 2 }}>Food will be looked up automatically</Text>
+				</View>
+			</View>
 		</Modal>
 	);
 }
@@ -1049,12 +1183,14 @@ function FoodCard({ food, selected, onPress, theme }: { food: FoodSearchResult; 
 function LogFoodModal({
 	visible,
 	defaultMealType = "breakfast",
+	logDate,
 	onClose,
 	onLogged,
 	theme,
 }: {
 	visible: boolean;
 	defaultMealType?: string;
+	logDate: string;
 	onClose: () => void;
 	onLogged: () => void;
 	theme: any;
@@ -1069,6 +1205,9 @@ function LogFoodModal({
 	const [mealType, setMealType] = useState(defaultMealType);
 	const [logging, setLogging] = useState(false);
 	const [addFoodVisible, setAddFoodVisible] = useState(false);
+	const [scannerVisible, setScannerVisible] = useState(false);
+	const [barcodeSearching, setBarcodeSearching] = useState(false);
+	const [barcodeNotFound, setBarcodeNotFound] = useState<string | null>(null);
 	const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	useEffect(() => {
@@ -1080,6 +1219,7 @@ function LogFoodModal({
 			setQuantity("100");
 			setSelectedUnit("g");
 			setTab("recent");
+			setBarcodeNotFound(null);
 		}
 	}, [visible, defaultMealType]);
 
@@ -1096,7 +1236,7 @@ function LogFoodModal({
 		}
 	}, [selectedFood]);
 
-	// Debounced search — backend param is `query`
+	// Debounced search
 	useEffect(() => {
 		if (searchTimer.current) clearTimeout(searchTimer.current);
 		if (!query.trim()) {
@@ -1104,7 +1244,7 @@ function LogFoodModal({
 			return;
 		}
 		searchTimer.current = setTimeout(async () => {
-			if (!query.trim()) return; // ← belt-and-suspenders guard inside the timer
+			if (!query.trim()) return;
 			setSearching(true);
 			try {
 				const res = await instance.get(`/nutrition/foods?q=${encodeURIComponent(query.trim())}`);
@@ -1120,6 +1260,30 @@ function LogFoodModal({
 		};
 	}, [query]);
 
+	// ── Barcode scan handler ──────────────────────────────────────────────────
+	async function handleBarcodeScanned(barcode: string) {
+		setScannerVisible(false);
+		setBarcodeNotFound(null);
+		setBarcodeSearching(true);
+		setQuery(barcode);
+
+		try {
+			const res = await instance.get(`/nutrition/foods?q=${encodeURIComponent(barcode)}`);
+			const foods: FoodSearchResult[] = res.data.foods ?? [];
+			if (foods.length > 0) {
+				setResults(foods);
+				setSelectedFood(foods[0]); // auto-select first match
+			} else {
+				setResults([]);
+				setBarcodeNotFound(barcode);
+			}
+		} catch (err) {
+			console.error("Barcode lookup error:", err);
+		} finally {
+			setBarcodeSearching(false);
+		}
+	}
+
 	async function handleLog() {
 		if (!selectedFood) return;
 		setLogging(true);
@@ -1127,7 +1291,7 @@ function LogFoodModal({
 			await instance.post("/nutrition/diary", {
 				food_id: selectedFood.id,
 				meal_type: mealType,
-				logged_at: todayISO(), // required by backend
+				logged_at: logDate,
 				quantity: Number(quantity) || 100,
 				unit: selectedUnit,
 			});
@@ -1145,7 +1309,6 @@ function LogFoodModal({
 	const carb100 = selectedFood ? getPer100g(selectedFood, 1005) : 0;
 	const fat100 = selectedFood ? getPer100g(selectedFood, 1004) : 0;
 
-	// Convert qty in selectedUnit → grams for nutrient preview
 	const gramsForQty = (() => {
 		if (!selectedFood || selectedUnit === "g") return qty;
 		const ss = selectedFood.foodServingSizes?.find((s) => s.label === selectedUnit);
@@ -1157,7 +1320,7 @@ function LogFoodModal({
 	const previewCarbs = Math.round((carb100 * gramsForQty) / 100);
 	const previewFat = Math.round((fat100 * gramsForQty) / 100);
 
-	const showNoResults = query.trim().length > 0 && !searching && results.length === 0;
+	const showNoResults = query.trim().length > 0 && !searching && !barcodeSearching && results.length === 0;
 	const availableUnits = selectedFood?.foodServingSizes?.map((s) => s.label) ?? ["g"];
 	const listData = query.trim() ? results : [];
 
@@ -1193,11 +1356,16 @@ function LogFoodModal({
 								>
 									<Text style={{ fontSize: 18, fontWeight: "800", color: theme.text }}>Log Food</Text>
 									<View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-										{/* Barcode scanner button (wire up scanner library as needed) */}
+										{/* Barcode scanner button */}
 										<TouchableOpacity
+											onPress={() => setScannerVisible(true)}
 											style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: theme.primary, alignItems: "center", justifyContent: "center" }}
 										>
-											<FontAwesome5 name="barcode" size={15} color={theme.textInverse} />
+											{barcodeSearching ? (
+												<ActivityIndicator size="small" color={theme.textInverse} />
+											) : (
+												<FontAwesome5 name="barcode" size={15} color={theme.textInverse} />
+											)}
 										</TouchableOpacity>
 										<TouchableOpacity
 											onPress={onClose}
@@ -1256,19 +1424,21 @@ function LogFoodModal({
 										value={query}
 										onChangeText={(t) => {
 											setQuery(t);
+											setBarcodeNotFound(null);
 											if (selectedFood) setSelectedFood(null);
 										}}
 										placeholder="Search foods, brands, or recipes…"
 										placeholderTextColor={theme.textTertiary}
 										autoFocus
 									/>
-									{searching && <ActivityIndicator size="small" color={theme.primary} />}
-									{query.length > 0 && !searching && (
+									{(searching || barcodeSearching) && <ActivityIndicator size="small" color={theme.primary} />}
+									{query.length > 0 && !searching && !barcodeSearching && (
 										<TouchableOpacity
 											onPress={() => {
 												setQuery("");
 												setResults([]);
 												setSelectedFood(null);
+												setBarcodeNotFound(null);
 											}}
 										>
 											<FontAwesome5 name="times-circle" size={14} color={theme.textMuted} />
@@ -1276,9 +1446,9 @@ function LogFoodModal({
 									)}
 								</View>
 
-								{/* Recent / Frequent tabs — shown when not searching */}
+								{/* Recent / Frequent tabs */}
 								{!query.trim() && (
-									<View style={{ flexDirection: "row", paddingHorizontal: 16, borderBottomWidth: 1, borderColor: theme.border, marginBottom: 0 }}>
+									<View style={{ flexDirection: "row", paddingHorizontal: 16, borderBottomWidth: 1, borderColor: theme.border }}>
 										{(["recent", "frequent"] as const).map((t) => (
 											<TouchableOpacity
 												key={t}
@@ -1308,7 +1478,6 @@ function LogFoodModal({
 								)}
 
 								<ScrollView keyboardShouldPersistTaps="handled" style={{ flex: 1 }}>
-									{/* Results */}
 									{listData.map((food) => (
 										<FoodCard
 											key={food.id}
@@ -1319,8 +1488,36 @@ function LogFoodModal({
 										/>
 									))}
 
-									{/* No search results */}
-									{showNoResults && (
+									{/* Barcode not found banner */}
+									{barcodeNotFound && !barcodeSearching && (
+										<View style={{ paddingHorizontal: 16, paddingVertical: 28, alignItems: "center", gap: 12 }}>
+											<FontAwesome5 name="barcode" size={28} color={theme.textTertiary} />
+											<Text style={{ fontSize: 15, color: theme.textMuted, fontWeight: "600", textAlign: "center" }}>No food found for barcode</Text>
+											<Text style={{ fontSize: 12, color: theme.textTertiary }}>{barcodeNotFound}</Text>
+											<TouchableOpacity
+												onPress={() => {
+													setBarcodeNotFound(null);
+													setAddFoodVisible(true);
+												}}
+												style={{
+													flexDirection: "row",
+													alignItems: "center",
+													gap: 8,
+													borderWidth: 1.5,
+													borderColor: theme.primary,
+													borderRadius: 12,
+													paddingHorizontal: 18,
+													paddingVertical: 11,
+												}}
+											>
+												<FontAwesome5 name="plus" size={12} color={theme.primary} />
+												<Text style={{ fontSize: 14, fontWeight: "700", color: theme.primary }}>Create Custom Food</Text>
+											</TouchableOpacity>
+										</View>
+									)}
+
+									{/* No text-search results */}
+									{showNoResults && !barcodeNotFound && (
 										<View style={{ paddingHorizontal: 16, paddingVertical: 28, alignItems: "center", gap: 12 }}>
 											<FontAwesome5 name="search" size={28} color={theme.textTertiary} />
 											<Text style={{ fontSize: 15, color: theme.textMuted, fontWeight: "600" }}>No results for "{query}"</Text>
@@ -1343,7 +1540,7 @@ function LogFoodModal({
 										</View>
 									)}
 
-									{/* Empty state (no query, no recent) */}
+									{/* Empty state */}
 									{!query.trim() && listData.length === 0 && (
 										<View style={{ paddingHorizontal: 16, paddingTop: 28, paddingBottom: 16, alignItems: "center", gap: 12 }}>
 											<FontAwesome5 name="utensils" size={28} color={theme.textTertiary} />
@@ -1355,7 +1552,6 @@ function LogFoodModal({
 										</View>
 									)}
 
-									{/* "Can't find your food?" footer when there ARE results */}
 									{listData.length > 0 && (
 										<View style={{ paddingVertical: 24, alignItems: "center", gap: 6 }}>
 											<Text style={{ fontSize: 12, color: theme.textMuted }}>Can't find your food?</Text>
@@ -1366,7 +1562,7 @@ function LogFoodModal({
 									)}
 								</ScrollView>
 
-								{/* Selected food panel: quantity + unit + preview */}
+								{/* Selected food panel */}
 								{selectedFood && (
 									<View
 										style={{
@@ -1383,8 +1579,6 @@ function LogFoodModal({
 										<Text style={{ fontSize: 15, fontWeight: "700", color: theme.text }} numberOfLines={1}>
 											{selectedFood.name}
 										</Text>
-
-										{/* Quantity stepper + unit pills */}
 										<View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
 											<TouchableOpacity
 												onPress={() => setQuantity((q) => String(Math.max(1, (Number(q) || 1) - 1)))}
@@ -1433,7 +1627,6 @@ function LogFoodModal({
 											>
 												<Text style={{ fontSize: 18, color: theme.text, lineHeight: 20 }}>+</Text>
 											</TouchableOpacity>
-											{/* Unit pills */}
 											<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingHorizontal: 2 }}>
 												{availableUnits.map((u) => (
 													<TouchableOpacity
@@ -1454,8 +1647,6 @@ function LogFoodModal({
 												))}
 											</ScrollView>
 										</View>
-
-										{/* Macro preview tiles */}
 										<View style={{ flexDirection: "row", gap: 8 }}>
 											{(
 												[
@@ -1513,6 +1704,9 @@ function LogFoodModal({
 				</KeyboardAvoidingView>
 			</Modal>
 
+			{/* Barcode Scanner */}
+			<BarcodeScannerModal visible={scannerVisible} onClose={() => setScannerVisible(false)} onScanned={handleBarcodeScanned} theme={theme} />
+
 			<AddFoodToDatabaseModal
 				visible={addFoodVisible}
 				prefillName={query}
@@ -1529,6 +1723,45 @@ function LogFoodModal({
 	);
 }
 
+// ─── DateNavBar ───────────────────────────────────────────────────────────────
+
+function DateNavBar({ date, onChange, theme }: { date: string; onChange: (d: string) => void; theme: any }) {
+	const isToday = date === todayISO();
+
+	function shift(days: number) {
+		const d = new Date(date);
+		d.setDate(d.getDate() + days);
+		onChange(d.toISOString().split("T")[0]);
+	}
+
+	const label = isToday
+		? "Today"
+		: new Date(date + "T00:00:00").toLocaleDateString(undefined, {
+				weekday: "short",
+				month: "short",
+				day: "numeric",
+			});
+
+	return (
+		<View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 10 }}>
+			{/* Go back — always enabled */}
+			<TouchableOpacity onPress={() => shift(-1)}>
+				<FontAwesome5 name="chevron-left" size={14} color={theme.primary} />
+			</TouchableOpacity>
+
+			<TouchableOpacity onPress={() => onChange(todayISO())}>
+				<Text style={{ fontSize: 15, fontWeight: "700", color: theme.text }}>{label}</Text>
+				{!isToday && <Text style={{ fontSize: 11, color: theme.primary, textAlign: "center" }}>Tap to return to today</Text>}
+			</TouchableOpacity>
+
+			{/* Go forward — always enabled */}
+			<TouchableOpacity onPress={() => shift(1)}>
+				<FontAwesome5 name="chevron-right" size={14} color={theme.primary} />
+			</TouchableOpacity>
+		</View>
+	);
+}
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function Nutrition() {
@@ -1539,13 +1772,13 @@ export default function Nutrition() {
 	const [logModalVisible, setLogModalVisible] = useState(false);
 	const [activeMealType, setActiveMealType] = useState("breakfast");
 	const [editEntry, setEditEntry] = useState<DiaryEntry | null>(null);
+	const [selectedDate, setSelectedDate] = useState(todayISO());
 
 	const goals = { calories: 2500, protein: 180, carbs: 250, fat: 75 };
 
 	async function fetchEntries() {
 		try {
-			const today = todayISO();
-			const res = await instance.get(`/nutrition/diary?start_date=${today}&end_date=${today}`);
+			const res = await instance.get(`/nutrition/diary?start_date=${selectedDate}&end_date=${selectedDate}`);
 			setEntries(res.data.diary_entries ?? []);
 		} catch (e) {
 			console.error("Nutrition fetch error:", e);
@@ -1557,7 +1790,7 @@ export default function Nutrition() {
 
 	useEffect(() => {
 		fetchEntries();
-	}, []);
+	}, [selectedDate]);
 
 	const sections = useMemo(() => groupByMeal(entries), [entries]);
 	const dayTotals = useMemo(() => sumNutrients(entries), [entries]);
@@ -1681,6 +1914,9 @@ export default function Nutrition() {
 								<Text style={styles.addBtnText}>Find Food</Text>
 							</TouchableOpacity>
 						</View>
+
+						<DateNavBar date={selectedDate} onChange={setSelectedDate} theme={theme} />
+
 						<View style={styles.heroCard}>
 							<View style={styles.heroTop}>
 								<View>
@@ -1707,9 +1943,19 @@ export default function Nutrition() {
 							<View>
 								<Text style={styles.sectionTitle}>{section.title}</Text>
 								<Text style={styles.sectionMeta}>
-									{section.totals.calories > 0
-										? `${Math.round(section.totals.calories)} kcal · P: ${Math.round(section.totals.protein)}g · C: ${Math.round(section.totals.carbs)}g · F: ${Math.round(section.totals.fat)}g`
-										: "No entries yet"}
+									{section.totals.calories > 0 ? (
+										<>
+											<Text style={{ color: theme.text }}>{Math.round(section.totals.calories)} kcal</Text>
+											<Text style={{ color: theme.textSecondary }}> · </Text>
+											<Text style={{ color: "#4ADE80" }}>P: {Math.round(section.totals.protein)}g</Text>
+											<Text style={{ color: theme.textSecondary }}> · </Text>
+											<Text style={{ color: "#38BDF8" }}>C: {Math.round(section.totals.carbs)}g</Text>
+											<Text style={{ color: theme.textSecondary }}> · </Text>
+											<Text style={{ color: "#FB923C" }}>F: {Math.round(section.totals.fat)}g</Text>
+										</>
+									) : (
+										"No entries yet"
+									)}
 								</Text>
 							</View>
 						</View>
@@ -1746,6 +1992,7 @@ export default function Nutrition() {
 			<LogFoodModal
 				visible={logModalVisible}
 				defaultMealType={activeMealType}
+				logDate={selectedDate}
 				onClose={() => setLogModalVisible(false)}
 				onLogged={() => {
 					setLogModalVisible(false);
