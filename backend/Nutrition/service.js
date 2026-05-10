@@ -209,7 +209,28 @@ async function SearchFoods(query) {
 		order: [literal(`ts_rank(to_tsvector('english', name), plainto_tsquery('english', ${sequelize.escape(sanitised)})) DESC`)],
 		limit: 30,
 	});
-	return foods;
+
+	//Convert to better serving display not 100g basis
+	return foods.map((food) => {
+		const servingSizes = food.foodServingSizes ?? [];
+		const nutrients = food.foodNutrients ?? [];
+
+		// Pick the first serving as the display default
+		const displayServing = servingSizes[0] ?? { label: "g", weight_g: 100 };
+		const quantity = displayServing.label === "g" ? displayServing.weight_g : 1;
+		const unit = displayServing.label === "g" ? "g" : displayServing.label;
+
+		const macros = calcNutrients(quantity, unit, servingSizes, nutrients);
+
+		return {
+			...food.toJSON(),
+			default_serving: {
+				label: displayServing.label === "g" ? `${displayServing.weight_g}g` : `1 ${displayServing.label} (${displayServing.weight_g}g)`,
+				weight_g: displayServing.weight_g,
+				macros,
+			},
+		};
+	});
 }
 
 /**
