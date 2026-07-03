@@ -1195,168 +1195,52 @@ function LogFoodModal({
 	onLogged: () => void;
 	theme: any;
 }) {
-	const [tab, setTab] = useState<"recent" | "frequent">("recent");
-	const [query, setQuery] = useState("");
-	const [results, setResults] = useState<FoodSearchResult[]>([]);
-	const [searching, setSearching] = useState(false);
-	const [selectedFood, setSelectedFood] = useState<FoodSearchResult | null>(null);
-	const [quantity, setQuantity] = useState("100");
-	const [selectedUnit, setSelectedUnit] = useState("g");
-	const [mealType, setMealType] = useState(defaultMealType);
-	const [logging, setLogging] = useState(false);
-	const [addFoodVisible, setAddFoodVisible] = useState(false);
 	const [scannerVisible, setScannerVisible] = useState(false);
 	const [barcodeSearching, setBarcodeSearching] = useState(false);
-	const [barcodeNotFound, setBarcodeNotFound] = useState<string | null>(null);
-	const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const [mealType, setMealType] = useState("Breakfast");
 
-	useEffect(() => {
-		if (visible) {
-			setMealType(defaultMealType);
-			setQuery("");
-			setResults([]);
-			setSelectedFood(null);
-			setQuantity("100");
-			setSelectedUnit("g");
-			setTab("recent");
-			setBarcodeNotFound(null);
-		}
-	}, [visible, defaultMealType]);
-
-	// Auto-set unit when food is selected
-	useEffect(() => {
-		if (!selectedFood) return;
-		const firstServing = selectedFood.foodServingSizes?.[0];
-		if (firstServing) {
-			setSelectedUnit(firstServing.label);
-			setQuantity(firstServing.label === "g" ? "100" : "1");
-		} else {
-			setSelectedUnit("g");
-			setQuantity("100");
-		}
-	}, [selectedFood]);
-
-	// Debounced search
-	useEffect(() => {
-		if (searchTimer.current) clearTimeout(searchTimer.current);
-		if (!query.trim()) {
-			setResults([]);
-			return;
-		}
-		searchTimer.current = setTimeout(async () => {
-			if (!query.trim()) return;
-			setSearching(true);
-			try {
-				const res = await instance.get(`/nutrition/foods?q=${encodeURIComponent(query.trim())}`);
-				setResults(res.data.foods ?? []);
-			} catch (err) {
-				console.error("Food search error:", err);
-			} finally {
-				setSearching(false);
-			}
-		}, 400);
-		return () => {
-			if (searchTimer.current) clearTimeout(searchTimer.current);
-		};
-	}, [query]);
-
-	// ── Barcode scan handler ──────────────────────────────────────────────────
-	async function handleBarcodeScanned(barcode: string) {
-		setScannerVisible(false);
-		setBarcodeNotFound(null);
-		setBarcodeSearching(true);
-		setQuery(barcode);
-
-		try {
-			const res = await instance.get(`/nutrition/foods?q=${encodeURIComponent(barcode)}`);
-			const foods: FoodSearchResult[] = res.data.foods ?? [];
-			if (foods.length > 0) {
-				setResults(foods);
-				setSelectedFood(foods[0]); // auto-select first match
-			} else {
-				setResults([]);
-				setBarcodeNotFound(barcode);
-			}
-		} catch (err) {
-			console.error("Barcode lookup error:", err);
-		} finally {
-			setBarcodeSearching(false);
-		}
-	}
-
-	async function handleLog() {
-		if (!selectedFood) return;
-		setLogging(true);
-		try {
-			await instance.post("/nutrition/diary", {
-				food_id: selectedFood.id,
-				meal_type: mealType,
-				logged_at: logDate,
-				quantity: Number(quantity) || 100,
-				unit: selectedUnit,
-			});
-			onLogged();
-		} catch (err) {
-			console.error("Log food error:", err);
-		} finally {
-			setLogging(false);
-		}
-	}
-
-	const qty = Number(quantity) || 0;
-	const cal100 = selectedFood ? getPer100g(selectedFood, 1008) : 0;
-	const prot100 = selectedFood ? getPer100g(selectedFood, 1003) : 0;
-	const carb100 = selectedFood ? getPer100g(selectedFood, 1005) : 0;
-	const fat100 = selectedFood ? getPer100g(selectedFood, 1004) : 0;
-
-	const gramsForQty = (() => {
-		if (!selectedFood || selectedUnit === "g") return qty;
-		const ss = selectedFood.foodServingSizes?.find((s) => s.label === selectedUnit);
-		return ss ? qty * ss.weight_g : qty;
-	})();
-
-	const previewCal = Math.round((cal100 * gramsForQty) / 100);
-	const previewProt = Math.round((prot100 * gramsForQty) / 100);
-	const previewCarbs = Math.round((carb100 * gramsForQty) / 100);
-	const previewFat = Math.round((fat100 * gramsForQty) / 100);
-
-	const showNoResults = query.trim().length > 0 && !searching && !barcodeSearching && results.length === 0;
-	const availableUnits = selectedFood?.foodServingSizes?.map((s) => s.label) ?? ["g"];
-	const listData = query.trim() ? results : [];
+	const styles = StyleSheet.create({
+		Header: {
+			flexDirection: "row",
+			justifyContent: "space-between",
+			borderBottomWidth: 1,
+			borderColor: theme.border,
+		},
+		HeaderRight: {
+			flexDirection: "row",
+		},
+	});
 
 	return (
-		<>
-			<Modal visible={visible} transparent animationType="slide">
-				<KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-					<Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" }} onPress={onClose}>
-						<Pressable onPress={(e) => e.stopPropagation()}>
-							<View
-								style={{
-									backgroundColor: theme.cardBg,
-									borderTopLeftRadius: 20,
-									borderTopRightRadius: 20,
-									height: "95%",
-									borderTopWidth: 1,
-									borderColor: theme.border,
-								}}
-							>
+		<Modal visible={visible} transparent animationType="slide">
+			<KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+				<Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" }} onPress={onClose}>
+					{/*This lets us close the window if we click outside of it?*/}
+					<Pressable onPress={(e) => e.stopPropagation()}>
+						{/*Here we do stop propogation to prevent outer pressable from tiggering & from closing window*/}
+
+						{/*This view is where the main part happens*/}
+						<View
+							style={{
+								backgroundColor: theme.cardBg,
+								borderTopLeftRadius: 20,
+								borderTopRightRadius: 20,
+								height: "95%",
+								borderTopWidth: 1,
+								borderColor: theme.border,
+								display: "flex",
+								flexDirection: "column",
+								justifyContent: "space-between",
+								paddingBottom: 20,
+							}}
+						>
+							{/* Top Section for header stuff */}
+							<View>
 								<View style={{ width: 36, height: 4, backgroundColor: theme.border, borderRadius: 2, alignSelf: "center", marginTop: 12, marginBottom: 8 }} />
 
-								{/* Header */}
-								<View
-									style={{
-										flexDirection: "row",
-										alignItems: "center",
-										justifyContent: "space-between",
-										paddingHorizontal: 16,
-										paddingBottom: 12,
-										borderBottomWidth: 1,
-										borderColor: theme.border,
-									}}
-								>
-									<Text style={{ fontSize: 18, fontWeight: "800", color: theme.text }}>Log Food</Text>
-									<View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-										{/* Barcode scanner button */}
+								<View style={styles.Header}>
+									<Text style={{ color: theme.text, fontSize: 18, fontWeight: "bold" }}>Log Food</Text>
+									<View style={styles.HeaderRight}>
 										<TouchableOpacity
 											onPress={() => setScannerVisible(true)}
 											style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: theme.primary, alignItems: "center", justifyContent: "center" }}
@@ -1369,357 +1253,68 @@ function LogFoodModal({
 										</TouchableOpacity>
 										<TouchableOpacity
 											onPress={onClose}
-											style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: theme.cardBgAlt, alignItems: "center", justifyContent: "center" }}
+											style={{
+												width: 34,
+												height: 34,
+												borderRadius: 17,
+												backgroundColor: theme.cardBgAlt,
+												alignItems: "center",
+												justifyContent: "center",
+												marginLeft: 8,
+											}}
 										>
 											<FontAwesome5 name="times" size={12} color={theme.textMuted} />
 										</TouchableOpacity>
 									</View>
 								</View>
+							</View>
 
-								{/* Meal type pill tabs */}
-								<ScrollView
-									horizontal
-									showsHorizontalScrollIndicator={false}
-									contentContainerStyle={{ flexDirection: "row", gap: 6, paddingHorizontal: 16, paddingVertical: 10, alignItems: "center" }}
-								>
-									{MEAL_ORDER.map((m) => (
-										<TouchableOpacity
-											key={m}
-											onPress={() => setMealType(m)}
-											style={{
-												paddingHorizontal: 14,
-												height: 32,
-												justifyContent: "center",
-												borderRadius: 20,
-												borderWidth: 1,
-												borderColor: mealType === m ? theme.primary : theme.border,
-												backgroundColor: mealType === m ? theme.primary : "transparent",
-											}}
-										>
-											<Text style={{ fontSize: 12, fontWeight: "600", color: mealType === m ? theme.textInverse : theme.textMuted }}>
-												{m.charAt(0).toUpperCase() + m.slice(1)}
-											</Text>
-										</TouchableOpacity>
-									))}
-								</ScrollView>
-
-								{/* Search bar */}
-								<View
-									style={{
-										flexDirection: "row",
-										alignItems: "center",
-										gap: 8,
-										backgroundColor: theme.cardBgAlt,
-										borderRadius: 12,
-										marginHorizontal: 16,
-										marginBottom: 8,
-										paddingHorizontal: 12,
-										borderWidth: 1,
-										borderColor: theme.border,
-									}}
-								>
-									<FontAwesome5 name="search" size={13} color={theme.textMuted} />
-									<TextInput
-										style={{ flex: 1, fontSize: 15, color: theme.text, paddingVertical: 12 }}
-										value={query}
-										onChangeText={(t) => {
-											setQuery(t);
-											setBarcodeNotFound(null);
-											if (selectedFood) setSelectedFood(null);
-										}}
-										placeholder="Search foods, brands, or recipes…"
-										placeholderTextColor={theme.textTertiary}
-										autoFocus
-									/>
-									{(searching || barcodeSearching) && <ActivityIndicator size="small" color={theme.primary} />}
-									{query.length > 0 && !searching && !barcodeSearching && (
-										<TouchableOpacity
-											onPress={() => {
-												setQuery("");
-												setResults([]);
-												setSelectedFood(null);
-												setBarcodeNotFound(null);
-											}}
-										>
-											<FontAwesome5 name="times-circle" size={14} color={theme.textMuted} />
-										</TouchableOpacity>
-									)}
-								</View>
-
-								{/* Recent / Frequent tabs */}
-								{!query.trim() && (
-									<View style={{ flexDirection: "row", paddingHorizontal: 16, borderBottomWidth: 1, borderColor: theme.border }}>
-										{(["recent", "frequent"] as const).map((t) => (
+							{/* Bottom Section for actual data stuff*/}
+							<View style={{ paddingHorizontal: 16 }}>
+								<View style={{ flexDirection: "row", marginBottom: 15 }}>
+									<ScrollView
+										horizontal
+										showsHorizontalScrollIndicator={false}
+										contentContainerStyle={{ flexDirection: "row", gap: 6, paddingHorizontal: 16, paddingVertical: 10, alignItems: "center" }}
+									>
+										{MEAL_ORDER.map((m) => (
 											<TouchableOpacity
-												key={t}
-												onPress={() => setTab(t)}
+												key={m}
+												onPress={() => setMealType(m)}
 												style={{
-													paddingBottom: 10,
-													paddingHorizontal: 2,
-													marginRight: 20,
-													borderBottomWidth: 2,
-													borderColor: tab === t ? theme.primary : "transparent",
+													paddingHorizontal: 14,
+													height: 32,
+													justifyContent: "center",
+													borderRadius: 20,
+													borderWidth: 1,
+													borderColor: mealType === m ? theme.primary : theme.border,
+													backgroundColor: mealType === m ? theme.primary : "transparent",
 												}}
 											>
-												<Text
-													style={{
-														fontSize: 13,
-														fontWeight: "700",
-														color: tab === t ? theme.primary : theme.textMuted,
-														textTransform: "uppercase",
-														letterSpacing: 0.8,
-													}}
-												>
-													{t}
+												<Text style={{ fontSize: 12, fontWeight: "600", color: mealType === m ? theme.textInverse : theme.textMuted }}>
+													{m.charAt(0).toUpperCase() + m.slice(1)}
 												</Text>
 											</TouchableOpacity>
 										))}
-									</View>
-								)}
+									</ScrollView>
+								</View>
 
-								<ScrollView keyboardShouldPersistTaps="handled" style={{ flex: 1 }}>
-									{listData.map((food) => (
-										<FoodCard
-											key={food.id}
-											food={food}
-											selected={selectedFood?.id === food.id}
-											onPress={() => setSelectedFood(selectedFood?.id === food.id ? null : food)}
-											theme={theme}
-										/>
-									))}
+								<View style={{ backgroundColor: theme.cardBgAlt, borderRadius: 10, padding: 12, flexDirection: "row", alignItems: "center", marginBottom: 20 }}>
+									<FontAwesome5 name="search" size={14} color={theme.textMuted} style={{ marginRight: 10 }} />
+									<Text style={{ color: theme.textMuted }}>Search foods, brands, or recipes...</Text>
+								</View>
 
-									{/* Barcode not found banner */}
-									{barcodeNotFound && !barcodeSearching && (
-										<View style={{ paddingHorizontal: 16, paddingVertical: 28, alignItems: "center", gap: 12 }}>
-											<FontAwesome5 name="barcode" size={28} color={theme.textTertiary} />
-											<Text style={{ fontSize: 15, color: theme.textMuted, fontWeight: "600", textAlign: "center" }}>No food found for barcode</Text>
-											<Text style={{ fontSize: 12, color: theme.textTertiary }}>{barcodeNotFound}</Text>
-											<TouchableOpacity
-												onPress={() => {
-													setBarcodeNotFound(null);
-													setAddFoodVisible(true);
-												}}
-												style={{
-													flexDirection: "row",
-													alignItems: "center",
-													gap: 8,
-													borderWidth: 1.5,
-													borderColor: theme.primary,
-													borderRadius: 12,
-													paddingHorizontal: 18,
-													paddingVertical: 11,
-												}}
-											>
-												<FontAwesome5 name="plus" size={12} color={theme.primary} />
-												<Text style={{ fontSize: 14, fontWeight: "700", color: theme.primary }}>Create Custom Food</Text>
-											</TouchableOpacity>
-										</View>
-									)}
+								{/* I will put the list of results here */}
 
-									{/* No text-search results */}
-									{showNoResults && !barcodeNotFound && (
-										<View style={{ paddingHorizontal: 16, paddingVertical: 28, alignItems: "center", gap: 12 }}>
-											<FontAwesome5 name="search" size={28} color={theme.textTertiary} />
-											<Text style={{ fontSize: 15, color: theme.textMuted, fontWeight: "600" }}>No results for "{query}"</Text>
-											<TouchableOpacity
-												onPress={() => setAddFoodVisible(true)}
-												style={{
-													flexDirection: "row",
-													alignItems: "center",
-													gap: 8,
-													borderWidth: 1.5,
-													borderColor: theme.primary,
-													borderRadius: 12,
-													paddingHorizontal: 18,
-													paddingVertical: 11,
-												}}
-											>
-												<FontAwesome5 name="plus" size={12} color={theme.primary} />
-												<Text style={{ fontSize: 14, fontWeight: "700", color: theme.primary }}>Create Custom Food</Text>
-											</TouchableOpacity>
-										</View>
-									)}
-
-									{/* Empty state */}
-									{!query.trim() && listData.length === 0 && (
-										<View style={{ paddingHorizontal: 16, paddingTop: 28, paddingBottom: 16, alignItems: "center", gap: 12 }}>
-											<FontAwesome5 name="utensils" size={28} color={theme.textTertiary} />
-											<Text style={{ fontSize: 14, color: theme.textMuted, textAlign: "center" }}>
-												{tab === "recent"
-													? "No recently logged foods yet.\nSearch above to get started."
-													: "Log foods regularly to see your most frequent items here."}
-											</Text>
-										</View>
-									)}
-
-									{listData.length > 0 && (
-										<View style={{ paddingVertical: 24, alignItems: "center", gap: 6 }}>
-											<Text style={{ fontSize: 12, color: theme.textMuted }}>Can't find your food?</Text>
-											<TouchableOpacity onPress={() => setAddFoodVisible(true)}>
-												<Text style={{ fontSize: 13, fontWeight: "700", color: theme.primary, textDecorationLine: "underline" }}>Create Custom Food</Text>
-											</TouchableOpacity>
-										</View>
-									)}
-								</ScrollView>
-
-								{/* Selected food panel */}
-								{selectedFood && (
-									<View
-										style={{
-											backgroundColor: theme.cardBgAlt,
-											marginHorizontal: 16,
-											marginBottom: 8,
-											borderRadius: 14,
-											padding: 14,
-											borderWidth: 1,
-											borderColor: theme.border,
-											gap: 10,
-										}}
-									>
-										<Text style={{ fontSize: 15, fontWeight: "700", color: theme.text }} numberOfLines={1}>
-											{selectedFood.name}
-										</Text>
-										<View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-											<TouchableOpacity
-												onPress={() => setQuantity((q) => String(Math.max(1, (Number(q) || 1) - 1)))}
-												style={{
-													width: 32,
-													height: 32,
-													borderRadius: 8,
-													backgroundColor: theme.cardBg,
-													borderWidth: 1,
-													borderColor: theme.border,
-													alignItems: "center",
-													justifyContent: "center",
-												}}
-											>
-												<Text style={{ fontSize: 18, color: theme.text, lineHeight: 20 }}>−</Text>
-											</TouchableOpacity>
-											<TextInput
-												style={{
-													width: 58,
-													textAlign: "center",
-													fontSize: 17,
-													fontWeight: "700",
-													color: theme.text,
-													backgroundColor: theme.cardBg,
-													borderRadius: 8,
-													borderWidth: 1,
-													borderColor: theme.border,
-													paddingVertical: 5,
-												}}
-												value={quantity}
-												onChangeText={setQuantity}
-												keyboardType="numeric"
-											/>
-											<TouchableOpacity
-												onPress={() => setQuantity((q) => String((Number(q) || 0) + 1))}
-												style={{
-													width: 32,
-													height: 32,
-													borderRadius: 8,
-													backgroundColor: theme.cardBg,
-													borderWidth: 1,
-													borderColor: theme.border,
-													alignItems: "center",
-													justifyContent: "center",
-												}}
-											>
-												<Text style={{ fontSize: 18, color: theme.text, lineHeight: 20 }}>+</Text>
-											</TouchableOpacity>
-											<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingHorizontal: 2 }}>
-												{availableUnits.map((u) => (
-													<TouchableOpacity
-														key={u}
-														onPress={() => setSelectedUnit(u)}
-														style={{
-															paddingHorizontal: 12,
-															height: 32,
-															justifyContent: "center",
-															borderRadius: 8,
-															borderWidth: 1,
-															borderColor: selectedUnit === u ? theme.primary : theme.border,
-															backgroundColor: selectedUnit === u ? theme.primary + "20" : "transparent",
-														}}
-													>
-														<Text style={{ fontSize: 12, fontWeight: "600", color: selectedUnit === u ? theme.primary : theme.textMuted }}>{u}</Text>
-													</TouchableOpacity>
-												))}
-											</ScrollView>
-										</View>
-										<View style={{ flexDirection: "row", gap: 8 }}>
-											{(
-												[
-													["kcal", previewCal, theme.text],
-													["protein", `${previewProt}g`, "#4ADE80"],
-													["carbs", `${previewCarbs}g`, "#38BDF8"],
-													["fat", `${previewFat}g`, "#FB923C"],
-												] as [string, any, string][]
-											).map(([l, v, c]) => (
-												<View
-													key={l as string}
-													style={{
-														flex: 1,
-														backgroundColor: theme.cardBg,
-														borderRadius: 8,
-														padding: 8,
-														alignItems: "center",
-														borderWidth: 1,
-														borderColor: theme.border,
-													}}
-												>
-													<Text style={{ fontSize: 14, fontWeight: "800", color: c }}>{v}</Text>
-													<Text style={{ fontSize: 9, color: theme.textMuted, marginTop: 1, textTransform: "uppercase" }}>{l}</Text>
-												</View>
-											))}
-										</View>
-									</View>
-								)}
-
-								{/* Log button */}
-								<TouchableOpacity
-									onPress={handleLog}
-									disabled={!selectedFood || logging}
-									style={{
-										marginHorizontal: 16,
-										marginBottom: 16,
-										backgroundColor: theme.primary,
-										borderRadius: 12,
-										paddingVertical: 14,
-										alignItems: "center",
-										opacity: !selectedFood ? 0.4 : 1,
-									}}
-								>
-									{logging ? (
-										<ActivityIndicator color={theme.textInverse} />
-									) : (
-										<Text style={{ fontSize: 15, fontWeight: "700", color: theme.textInverse }}>
-											Add to {mealType.charAt(0).toUpperCase() + mealType.slice(1)}
-										</Text>
-									)}
+								<TouchableOpacity style={{ backgroundColor: theme.primary, padding: 16, borderRadius: 12, alignItems: "center" }}>
+									<Text style={{ color: theme.textInverse, fontWeight: "bold" }}>Add to Breakfast</Text>
 								</TouchableOpacity>
 							</View>
-						</Pressable>
+						</View>
 					</Pressable>
-				</KeyboardAvoidingView>
-			</Modal>
-
-			{/* Barcode Scanner */}
-			<BarcodeScannerModal visible={scannerVisible} onClose={() => setScannerVisible(false)} onScanned={handleBarcodeScanned} theme={theme} />
-
-			<AddFoodToDatabaseModal
-				visible={addFoodVisible}
-				prefillName={query}
-				onClose={() => setAddFoodVisible(false)}
-				onSaved={(food) => {
-					setAddFoodVisible(false);
-					setSelectedFood(food);
-					setQuery(food.name);
-					setResults([]);
-				}}
-				theme={theme}
-			/>
-		</>
+				</Pressable>
+			</KeyboardAvoidingView>
+		</Modal>
 	);
 }
 
