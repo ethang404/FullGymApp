@@ -298,6 +298,18 @@ async function CreateFood(data, user_id) {
 	return result;
 }
 
+async function addFoodServing(food_id, label, weight_g) {
+	const food = await FoodModel.findByPk(food_id);
+	if (!food) throw new DataError("Food ID doesn't exist");
+
+	const newServing = await FoodServingSizeModel.create({
+		food_id,
+		label,
+		weight_g,
+	});
+	return newServing;
+}
+
 // ---------------------------------------------
 // DIARY ENTRIES
 // ---------------------------------------------
@@ -714,6 +726,7 @@ module.exports = {
 	// Foods
 	SearchFoods,
 	CreateFood,
+	addFoodServing,
 	// Diary
 	addDiaryEntry,
 	getDiaryEntries,

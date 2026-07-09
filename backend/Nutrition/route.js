@@ -10,6 +10,7 @@ const verifyToken = require("../Middlewear/token");
 // POST /foods                        create new food + food nutrients with it
 router.get("/foods", verifyToken, controller.searchFoods);
 router.post("/foods", verifyToken, controller.createFood);
+router.post("/foods/:id/serving-sizes", verifyToken, controller.addFoodServing);
 
 // ---------------------------------------------
 // Diary Entries

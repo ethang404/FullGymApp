@@ -42,6 +42,18 @@ async function createFood(req, res) {
 	}
 }
 
+async function addFoodServing(req, res) {
+	const { id } = req.params;
+	const { label, weight_g } = req.body;
+
+	try {
+		const foodServing = await service.addFoodServing(id, label, weight_g);
+		return res.status(200).json({ foodServing });
+	} catch (error) {
+		return handleError(res, error);
+	}
+}
+
 // ---------------------------------------------
 // Diary Entry controls
 // ---------------------------------------------
@@ -156,6 +168,7 @@ async function editRecipe(req, res) {
 module.exports = {
 	searchFoods,
 	createFood,
+	addFoodServing,
 
 	getDiaryEntries,
 	addDiaryEntry,
