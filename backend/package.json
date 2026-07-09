@@ -7,7 +7,7 @@
 	"type": "commonjs",
 	"main": "index.js",
 	"scripts": {
-		"test": "jest",
+		"test": "jest --runInBand",
 		"start": "nodemon index.js"
 	},
 	"dependencies": {

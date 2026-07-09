@@ -1,57 +1,68 @@
 import { Tabs } from "expo-router";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
+import { useTheme } from "@/theme/ThemeProvider";
 
-export default function AppLayout() {
+export default function ProtectedLayout() {
+	const { theme } = useTheme();
+
 	return (
-		<Tabs>
+		<Tabs
+			screenOptions={{
+				headerShown: false,
+				tabBarStyle: {
+					backgroundColor: theme.cardBg,
+					borderTopColor: theme.border,
+					borderTopWidth: 1,
+					paddingBottom: 6,
+					paddingTop: 6,
+					height: 90,
+				},
+				tabBarActiveTintColor: theme.primary,
+				tabBarInactiveTintColor: theme.textTertiary,
+				tabBarLabelStyle: {
+					fontSize: 10,
+					fontWeight: "600",
+					letterSpacing: 0.5,
+					textTransform: "uppercase",
+				},
+			}}
+		>
 			<Tabs.Screen
 				name="Home"
 				options={{
-					title: "Home",
-					headerShown: false,
-					tabBarIcon: ({ color, size }) => <FontAwesome5 name="home" size={size} color={color} />,
-				}}
-			/>
-			<Tabs.Screen
-				name="Workouts"
-				options={{
-					title: "Workouts",
-					headerShown: false,
-					tabBarIcon: ({ color, size }) => <FontAwesome5 name="dumbbell" size={size} color={color} />,
+					title: "Dashboard",
+					tabBarIcon: ({ color, size }) => <FontAwesome5 name="th-large" size={size - 2} color={color} />,
 				}}
 			/>
 			<Tabs.Screen
 				name="Nutrition"
 				options={{
 					title: "Nutrition",
-					headerShown: false,
-					tabBarIcon: ({ color, size }) => <FontAwesome5 name="utensils" size={size} color={color} />,
+					tabBarIcon: ({ color, size }) => <FontAwesome5 name="utensils" size={size - 2} color={color} />,
+				}}
+			/>
+			<Tabs.Screen
+				name="Workouts"
+				options={{
+					title: "Workouts",
+					tabBarIcon: ({ color, size }) => <FontAwesome5 name="dumbbell" size={size - 2} color={color} />,
+				}}
+			/>
+			<Tabs.Screen
+				name="Progress"
+				options={{
+					title: "Progress",
+					tabBarIcon: ({ color, size }) => <FontAwesome5 name="chart-line" size={size - 2} color={color} />,
 				}}
 			/>
 			<Tabs.Screen
 				name="Profile"
 				options={{
 					title: "Profile",
-					headerShown: false,
-					tabBarIcon: ({ color, size }) => <FontAwesome5 name="user" size={size} color={color} />,
+					tabBarIcon: ({ color, size }) => <FontAwesome5 name="user" size={size - 2} color={color} />,
 				}}
 			/>
-
-			<Tabs.Screen
-				name="Progress"
-				options={{
-					title: "Progress",
-					headerShown: false,
-					tabBarIcon: ({ color, size }) => <FontAwesome5 name="chart-line" size={size} color={color} />,
-				}}
-			/>
-
-			<Tabs.Screen
-				name="workouts/[id]"
-				options={{
-					href: null, //need this to avoid showing in task bar by default. Weird expo router tab thing
-				}}
-			/>
+			<Tabs.Screen name="workouts/[id]" options={{ href: null }} />
 		</Tabs>
 	);
 }

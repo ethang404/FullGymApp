@@ -22,9 +22,9 @@ function handleError(res, error) {
 
 // /foods?query=chicken
 async function searchFoods(req, res) {
-	const { query } = req.query;
+	const { q } = req.query;
 	try {
-		const foods = await service.SearchFoods(query);
+		const foods = await service.SearchFoods(q);
 		return res.status(200).json({ foods });
 	} catch (error) {
 		return handleError(res, error);
@@ -37,6 +37,18 @@ async function createFood(req, res) {
 	try {
 		const food = await service.CreateFood(req.body, user_id);
 		return res.status(201).json({ food });
+	} catch (error) {
+		return handleError(res, error);
+	}
+}
+
+async function addFoodServing(req, res) {
+	const { id } = req.params;
+	const { label, weight_g } = req.body;
+
+	try {
+		const foodServing = await service.addFoodServing(id, label, weight_g);
+		return res.status(200).json({ foodServing });
 	} catch (error) {
 		return handleError(res, error);
 	}
@@ -111,9 +123,9 @@ async function getRecipes(req, res) {
 //get one recipe
 async function getRecipe(req, res) {
 	const user_id = getUserId(req);
-	const saved_meal_id = parseInt(req.params.id, 10);
+	const recipe_id = parseInt(req.params.id, 10);
 	try {
-		const recipe = await service.getRecipe(saved_meal_id, user_id);
+		const recipe = await service.getRecipe(recipe_id, user_id);
 		return res.status(200).json({ recipe });
 	} catch (error) {
 		return handleError(res, error);
@@ -131,49 +143,22 @@ async function createRecipe(req, res) {
 	}
 }
 
-// and id to update
-// Body: { name, description? }
-async function updateRecipe(req, res) {
-	const user_id = getUserId(req);
-	const saved_meal_id = parseInt(req.params.id, 10);
-	try {
-		const recipe = await service.updateRecipe(saved_meal_id, req.body, user_id);
-		return res.status(200).json({ recipe });
-	} catch (error) {
-		return handleError(res, error);
-	}
-}
-
 async function deleteRecipe(req, res) {
 	const user_id = getUserId(req);
-	const saved_meal_id = parseInt(req.params.id, 10);
+	const recipe_id = parseInt(req.params.id, 10);
 	try {
-		const result = await service.deleteRecipe(saved_meal_id, user_id);
+		const result = await service.deleteRecipe(recipe_id, user_id);
 		return res.status(200).json(result);
 	} catch (error) {
 		return handleError(res, error);
 	}
 }
 
-// update a recipe ingrediant like /recipes/:id/ingredients
-// Body just needs: { food_id, quantity, unit }
-async function addRecipeIngredient(req, res) {
+async function editRecipe(req, res) {
 	const user_id = getUserId(req);
-	const saved_meal_id = parseInt(req.params.id, 10);
+	const recipe_id = parseInt(req.params.id, 10);
 	try {
-		const ingredient = await service.addRecipeIngredient(saved_meal_id, req.body, user_id);
-		return res.status(201).json({ ingredient });
-	} catch (error) {
-		return handleError(res, error);
-	}
-}
-
-// DELETE /recipes/:id/ingredients/:ingredient_id
-async function removeRecipeIngredient(req, res) {
-	const user_id = getUserId(req);
-	const ingredient_id = parseInt(req.params.ingredient_id, 10);
-	try {
-		const result = await service.removeRecipeIngredient(ingredient_id, user_id);
+		const result = await service.editRecipe(recipe_id, user_id, req.body);
 		return res.status(200).json(result);
 	} catch (error) {
 		return handleError(res, error);
@@ -183,6 +168,7 @@ async function removeRecipeIngredient(req, res) {
 module.exports = {
 	searchFoods,
 	createFood,
+	addFoodServing,
 
 	getDiaryEntries,
 	addDiaryEntry,
@@ -192,8 +178,6 @@ module.exports = {
 	getRecipes,
 	getRecipe,
 	createRecipe,
-	updateRecipe,
+	editRecipe,
 	deleteRecipe,
-	addRecipeIngredient,
-	removeRecipeIngredient,
 };

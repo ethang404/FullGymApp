@@ -1,92 +1,304 @@
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useMemo, useEffect, useState, useCallback } from "react";
 import { router } from "expo-router";
-import { SafeAreaView, View, Text, FlatList, StyleSheet, Pressable } from "react-native";
-import { useMemo } from "react";
+import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
+import { instance } from "@/utils/AxiosInterceptorHandler";
 
-const workouts = [
-	{ id: "1", title: "Push Day", date: "2025-08-10", focus: "Chest, Shoulders, Triceps" },
-	{ id: "2", title: "Pull Day", date: "2025-08-12", focus: "Back, Biceps" },
-	{ id: "3", title: "Leg Day", date: "2025-08-14", focus: "Quads, Hamstrings, Glutes" },
-];
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface Workout {
+	id: string;
+	name: string;
+	date: string;
+	duration_minutes?: number;
+	total_volume_kg?: number;
+	notes?: string;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function formatDate(dateStr: string) {
+	const d = new Date(dateStr);
+	return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function formatRelativeDate(dateStr: string) {
+	const date = new Date(dateStr);
+	const now = new Date();
+	const diffDays = Math.floor((now.getTime() - date.getTime()) / 86400000);
+	if (diffDays === 0) return "Today";
+	if (diffDays === 1) return "Yesterday";
+	if (diffDays < 7) return `${diffDays} days ago`;
+	return formatDate(dateStr);
+}
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function Workouts() {
 	const { theme } = useTheme();
+	const [workouts, setWorkouts] = useState<Workout[]>([]);
+	const [loading, setLoading] = useState(true);
+	const [refreshing, setRefreshing] = useState(false);
+
+	async function fetchWorkouts() {
+		try {
+			const res = await instance.get("/Workouts");
+			console.log("What does res look like?");
+			console.log(res.data.workouts);
+			console.log("--------");
+			setWorkouts(res.data.workouts ?? []);
+		} catch (e) {
+			console.error("Workouts fetch error:", e);
+		} finally {
+			setLoading(false);
+			setRefreshing(false);
+		}
+	}
+
+	useEffect(() => {
+		fetchWorkouts();
+	}, []);
 
 	const styles = useMemo(
 		() =>
 			StyleSheet.create({
-				container: {
-					flex: 1,
-					backgroundColor: theme.background,
-					padding: 16,
-				},
-				heading: {
-					fontSize: 24,
-					fontWeight: "700",
-					marginBottom: 4,
-					color: theme.text,
-				},
-				subheading: {
-					fontSize: 14,
-					color: theme.textSecondary,
-					marginBottom: 16,
-				},
-				list: {
-					flex: 1,
-				},
-				card: {
-					backgroundColor: theme.cardBg,
-					borderRadius: 12,
-					padding: 12,
-					marginBottom: 10,
+				safe: { flex: 1, backgroundColor: theme.background },
+				scroll: { flex: 1 },
+				content: { padding: 16, paddingBottom: 32, gap: 12 },
+
+				// Page header
+				header: {
 					flexDirection: "row",
-					justifyContent: "space-between",
 					alignItems: "center",
-					shadowColor: theme.shadowColor,
-					shadowOffset: { width: 0, height: 2 },
-					shadowOpacity: 0.06,
-					shadowRadius: 4,
-					elevation: 2,
+					justifyContent: "space-between",
+					marginBottom: 8,
 				},
-				title: {
-					fontSize: 16,
-					fontWeight: "600",
+				pageTitle: {
+					fontSize: 22,
+					fontWeight: "800",
 					color: theme.text,
 				},
-				meta: {
+				newBtn: {
+					flexDirection: "row",
+					alignItems: "center",
+					gap: 6,
+					backgroundColor: theme.primary,
+					paddingHorizontal: 14,
+					paddingVertical: 9,
+					borderRadius: 10,
+				},
+				newBtnText: {
 					fontSize: 12,
-					color: theme.textTertiary,
+					fontWeight: "700",
+					color: theme.textInverse,
+					textTransform: "uppercase",
+					letterSpacing: 0.5,
+				},
+
+				// CTA banner
+				ctaBanner: {
+					backgroundColor: theme.cardBg,
+					borderRadius: 16,
+					padding: 20,
+					borderWidth: 1,
+					borderColor: theme.border,
+					marginBottom: 4,
+				},
+				ctaTitle: {
+					fontSize: 20,
+					fontWeight: "800",
+					color: theme.text,
+					marginBottom: 6,
+				},
+				ctaSub: {
+					fontSize: 13,
+					color: theme.textMuted,
+					marginBottom: 16,
+					lineHeight: 19,
+				},
+				ctaButton: {
+					flexDirection: "row",
+					alignItems: "center",
+					justifyContent: "center",
+					gap: 8,
+					backgroundColor: theme.primary,
+					borderRadius: 12,
+					paddingVertical: 14,
+				},
+				ctaButtonText: {
+					fontSize: 14,
+					fontWeight: "800",
+					color: theme.textInverse,
+					textTransform: "uppercase",
+					letterSpacing: 0.5,
+				},
+
+				// Section label
+				sectionLabel: {
+					fontSize: 11,
+					fontWeight: "700",
+					color: theme.textMuted,
+					letterSpacing: 1.5,
+					textTransform: "uppercase",
+					marginBottom: 8,
+					marginTop: 4,
+				},
+
+				// Workout card
+				workoutCard: {
+					flexDirection: "row",
+					alignItems: "center",
+					backgroundColor: theme.cardBg,
+					borderRadius: 14,
+					padding: 14,
+					borderWidth: 1,
+					borderColor: theme.border,
+					gap: 14,
+				},
+				iconWrap: {
+					width: 44,
+					height: 44,
+					borderRadius: 13,
+					backgroundColor: theme.cardBgAlt,
+					alignItems: "center",
+					justifyContent: "center",
+					borderWidth: 1,
+					borderColor: theme.border,
+				},
+				workoutName: {
+					fontSize: 15,
+					fontWeight: "700",
+					color: theme.text,
+				},
+				workoutDate: {
+					fontSize: 12,
+					color: theme.textMuted,
 					marginTop: 2,
 				},
-				date: {
-					fontSize: 12,
-					color: theme.textQuaternary,
+				workoutStats: {
+					flexDirection: "row",
+					gap: 12,
+					marginTop: 6,
+				},
+				stat: {
+					flexDirection: "row",
+					alignItems: "center",
+					gap: 4,
+				},
+				statText: {
+					fontSize: 11,
+					color: theme.textSecondary,
+				},
+				chevron: {
+					marginLeft: "auto",
+				},
+
+				emptyState: {
+					alignItems: "center",
+					paddingVertical: 40,
+					gap: 8,
+				},
+				emptyTitle: {
+					fontSize: 16,
+					fontWeight: "700",
+					color: theme.textMuted,
+				},
+				emptySubtitle: {
+					fontSize: 13,
+					color: theme.textTertiary,
+					textAlign: "center",
 				},
 			}),
 		[theme],
 	);
 
-	return (
-		<SafeAreaView style={styles.container}>
-			<Text style={styles.heading}>Your Workouts</Text>
-			<Text style={styles.subheading}>Tap a workout to view or edit details</Text>
+	if (loading) {
+		return (
+			<SafeAreaView style={[styles.safe, { justifyContent: "center", alignItems: "center" }]}>
+				<ActivityIndicator color={theme.primary} size="large" />
+			</SafeAreaView>
+		);
+	}
 
-			<FlatList
-				style={styles.list}
-				data={workouts}
-				keyExtractor={(item) => item.id}
-				renderItem={({ item }) => (
-					<Pressable onPress={() => router.push(`/(protected)/workouts/${item.id}`)}>
-						<View style={styles.card}>
-							<View>
-								<Text style={styles.title}>{item.title}</Text>
-								<Text style={styles.meta}>{item.focus}</Text>
-							</View>
-							<Text style={styles.date}>{item.date}</Text>
-						</View>
-					</Pressable>
+	return (
+		<SafeAreaView style={styles.safe} edges={["top"]}>
+			<ScrollView
+				style={styles.scroll}
+				contentContainerStyle={styles.content}
+				showsVerticalScrollIndicator={false}
+				refreshControl={
+					<RefreshControl
+						refreshing={refreshing}
+						onRefresh={() => {
+							setRefreshing(true);
+							fetchWorkouts();
+						}}
+						tintColor={theme.primary}
+					/>
+				}
+			>
+				{/* Header */}
+				<View style={styles.header}>
+					<Text style={styles.pageTitle}>Workouts</Text>
+					<TouchableOpacity style={styles.newBtn} activeOpacity={0.8}>
+						<FontAwesome5 name="plus" size={11} color={theme.textInverse} />
+						<Text style={styles.newBtnText}>New</Text>
+					</TouchableOpacity>
+				</View>
+
+				{/* Start session CTA */}
+				<View style={styles.ctaBanner}>
+					<Text style={styles.ctaTitle}>Ready to train?</Text>
+					<Text style={styles.ctaSub}>Log your sets, track your progress, beat your records.</Text>
+					<TouchableOpacity style={styles.ctaButton} activeOpacity={0.8}>
+						<FontAwesome5 name="play" size={12} color={theme.textInverse} />
+						<Text style={styles.ctaButtonText}>Start New Session</Text>
+					</TouchableOpacity>
+				</View>
+
+				{/* Workout history */}
+				{workouts.length === 0 ? (
+					<View style={styles.emptyState}>
+						<FontAwesome5 name="dumbbell" size={32} color={theme.textTertiary} />
+						<Text style={styles.emptyTitle}>No workouts yet</Text>
+						<Text style={styles.emptySubtitle}>Start your first session to begin tracking</Text>
+					</View>
+				) : (
+					<>
+						<Text style={styles.sectionLabel}>History</Text>
+						{workouts.map((w) => (
+							<TouchableOpacity key={w.id} style={styles.workoutCard} onPress={() => router.push(`/(protected)/workouts/${w.id}`)} activeOpacity={0.7}>
+								<View style={styles.iconWrap}>
+									<FontAwesome5 name="dumbbell" size={16} color={theme.primary} />
+								</View>
+								<View style={{ flex: 1 }}>
+									<Text style={styles.workoutName}>{w.name}</Text>
+									<Text style={styles.workoutDate}>{formatRelativeDate(w.date)}</Text>
+									{(w.duration_minutes || w.total_volume_kg) && (
+										<View style={styles.workoutStats}>
+											{w.duration_minutes && (
+												<View style={styles.stat}>
+													<FontAwesome5 name="clock" size={10} color={theme.textTertiary} />
+													<Text style={styles.statText}>{w.duration_minutes}m</Text>
+												</View>
+											)}
+											{w.total_volume_kg && (
+												<View style={styles.stat}>
+													<FontAwesome5 name="weight-hanging" size={10} color={theme.textTertiary} />
+													<Text style={styles.statText}>{w.total_volume_kg.toLocaleString()}kg</Text>
+												</View>
+											)}
+										</View>
+									)}
+								</View>
+								<FontAwesome5 name="chevron-right" size={12} color={theme.textTertiary} style={styles.chevron} />
+							</TouchableOpacity>
+						))}
+					</>
 				)}
-			/>
+			</ScrollView>
 		</SafeAreaView>
 	);
 }

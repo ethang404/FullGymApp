@@ -9,7 +9,7 @@ const ExercisesModel = require("../models/modelInits").exercises;
 const SetsModel = require("../models/modelInits").sets;
 const UsersModel = require("../models/modelInits").users;
 
-const { addUserPayload, editWorkoutPayloads, addWorkoutPayload } = require("./TestPayloads");
+const { addUserPayload, editWorkoutPayloads, addWorkoutPayload } = require("./WorkoutPayloads");
 
 var token;
 
