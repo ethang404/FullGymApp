@@ -98,16 +98,21 @@ const toGrams = (quantity, unit, servingSizes) => {
 
 //This converts from our database 100g basis to whatever amount the user chose
 const calcNutrients = (quantity, unit, servingSizes, nutrients) => {
-	// Use toGrams to get total weight
-	// Return an object: { nutrient_name: calculated_amount }
-	//using array return a dictionary of nutrient values for that food...
-	const grams = toGrams(quantity, unit, servingSizes); //total weight for conversion and quantity
-	let result = {};
+	const grams = toGrams(quantity, unit, servingSizes);
+
+	let result = [];
 	let amount;
+
 	for (let n of nutrients) {
-		amount = (parseFloat(n.amount_per_100g) * parseFloat(grams)) / 100;
-		result[n.nutrient_id] = amount.toFixed(4);
+		amount = (parseFloat(n.amount_per_100g) * grams) / 100;
+		result.push({
+			nutrient_id: n.nutrient_id,
+			name: n.nutrient_name,
+			unit: n.unit,
+			amount: parseFloat(amount.toFixed(4)),
+		});
 	}
+
 	return result;
 };
 
@@ -169,6 +174,16 @@ async function buildIngredientRows(ingredients, recipe_id) {
 	});
 }
 
+//given raw nutrient ID's, return macro names with amounts
+function mapNutrients(rawNutrients) {
+	const mapped = {};
+	for (const [id, value] of Object.entries(rawNutrients)) {
+		const key = ID_TO_DISPLAY[id];
+		if (key) mapped[key] = parseFloat(value) || 0;
+	}
+	return mapped;
+}
+
 // ---------------------------------------------
 // FOODS
 // ---------------------------------------------
@@ -212,23 +227,34 @@ async function SearchFoods(query) {
 
 	//Convert to better serving display not 100g basis
 	return foods.map((food) => {
-		const servingSizes = food.foodServingSizes ?? [];
-		const nutrients = food.foodNutrients ?? [];
+		const { foodNutrients, foodServingSizes, ...foodJson } = food.toJSON();
 
-		// Pick the first serving as the display default
-		const displayServing = servingSizes[0] ?? { label: "g", weight_g: 100 };
-		const quantity = displayServing.label === "g" ? displayServing.weight_g : 1;
-		const unit = displayServing.label === "g" ? "g" : displayServing.label;
+		const servingSizes = (foodServingSizes ?? []).map(({ label, weight_g }) => ({ label, weight_g: parseFloat(weight_g) }));
+		const nutrients = foodNutrients ?? [];
 
-		const macros = calcNutrients(quantity, unit, servingSizes, nutrients);
+		const fallback = { label: "g", weight_g: 100 }; //use a fallback of 100g basis stored in db if we have no serving size data.
+
+		const displayServing = servingSizes[0] ?? fallback;
+		const usingFallback = servingSizes.length === 0;
+
+		const quantity = usingFallback ? displayServing.weight_g : 1;
+		const unit = displayServing.label;
 
 		return {
-			...food.toJSON(),
+			...foodJson,
+			serving_sizes: servingSizes,
 			default_serving: {
-				label: displayServing.label === "g" ? `${displayServing.weight_g}g` : `1 ${displayServing.label} (${displayServing.weight_g}g)`,
+				label: usingFallback ? `${displayServing.weight_g}g` : `1 ${displayServing.label} (${displayServing.weight_g}g)`,
 				weight_g: displayServing.weight_g,
-				macros,
+				macros: calcNutrients(quantity, unit, servingSizes, nutrients),
 			},
+			nutrients_per_100g: nutrients.map((n) => ({
+				//we use this data to convert on frontend for display purposes
+				nutrient_id: n.nutrient_id,
+				name: n.nutrient_name,
+				unit: n.unit,
+				amount_per_100g: parseFloat(n.amount_per_100g),
+			})),
 		};
 	});
 }
@@ -417,7 +443,7 @@ async function getDiaryEntries(user_id, start_date, end_date, meal_type) {
 
 	return diary_entries.map((e) => {
 		if (e.food_id) {
-			const nutrients = calcNutrients(e.quantity, e.unit, e.food.foodServingSizes, e.food.foodNutrients);
+			const raw_nutrients = calcNutrients(e.quantity, e.unit, e.food.foodServingSizes, e.food.foodNutrients);
 			return {
 				id: e.id,
 				type: "food",
@@ -430,12 +456,12 @@ async function getDiaryEntries(user_id, start_date, end_date, meal_type) {
 					name: e.food.name,
 					brand: e.food.brand,
 				},
-				nutrients,
+				nutrients: mapNutrients(raw_nutrients),
 			};
 		}
 		if (e.recipe_id) {
 			const scale = parseFloat(e.quantity) / parseFloat(e.recipe.servings);
-			const nutrients = scaleMacros(e.recipe.recipeIngredients, scale);
+			const raw_nutrients = scaleMacros(e.recipe.recipeIngredients, scale);
 			return {
 				id: e.id,
 				type: "recipe",
@@ -448,7 +474,7 @@ async function getDiaryEntries(user_id, start_date, end_date, meal_type) {
 					name: e.recipe.name,
 					servings: e.recipe.servings,
 				},
-				nutrients,
+				nutrients: mapNutrients(raw_nutrients),
 			};
 		}
 	});
