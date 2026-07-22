@@ -64,39 +64,134 @@ function FoodCard({ food, theme }: FoodCardProps) {
 	const carbs = food.default_serving.macros.find((m) => m.nutrient_id === 1005)?.amount;
 	const fat = food.default_serving.macros.find((m) => m.nutrient_id === 1004)?.amount;
 
-	return (
-		<TouchableOpacity onPress={() => setExpanded((prev) => !prev)}>
-			<Text style={{ color: "white" }}>{food.name}</Text>
-			<Text>{food.brand}</Text>
+	const serving = food.default_serving.label;
 
-			<Text style={{ fontSize: 11, color: theme.textTertiary }}>{food.default_serving.label}</Text>
-			<View style={{ flexDirection: "row", gap: 8, marginTop: 2 }}>
-				<View style={{ flexDirection: "row", gap: 8, marginTop: 2 }}>
-					{cals != null && (
-						<Text style={{ fontSize: 11 }}>
-							<Text style={{ fontWeight: "700", color: theme.textMuted }}>{cals}</Text>
-							<Text style={{ color: theme.textMuted }}> kcal</Text>
-						</Text>
-					)}
-					{protein != null && (
-						<Text style={{ fontSize: 11 }}>
-							<Text style={{ fontWeight: "700", color: "#4ADE80" }}>{protein}g</Text>
-							<Text style={{ color: theme.textMuted }}> P</Text>
-						</Text>
-					)}
-					{carbs != null && (
-						<Text style={{ fontSize: 11 }}>
-							<Text style={{ fontWeight: "700", color: "#38BDF8" }}>{carbs}g</Text>
-							<Text style={{ color: theme.textMuted }}> C</Text>
-						</Text>
-					)}
-					{fat != null && (
-						<Text style={{ fontSize: 11 }}>
-							<Text style={{ fontWeight: "700", color: "#FB923C" }}>{fat}g</Text>
-							<Text style={{ color: theme.textMuted }}> F</Text>
+	const styles = useMemo(
+		() =>
+			StyleSheet.create({
+				card: {
+					backgroundColor: theme.cardBg,
+					borderRadius: 16,
+					paddingVertical: 14,
+					paddingHorizontal: 16,
+					marginBottom: 10,
+					borderWidth: StyleSheet.hairlineWidth,
+					borderColor: theme.border,
+					// subtle lift so each card reads as its own surface
+					shadowColor: theme.shadowColor,
+					shadowOffset: { width: 0, height: 2 },
+					shadowOpacity: 0.15,
+					shadowRadius: 6,
+					elevation: 2,
+				},
+				topRow: {
+					flexDirection: "row",
+					alignItems: "center",
+					justifyContent: "space-between",
+				},
+				nameCol: {
+					flex: 1,
+					paddingRight: 10,
+				},
+				name: {
+					color: theme.text,
+					fontSize: 15,
+					fontWeight: "700",
+				},
+				brand: {
+					color: theme.textTertiary,
+					fontSize: 12,
+					marginTop: 2,
+				},
+				rightCol: {
+					flexDirection: "row",
+					alignItems: "center",
+					gap: 10,
+				},
+				nutritionButton: {
+					flexDirection: "row",
+					alignItems: "center",
+					gap: 4,
+				},
+				nutritionLabel: {
+					color: theme.textMuted,
+					fontSize: 10,
+					fontWeight: "700",
+					letterSpacing: 0.5,
+				},
+				calories: {
+					color: theme.text,
+					fontSize: 22,
+					fontWeight: "700",
+					minWidth: 34,
+					textAlign: "right",
+				},
+				infoRow: {
+					flexDirection: "row",
+					justifyContent: "space-between"
+				},
+				macrosRow: {
+					flexDirection: "row",
+					gap: 14,
+					marginTop: 10,
+				},
+				macroText: {
+					fontSize: 13,
+				},
+				macroLabel: {
+					color: theme.textMuted,
+				},
+				serving: {
+					color: theme.textMuted,
+					fontSize: 12,
+					marginTop: 10,
+				},
+			}),
+		[theme],
+	);
+
+	return (
+		<TouchableOpacity activeOpacity={0.7} style={styles.card} onPress={() => setExpanded((prev) => !prev)}>
+			<View style={styles.topRow}>
+				<View style={styles.nameCol}>
+					<Text style={styles.name} numberOfLines={1}>
+						{food.name}
+					</Text>
+					{food.brand && (
+						<Text style={styles.brand} numberOfLines={1}>
+							{food.brand}
 						</Text>
 					)}
 				</View>
+
+				<View style={styles.rightCol}>
+					<View style={styles.nutritionButton}>
+						<Text style={styles.nutritionLabel}>NUTRITION</Text>
+						<FontAwesome5 name="chevron-right" size={8} color={theme.primary} />
+					</View>
+					{cals != null && <Text style={styles.calories}>{cals}</Text>}
+				</View>
+			</View>
+
+			<View style={styles.infoRow}>
+			<View style={styles.macrosRow}>
+				{protein != null && (
+					<Text style={styles.macroText}>
+						<Text style={{ fontWeight: "700", color: "#4ADE80" }}>P {protein}</Text>
+					</Text>
+				)}
+				{carbs != null && (
+					<Text style={styles.macroText}>
+						<Text style={{ fontWeight: "700", color: "#38BDF8" }}>C {carbs}</Text>
+					</Text>
+				)}
+				{fat != null && (
+					<Text style={styles.macroText}>
+						<Text style={{ fontWeight: "700", color: "#FB923C" }}>F {fat}</Text>
+					</Text>
+				)}
+			</View>
+			<Text style={styles.serving}>{serving}</Text>
 			</View>
 
 			{expanded && <View>{}</View>}
@@ -161,7 +256,7 @@ export default function LogFoodModal({ visible, mealType, onClose }: LogFoodModa
 					borderTopLeftRadius: 20,
 					borderTopRightRadius: 20,
 					padding: 20,
-					height: "80%",
+					height: "90%",
 				},
 				headerRow: {
 					flexDirection: "row",
@@ -207,7 +302,7 @@ export default function LogFoodModal({ visible, mealType, onClose }: LogFoodModa
 					<View style={styles.headerRow}>
 						<Text style={styles.title}>Log {mealType}</Text>
 						<TouchableOpacity onPress={onClose} hitSlop={10}>
-							<FontAwesome5 name="times" size={20} color={theme.textMuted} />
+							<FontAwesome5 name="times" size={20} color={theme.primary} />
 						</TouchableOpacity>
 					</View>
 
@@ -223,11 +318,9 @@ export default function LogFoodModal({ visible, mealType, onClose }: LogFoodModa
 						/>
 					</View>
 
-					<ScrollView>
+					<ScrollView showsVerticalScrollIndicator={false}>
 						{searchResults?.map((food) => (
-							<View key={food.id}>
-								<FoodCard food={food} theme={theme} />
-							</View>
+							<FoodCard key={food.id} food={food} theme={theme} />
 						))}
 					</ScrollView>
 				</View>
