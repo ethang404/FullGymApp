@@ -244,7 +244,7 @@ async function SearchFoods(query) {
 			...foodJson,
 			serving_sizes: servingSizes,
 			default_serving: {
-				label: usingFallback ? `${displayServing.weight_g}g` : `1 ${displayServing.label} (${displayServing.weight_g}g)`,
+				label: usingFallback ? "g" : displayServing.label,
 				weight_g: displayServing.weight_g,
 				macros: calcNutrients(quantity, unit, servingSizes, nutrients),
 			},
@@ -322,6 +322,44 @@ async function CreateFood(data, user_id) {
 	});
 
 	return result;
+}
+
+async function getFood(food_id) {
+	if (!food_id) throw new DataError("Food ID required");
+	const food = await FoodModel.findOne({
+		where: { id: food_id, is_deleted: false },
+		include: [
+			{ model: FoodNutrientModel, required: false },
+			{ model: FoodServingSizeModel, required: false },
+		],
+	});
+
+	if (!food) throw new DataError("Food ID doesn't exist");
+
+	const { foodNutrients, foodServingSizes, ...foodJson } = food.toJSON();
+
+	const servingSizes = (foodServingSizes ?? []).map(({ label, weight_g }) => ({
+		label,
+		weight_g: parseFloat(weight_g),
+	}));
+
+	let nutrients = foodNutrients ?? [];
+
+	let nutrients_per_100g = nutrients.map((n) => ({
+		//we use this data to convert on frontend for display purposes
+		nutrient_id: n.nutrient_id,
+		name: n.nutrient_name,
+		unit: n.unit,
+		amount_per_100g: parseFloat(n.amount_per_100g),
+	}));
+
+	let retVal = {
+		...foodJson,
+		serving_sizes: servingSizes,
+		nutrients_per_100g,
+	};
+
+	return retVal;
 }
 
 async function addFoodServing(food_id, label, weight_g) {
@@ -752,6 +790,7 @@ module.exports = {
 	// Foods
 	SearchFoods,
 	CreateFood,
+	getFood,
 	addFoodServing,
 	// Diary
 	addDiaryEntry,

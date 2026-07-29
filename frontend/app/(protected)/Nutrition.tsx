@@ -130,6 +130,10 @@ export default function Nutrition() {
 	const [activeMealType, setActiveMealType] = useState<MealType>("breakfast");
 	const [entries, setEntries] = useState<DiaryEntry[]>([]);
 
+	//for displaying dropdown for creating new recipes/foods
+	const [createMenuOpen, setCreateMenuOpen] = useState(false);
+	const [headerHeight, setHeaderHeight] = useState(52);
+
 	//default date to today
 	const [selectedDate, setSelectedDate] = useState<string>(() => {
 		const today = new Date();
@@ -188,26 +192,32 @@ export default function Nutrition() {
 				safe: { flex: 1, backgroundColor: theme.background },
 				header: {
 					flexDirection: "row",
-					justifyContent: "space-between",
+					justifyContent: "flex-end",
 					alignItems: "center",
 					paddingHorizontal: 16,
 					paddingTop: 10,
 					paddingBottom: 10,
-					backgroundColor: theme.cardBg,
 				},
-				headerText: { color: theme.text, fontWeight: "600", fontSize: 16 },
-				findFoodBtn: {
-					backgroundColor: theme.primary,
-					justifyContent: "center",
-					alignItems: "center",
-					paddingHorizontal: 14,
-					paddingVertical: 8,
-					borderRadius: 30,
+				createMenu: {
+					position: "absolute",
+					right: 16,
+					backgroundColor: theme.cardBgAlt,
+					borderRadius: 12,
+					borderWidth: StyleSheet.hairlineWidth,
+					borderColor: theme.border,
+					paddingVertical: 4,
+					minWidth: 160,
+					shadowColor: theme.shadowColor,
+					shadowOpacity: 0.25,
+					shadowRadius: 8,
+					shadowOffset: { width: 0, height: 4 },
+					elevation: 8,
+					zIndex: 20,
 				},
+				createMenuItem: { paddingHorizontal: 16, paddingVertical: 12 },
+				createMenuDivider: { height: StyleSheet.hairlineWidth, backgroundColor: theme.border },
+				createMenuText: { color: theme.text, fontSize: 14, fontWeight: "600" },
 
-				// The date nav + calorie summary live together in one rounded,
-				// centered "hero card" — split into a shadow wrapper (outer) and a
-				// clipped card (inner), since overflow:hidden clips shadows too
 				heroCardWrapper: {
 					marginHorizontal: 16,
 					marginTop: 12,
@@ -288,6 +298,9 @@ export default function Nutrition() {
 					backgroundColor: theme.cardBgAlt,
 					paddingHorizontal: 16,
 					paddingVertical: 16,
+					borderLeftWidth: 3,
+					marginTop: 12,
+					borderLeftColor: theme.primary,
 				},
 				sectionHeaderText: {
 					color: theme.primary,
@@ -341,7 +354,6 @@ export default function Nutrition() {
 					marginLeft: 12,
 				},
 
-				// "Log Food +" row shown at the bottom of each meal section
 				logFoodRow: {
 					flexDirection: "row",
 					justifyContent: "space-between",
@@ -425,12 +437,26 @@ export default function Nutrition() {
 
 	return (
 		<SafeAreaView style={styles.safe} edges={["top"]}>
-			<View style={styles.header}>
-				<Text style={styles.headerText}>NUTRITION</Text>
-				<TouchableOpacity style={styles.findFoodBtn}>
-					<Text style={styles.headerText}>FIND FOOD</Text>
-				</TouchableOpacity>
-			</View>
+			<TouchableOpacity onPress={() => setCreateMenuOpen((v) => !v)} style={styles.header} onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}>
+				<FontAwesome5 name={createMenuOpen ? "times" : "plus"} size={20} color={theme.primary} />
+			</TouchableOpacity>
+
+			{createMenuOpen && (
+				<>
+					<Pressable style={StyleSheet.absoluteFillObject} onPress={() => setCreateMenuOpen(false)} />
+					{/* This is outside click handle ^^ */}
+
+					<View style={[styles.createMenu, { top: headerHeight }]}>
+						<TouchableOpacity style={styles.createMenuItem} onPress={() => setCreateMenuOpen(false)}>
+							<Text style={styles.createMenuText}>Create food</Text>
+						</TouchableOpacity>
+						<View style={styles.createMenuDivider} />
+						<TouchableOpacity style={styles.createMenuItem} onPress={() => setCreateMenuOpen(false)}>
+							<Text style={styles.createMenuText}>Create recipe</Text>
+						</TouchableOpacity>
+					</View>
+				</>
+			)}
 
 			<View style={styles.heroCardWrapper}>
 				<View style={styles.heroCard}>
@@ -468,7 +494,7 @@ export default function Nutrition() {
 				renderSectionHeader={({ section }) => renderMealHeader(section.title, section.calories)}
 				renderSectionFooter={({ section }) => renderLogFoodRow(section.mealType)}
 				stickySectionHeadersEnabled={false}
-				contentContainerStyle={{ paddingBottom: 100 + insets.bottom, backgroundColor: theme.cardBg }}
+				contentContainerStyle={{ paddingBottom: 100 + insets.bottom, backgroundColor: theme.background }}
 				refreshControl={
 					<RefreshControl
 						refreshing={refreshing}

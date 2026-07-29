@@ -42,6 +42,16 @@ async function createFood(req, res) {
 	}
 }
 
+async function getFood(req, res) {
+	const { id } = req.params;
+	try {
+		const food = await service.getFood(id);
+		return res.status(200).json({ food });
+	} catch (error) {
+		return handleError(res, error);
+	}
+}
+
 async function addFoodServing(req, res) {
 	const { id } = req.params;
 	const { label, weight_g } = req.body;
@@ -168,6 +178,7 @@ async function editRecipe(req, res) {
 module.exports = {
 	searchFoods,
 	createFood,
+	getFood,
 	addFoodServing,
 
 	getDiaryEntries,

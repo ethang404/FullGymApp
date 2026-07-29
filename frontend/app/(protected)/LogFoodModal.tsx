@@ -6,6 +6,12 @@ import type { Theme } from "@/theme/colors"; //for typing
 
 import { instance } from "@/utils/AxiosInterceptorHandler";
 
+import { router } from "expo-router";
+
+import { COMMON_UNITS } from "./types/nutrition";
+import { AddServingModal } from "./components/AddServingModal";
+import { calcMacrosFromPer100g, type ServingSize, type FoodSearchResult } from "./types/nutrition";
+
 type MealType = "breakfast" | "lunch" | "dinner" | "snacks";
 
 //likely also pass this to my full nutrition page
@@ -16,335 +22,13 @@ interface LogFoodModalProps {
 	onLogged: () => void; //should call to update diary entries
 }
 
-//Food types to store:
-interface Macro {
-	nutrient_id: number;
-	name: string;
-	unit: string;
-	amount: number;
-}
-
-interface ServingSize {
-	label: string;
-	weight_g: number;
-}
-
-interface MacroPer100g {
-	nutrient_id: number;
-	name: string;
-	unit: string;
-	amount_per_100g: number;
-}
-
-interface DefaultServing {
-	label: string; //like oz or serving
-	weight_g: number; //amount in g
-	macros: Macro[]; //macros for that amount
-}
-
-interface FoodSearchResult {
-	id: string;
-	name: string;
-	brand?: string;
-	serving_sizes: ServingSize[];
-	default_serving: DefaultServing;
-	nutrients_per_100g: MacroPer100g[];
-}
-
 interface FoodCardProps {
 	food: FoodSearchResult;
 	theme: Theme;
-}
-
-//hardcoded units we can select (for now)
-//and conversions we can convert between g -> weights
-const COMMON_UNITS = ["oz", "lb", "kg", "cup", "tbsp", "tsp", "ml"];
-const FIXED_UNIT_CONVERSIONS: Record<string, number> = {
-	kg: 1000,
-	lb: 453.592,
-	oz: 28.3495,
-	mg: 0.001,
-};
-
-function calcMacrosFromPer100g(
-	quantity: number,
-	unitWeightG: number,
-	nutrients: MacroPer100g[]
-): { cals?: number; protein?: number; carbs?: number; fat?: number } {
-	const grams = quantity * unitWeightG;
-
-	const get = (nutrientId: number) => {
-		const per100 = nutrients.find((n) => n.nutrient_id === nutrientId)?.amount_per_100g;
-		return per100 != null ? (per100 * grams) / 100 : undefined;
-	};
-
-	return {
-		cals: get(1008),
-		protein: get(1003),
-		carbs: get(1005),
-		fat: get(1004),
-	};
-}
-
-// ---- New sub-modal for adding a serving size ----
-interface AddServingModalProps {
-	visible: boolean;
-	foodId: string;
-	foodName: string;
-	availableUnits: string[];
-	theme: Theme;
 	onClose: () => void;
-	onServingAdded: (serving: ServingSize) => void;
 }
 
-function AddServingModal({
-	visible,
-	foodId,
-	foodName,
-	availableUnits,
-	theme,
-	onClose,
-	onServingAdded,
-}: AddServingModalProps) {
-	const [newLabel, setNewLabel] = useState("");
-	const [newWeight, setNewWeight] = useState("");
-	const [saving, setSaving] = useState(false);
-	const [error, setError] = useState<string | null>(null);
-
-	// Reset the modal form each time opened
-	useEffect(() => {
-		if (visible) {
-			setNewLabel("");
-			setNewWeight("");
-			setError(null);
-		}
-	}, [visible]);
-
-	async function handleSave() {
-		const weight = parseFloat(newWeight);
-		if (!newLabel) {
-			setError("Choose a unit first.");
-			return;
-		}
-		if (!weight || weight <= 0) {
-			setError("Enter a valid weight in grams.");
-			return;
-		}
-
-		setSaving(true);
-		setError(null);
-		try {
-			const res = await instance.post(`/nutrition/foods/${foodId}/serving-sizes`, {
-				label: newLabel,
-				weight_g: weight,
-			});
-
-			const created: ServingSize = {
-				label: res.data.foodServing.label,
-				weight_g: parseFloat(res.data.foodServing.weight_g),//convert from string to number...change on backend later
-			};
-
-			onServingAdded(created);
-		} catch (e) {
-			console.error("Failed to add serving size:", e);
-			setError("Something went wrong saving that. Please try again.");
-		} finally {
-			setSaving(false);
-		}
-	}
-
-	function selectUnit(unit: string) {
-		setNewLabel(unit);
-		setError(null);
-
-		const fixedWeight = FIXED_UNIT_CONVERSIONS[unit];
-		if (fixedWeight != null) {
-			setNewWeight(String(fixedWeight)); // pre-computed: pull from dict.
-		} else {
-			setNewWeight(""); // user entered number
-		}
-	}
-
-	const styles = useMemo(
-		() =>
-			StyleSheet.create({
-				overlay: {
-					flex: 1,
-					justifyContent: "flex-end",
-					backgroundColor: "rgba(0,0,0,0.5)",
-				},
-				sheet: {
-					backgroundColor: theme.cardBg,
-					borderTopLeftRadius: 20,
-					borderTopRightRadius: 20,
-					padding: 20,
-					paddingBottom: 32,
-				},
-				headerRow: {
-					flexDirection: "row",
-					justifyContent: "space-between",
-					alignItems: "center",
-					marginBottom: 4,
-				},
-				title: {
-					color: theme.text,
-					fontSize: 17,
-					fontWeight: "700",
-					flex: 1,
-				},
-				subtitle: {
-					color: theme.textMuted,
-					fontSize: 13,
-					marginBottom: 20,
-				},
-				sectionLabel: {
-					color: theme.textMuted,
-					fontSize: 11,
-					fontWeight: "700",
-					letterSpacing: 0.5,
-					marginBottom: 8,
-				},
-				unitRow: {
-					flexDirection: "row",
-					flexWrap: "wrap",
-					gap: 8,
-					marginBottom: 20,
-				},
-				unitPill: {
-					paddingVertical: 8,
-					paddingHorizontal: 14,
-					borderRadius: 20,
-					borderWidth: StyleSheet.hairlineWidth,
-					borderColor: theme.border,
-				},
-				unitPillSelected: {
-					backgroundColor: theme.primary,
-					borderColor: theme.primary,
-				},
-				unitPillText: {
-					fontSize: 13,
-					fontWeight: "600",
-					color: theme.text,
-				},
-				unitPillTextSelected: {
-					color: theme.cardBg,
-				},
-				weightInput: {
-					borderWidth: StyleSheet.hairlineWidth,
-					borderColor: theme.inputBorder,
-					backgroundColor: theme.inputBg,
-					borderRadius: 12,
-					paddingHorizontal: 14,
-					paddingVertical: 12,
-					color: theme.text,
-					fontSize: 16,
-					marginBottom: 8,
-				},
-				hint: {
-					color: theme.textMuted,
-					fontSize: 12,
-					marginBottom: 20,
-				},
-				errorText: {
-					color: "#F87171",
-					fontSize: 12,
-					marginBottom: 12,
-				},
-				saveButton: {
-					backgroundColor: theme.primary,
-					borderRadius: 14,
-					paddingVertical: 14,
-					alignItems: "center",
-					marginBottom: 10,
-					opacity: saving ? 0.6 : 1,
-				},
-				saveButtonText: {
-					color: theme.cardBg,
-					fontSize: 15,
-					fontWeight: "700",
-				},
-				cancelButton: {
-					alignItems: "center",
-					paddingVertical: 10,
-				},
-				cancelButtonText: {
-					color: theme.textMuted,
-					fontSize: 14,
-					fontWeight: "600",
-				},
-			}),
-		[theme, saving],
-	);
-
-	return (
-		<Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-			<KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.overlay}>
-				<View style={styles.sheet}>
-					<View style={styles.headerRow}>
-						<Text style={styles.title}>Add a serving size</Text>
-						<TouchableOpacity onPress={onClose} hitSlop={10}>
-							<FontAwesome5 name="times" size={20} color={theme.primary} />
-						</TouchableOpacity>
-					</View>
-					<Text style={styles.subtitle}>for {foodName}</Text>
-
-					<Text style={styles.sectionLabel}>UNIT</Text>
-					<View style={styles.unitRow}>
-						{availableUnits.map((unit) => {
-							const isSelected = unit === newLabel;
-							return (
-								<TouchableOpacity
-									key={unit}
-									style={[styles.unitPill, isSelected && styles.unitPillSelected]}
-									onPress={() => selectUnit(unit)}
-								>
-									<Text style={[styles.unitPillText, isSelected && styles.unitPillTextSelected]}>
-										{unit}
-									</Text>
-								</TouchableOpacity>
-							);
-						})}
-					</View>
-
-					{newLabel ? (
-						FIXED_UNIT_CONVERSIONS[newLabel] != null ? (
-							<Text style={styles.hint}>
-								1 {newLabel} = {FIXED_UNIT_CONVERSIONS[newLabel]}g — ready to save.
-							</Text>
-						) : (
-								<>
-									<Text style={styles.sectionLabel}>WEIGHT</Text>
-									<TextInput
-										style={styles.weightInput}
-										placeholder="0"
-										placeholderTextColor={theme.inputPlaceholder}
-										keyboardType="decimal-pad"
-										value={newWeight}
-										onChangeText={setNewWeight}
-									/>
-									<Text style={styles.hint}>How many grams is in 1 {newLabel}?</Text>
-								</>
-							)
-						) : (
-						<Text style={styles.hint}>Pick a unit above to continue.</Text>
-					)}
-
-					{error && <Text style={styles.errorText}>{error}</Text>}
-
-					<TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={saving}>
-						<Text style={styles.saveButtonText}>{saving ? "Saving..." : "Save"}</Text>
-					</TouchableOpacity>
-
-					<TouchableOpacity style={styles.cancelButton} onPress={onClose}>
-						<Text style={styles.cancelButtonText}>Cancel</Text>
-					</TouchableOpacity>
-				</View>
-			</KeyboardAvoidingView>
-		</Modal>
-	);
-}
-
-function FoodCard({ food, theme }: FoodCardProps) {
+function FoodCard({ food, theme, onClose }: FoodCardProps) {
 	const [expanded, setExpanded] = useState(false);
 	const [quantity, setQuantity] = useState<string>("1");
 
@@ -367,10 +51,11 @@ function FoodCard({ food, theme }: FoodCardProps) {
 
 	const { cals, protein, carbs, fat } = useMemo(
 		() => calcMacrosFromPer100g(parsedQty, selectedServing.weight_g, food.nutrients_per_100g),
-		[parsedQty, selectedServing, food.nutrients_per_100g]
+		[parsedQty, selectedServing, food.nutrients_per_100g],
 	);
 
 	const serving = selectedServing.label;
+	const serving_weight_in_grams = selectedServing.weight_g;
 
 	function handleServingAdded(created: ServingSize) {
 		setServingOptions((prev) => [...prev, created]);
@@ -464,10 +149,24 @@ function FoodCard({ food, theme }: FoodCardProps) {
 					</View>
 
 					<View style={styles.rightCol}>
-						<View style={styles.nutritionButton}>
+						<TouchableOpacity
+							style={styles.nutritionButton}
+							onPress={() => {
+								onClose();
+								router.push({
+									pathname: "/nutrition/[food_id]",
+									params: {
+										food_id: food.id,
+										serving_label: selectedServing.label,
+										serving_weight_g: String(selectedServing.weight_g),
+										quantity: quantity,
+									},
+								});
+							}}
+						>
 							<Text style={styles.nutritionLabel}>NUTRITION</Text>
 							<FontAwesome5 name="chevron-right" size={8} color={theme.primary} />
-						</View>
+						</TouchableOpacity>
 						{cals != null && <Text style={styles.calories}>{Math.round(cals)}</Text>}
 					</View>
 				</View>
@@ -490,7 +189,9 @@ function FoodCard({ food, theme }: FoodCardProps) {
 							</Text>
 						)}
 					</View>
-					<Text style={styles.serving}>{serving}</Text>
+					<Text style={styles.serving}>
+						{serving} ({serving_weight_in_grams}g)
+					</Text>
 				</View>
 
 				{expanded && (
@@ -502,13 +203,7 @@ function FoodCard({ food, theme }: FoodCardProps) {
 									<FontAwesome5 name="minus-circle" size={20} color={theme.primary} />
 								</TouchableOpacity>
 
-								<TextInput
-									style={styles.quantityInput}
-									keyboardType="decimal-pad"
-									onChangeText={setQuantity}
-									value={quantity}
-									placeholder="1"
-								/>
+								<TextInput style={styles.quantityInput} keyboardType="decimal-pad" onChangeText={setQuantity} value={quantity} placeholder="1" />
 
 								<TouchableOpacity onPress={() => stepQuantity(1)} hitSlop={10}>
 									<FontAwesome5 name="plus-circle" size={20} color={theme.primary} />
@@ -518,31 +213,19 @@ function FoodCard({ food, theme }: FoodCardProps) {
 
 						<View style={styles.servingRow}>
 							{servingOptions.map((opt) => {
-								const isSelected =
-									opt.label === selectedServing.label && opt.weight_g === selectedServing.weight_g;
+								const isSelected = opt.label === selectedServing.label && opt.weight_g === selectedServing.weight_g;
 								return (
 									<TouchableOpacity
 										key={opt.label}
 										style={[styles.servingPill, isSelected && styles.servingPillSelected]}
 										onPress={() => setSelectedServing(opt)}
 									>
-										<Text
-											style={[
-												styles.servingPillText,
-												isSelected && styles.servingPillTextSelected,
-											]}
-										>
-											{opt.label}
-										</Text>
+										<Text style={[styles.servingPillText, isSelected && styles.servingPillTextSelected]}>{opt.label}</Text>
 									</TouchableOpacity>
 								);
 							})}
 
-							<TouchableOpacity
-								key="AddMoreServing"
-								style={styles.servingPill}
-								onPress={() => setAddServingModalVisible(true)}
-							>
+							<TouchableOpacity key="AddMoreServing" style={styles.servingPill} onPress={() => setAddServingModalVisible(true)}>
 								<Text style={styles.servingPillText}> + </Text>
 							</TouchableOpacity>
 						</View>
@@ -673,7 +356,7 @@ export default function LogFoodModal({ visible, mealType, onClose }: LogFoodModa
 
 					<ScrollView showsVerticalScrollIndicator={false}>
 						{searchResults?.map((food) => (
-							<FoodCard key={food.id} food={food} theme={theme} />
+							<FoodCard key={food.id} food={food} theme={theme} onClose={onClose} />
 						))}
 					</ScrollView>
 				</View>

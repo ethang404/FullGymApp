@@ -63,6 +63,7 @@ export default function ProtectedLayout() {
 				}}
 			/>
 			<Tabs.Screen name="workouts/[id]" options={{ href: null }} />
+			<Tabs.Screen name="nutrition/[food_id]" options={{ href: null }} />
 			<Tabs.Screen name="LogFoodModal" options={{ href: null }} />
 		</Tabs>
 	);
