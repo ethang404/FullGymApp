@@ -174,12 +174,12 @@ async function buildIngredientRows(ingredients, recipe_id) {
 	});
 }
 
-//given raw nutrient ID's, return macro names with amounts
+//given raw nutrient ID's in an array, return macro names with amounts in dictionary
 function mapNutrients(rawNutrients) {
 	const mapped = {};
-	for (const [id, value] of Object.entries(rawNutrients)) {
-		const key = ID_TO_DISPLAY[id];
-		if (key) mapped[key] = parseFloat(value) || 0;
+	for (const n of rawNutrients) {
+		const key = ID_TO_DISPLAY[n.nutrient_id];
+		if (key) mapped[key] = parseFloat(n.amount) || 0;
 	}
 	return mapped;
 }

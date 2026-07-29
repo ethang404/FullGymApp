@@ -46,7 +46,7 @@ export function AxiosInterceptorHandler({ children }: PropsWithChildren) {
 			(resp) => resp,
 			async (error) => {
 				// if access token invalid
-				if (error.response?.status === 401 || error.response?.status === 400) {
+				if (error.response?.status === 401) {
 					try {
 						console.log("in response interceptor area-trying to refresh token");
 						const refreshToken = await SecureStore.getItemAsync("refreshToken");
@@ -72,7 +72,7 @@ export function AxiosInterceptorHandler({ children }: PropsWithChildren) {
 
 						const status = err?.response?.status;
 						//Specifically a auth error, sign out - refreshToken invalid
-						if (status === 400 || status === 401) {
+						if (status === 401) {
 							signOut();
 						} else {
 							console.log("Refresh failed for non-auth reason", err);

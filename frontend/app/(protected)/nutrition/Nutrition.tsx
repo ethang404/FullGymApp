@@ -508,7 +508,13 @@ export default function Nutrition() {
 			/>
 
 			{/* Log food modal */}
-			<LogFoodModal visible={logModalVisible} mealType={activeMealType} onClose={() => setLogModalVisible(false)} onLogged={fetchEntries} />
+			<LogFoodModal
+				visible={logModalVisible}
+				mealType={activeMealType}
+				selectedDate={selectedDate}
+				onClose={() => setLogModalVisible(false)}
+				onLogged={fetchEntries}
+			/>
 		</SafeAreaView>
 	);
 }
