@@ -8,9 +8,9 @@ import { instance } from "@/utils/AxiosInterceptorHandler";
 
 import { router } from "expo-router";
 
-import { COMMON_UNITS } from "./types/nutrition";
-import { AddServingModal } from "./components/AddServingModal";
-import { calcMacrosFromPer100g, type ServingSize, type FoodSearchResult } from "./types/nutrition";
+import { COMMON_UNITS } from "../types/nutrition";
+import { AddServingModal } from "../components/AddServingModal";
+import { calcMacrosFromPer100g, type ServingSize, type FoodSearchResult } from "../types/nutrition";
 
 type MealType = "breakfast" | "lunch" | "dinner" | "snacks";
 
@@ -152,7 +152,7 @@ function FoodCard({ food, theme, onClose }: FoodCardProps) {
 						<TouchableOpacity
 							style={styles.nutritionButton}
 							onPress={() => {
-								onClose();
+								//onClose();
 								router.push({
 									pathname: "/nutrition/[food_id]",
 									params: {
