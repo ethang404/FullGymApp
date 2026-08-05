@@ -5,13 +5,13 @@ import type { Theme } from "@/theme/colors"; //for typing
 
 import { instance } from "@/utils/AxiosInterceptorHandler";
 
-import type { ServingSize } from "../types/nutrition";
+import type { ServingSize } from "../../types/nutrition";
 
-import { FIXED_UNIT_CONVERSIONS } from "../types/nutrition";
+import { FIXED_UNIT_CONVERSIONS } from "../../types/nutrition";
 
 interface AddServingModalProps {
 	visible: boolean;
-	foodId: string;
+	foodId: number;
 	foodName: string;
 	availableUnits: string[];
 	theme: Theme;

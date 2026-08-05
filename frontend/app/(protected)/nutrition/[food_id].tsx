@@ -7,18 +7,20 @@ import { useTheme } from "@/theme/ThemeProvider";
 
 import { instance } from "@/utils/AxiosInterceptorHandler";
 
-import { AddServingModal } from "../components/AddServingModal";
+import { AddServingModal } from "./components/AddServingModal";
+import NutritionFactsLabel from "./components/NutritionLabel";
+
 import {
 	calcMacrosFromPer100g,
 	COMMON_UNITS,
 	type ServingSize,
 	type FoodDetail,
-	NUTRIENT_IDS,
+	NUTRIENT_NAME_TO_IDS,
+	NUTRIENT_IDS_TO_NAMES,
 	calcNutrientsFromPer100g,
-	CalculatedNutrient,
 } from "../types/nutrition";
 
-export default function NutritionScreen() {
+export default function FoodDetailScreen() {
 	const { theme } = useTheme();
 	const { food_id, serving_label, serving_weight_g, quantity } = useLocalSearchParams<{
 		food_id: string;
@@ -36,7 +38,6 @@ export default function NutritionScreen() {
 	const initialServing: ServingSize | null = serving_label && serving_weight_g ? { label: serving_label, weight_g: parseFloat(serving_weight_g) } : null;
 
 	const [selectedServing, setSelectedServing] = useState<ServingSize | null>(initialServing);
-
 	const [servingOptions, setServingOptions] = useState<ServingSize[]>(initialServing ? [initialServing] : []);
 
 	const [addServingModalVisible, setAddServingModalVisible] = useState(false);
@@ -95,23 +96,34 @@ export default function NutritionScreen() {
 
 	const calculatedNutrients = useMemo(() => {
 		if (!food || !selectedServing) return [];
-
 		return calcNutrientsFromPer100g(parsedQty, selectedServing.weight_g, food.nutrients_per_100g);
 	}, [food, selectedServing, parsedQty]);
 
-	const { cals, protein, carbs, fat } = useMemo(() => {
-		return {
-			cals: calculatedNutrients.find((n) => n.nutrient_id === NUTRIENT_IDS.ENERGY)?.amount,
+	const nutrientsMap = useMemo(() => {
+		const map: Partial<Record<keyof typeof NUTRIENT_NAME_TO_IDS, number>> = {};
 
-			protein: calculatedNutrients.find((n) => n.nutrient_id === NUTRIENT_IDS.PROTEIN)?.amount,
+		calculatedNutrients.forEach((item) => {
+			const nameKey = NUTRIENT_IDS_TO_NAMES[item.nutrient_id] as keyof typeof NUTRIENT_NAME_TO_IDS;
+			if (nameKey) {
+				map[nameKey] = item.amount;
+			}
+		});
 
-			carbs: calculatedNutrients.find((n) => n.nutrient_id === NUTRIENT_IDS.CARBS)?.amount,
-
-			fat: calculatedNutrients.find((n) => n.nutrient_id === NUTRIENT_IDS.FAT)?.amount,
-		};
+		return map;
 	}, [calculatedNutrients]);
 
+	// Macro Breakdown for the top energy bar
+	const { cals, protein, carbs, fat } = useMemo(() => {
+		return {
+			cals: nutrientsMap.ENERGY,
+			protein: nutrientsMap.PROTEIN,
+			carbs: nutrientsMap.CARBS,
+			fat: nutrientsMap.FAT,
+		};
+	}, [nutrientsMap]);
+
 	const macroKcalTotal = (protein ?? 0) * 4 + (carbs ?? 0) * 4 + (fat ?? 0) * 9 || 1;
+	const totalWeightG = (selectedServing?.weight_g ?? 0) * parsedQty;
 
 	const styles = useMemo(
 		() =>
@@ -157,21 +169,7 @@ export default function NutritionScreen() {
 					paddingVertical: 4,
 				},
 				quantityInput: { color: theme.text, fontSize: 16, fontWeight: "700", minWidth: 36, textAlign: "center" },
-
 				macroBar: { flexDirection: "row", height: 6, borderRadius: 4, overflow: "hidden", marginTop: 16 },
-
-				sectionTitle: { color: theme.text, fontSize: 20, fontWeight: "800", marginHorizontal: 16, marginTop: 22, marginBottom: 10 },
-
-				factsRow: {
-					flexDirection: "row",
-					justifyContent: "space-between",
-					alignItems: "center",
-					paddingVertical: 10,
-					borderBottomWidth: StyleSheet.hairlineWidth,
-					borderBottomColor: theme.border,
-				},
-				factsRowValue: { color: theme.textMuted, fontSize: 13.5 },
-				thickDivider: { height: 6, backgroundColor: theme.border, borderRadius: 3, marginVertical: 8 },
 
 				servingRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12, marginBottom: 4 },
 				servingPill: {
@@ -223,7 +221,7 @@ export default function NutritionScreen() {
 				</TouchableOpacity>
 			</View>
 
-			<ScrollView showsVerticalScrollIndicator={false}>
+			<ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
 				<View style={styles.card}>
 					<View style={styles.energyRow}>
 						<View>
@@ -254,68 +252,42 @@ export default function NutritionScreen() {
 					</View>
 				</View>
 
-				<Text style={styles.sectionTitle}>Nutrition Facts</Text>
-
-				<View style={styles.card}>
-					<View style={{ paddingVertical: 6 }}>
-						<Text style={{ color: theme.text, fontSize: 15, fontWeight: "700" }}>Serving size</Text>
-						<View style={styles.servingRow}>
-							{servingOptions.map((opt) => {
-								const isSelected = opt.label === selectedServing?.label && opt.weight_g === selectedServing?.weight_g;
-								return (
-									<TouchableOpacity
-										key={opt.label}
-										style={[styles.servingPill, isSelected && styles.servingPillSelected]}
-										onPress={() => setSelectedServing(opt)}
-									>
-										<Text style={[styles.servingPillText, isSelected && styles.servingPillTextSelected]}>
-											1 {opt.label} ({opt.weight_g}g)
-										</Text>
-									</TouchableOpacity>
-								);
-							})}
-							<TouchableOpacity style={styles.servingPill} onPress={() => setAddServingModalVisible(true)}>
-								<Text style={styles.servingPillText}> + </Text>
-							</TouchableOpacity>
-						</View>
+				<View style={[styles.card, { marginTop: 12 }]}>
+					<Text style={{ color: theme.text, fontSize: 15, fontWeight: "700" }}>Serving size</Text>
+					<View style={styles.servingRow}>
+						{servingOptions.map((opt) => {
+							const isSelected = opt.label === selectedServing?.label && opt.weight_g === selectedServing?.weight_g;
+							return (
+								<TouchableOpacity
+									key={opt.label}
+									style={[styles.servingPill, isSelected && styles.servingPillSelected]}
+									onPress={() => setSelectedServing(opt)}
+								>
+									<Text style={[styles.servingPillText, isSelected && styles.servingPillTextSelected]}>
+										{opt.label} ({opt.weight_g}g)
+									</Text>
+								</TouchableOpacity>
+							);
+						})}
+						<TouchableOpacity style={styles.servingPill} onPress={() => setAddServingModalVisible(true)}>
+							<Text style={styles.servingPillText}> + </Text>
+						</TouchableOpacity>
 					</View>
+				</View>
 
-					<View style={styles.thickDivider} />
-
-					<View style={styles.factsRow}>
-						<Text style={{ color: theme.text, fontSize: 15, fontWeight: "700" }}>Calories</Text>
-						<Text style={styles.factsRowValue}>{cals != null ? `${Math.round(cals)} kcal` : "0g"}</Text>
-					</View>
-
-					<View style={styles.factsRow}>
-						<View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-							<View style={{ width: 7, height: 7, borderRadius: 2, backgroundColor: "#FB923C" }} />
-							<Text style={{ color: theme.text, fontSize: 15, fontWeight: "700" }}>Total Fat</Text>
-						</View>
-						<Text style={styles.factsRowValue}>{fat != null ? `${fat.toFixed(1)}g` : "0g"}</Text>
-					</View>
-
-					<View style={styles.factsRow}>
-						<View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-							<View style={{ width: 7, height: 7, borderRadius: 2, backgroundColor: "#38BDF8" }} />
-							<Text style={{ color: theme.text, fontSize: 15, fontWeight: "700" }}>Total Carbohydrate</Text>
-						</View>
-						<Text style={styles.factsRowValue}>{carbs != null ? `${carbs.toFixed(1)}g` : "0g"}</Text>
-					</View>
-
-					<View style={[styles.factsRow, { borderBottomWidth: 0 }]}>
-						<View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-							<View style={{ width: 7, height: 7, borderRadius: 2, backgroundColor: "#4ADE80" }} />
-							<Text style={{ color: theme.text, fontSize: 15, fontWeight: "700" }}>Protein</Text>
-						</View>
-						<Text style={styles.factsRowValue}>{protein != null ? `${protein.toFixed(1)}g` : "0g"}</Text>
-					</View>
+				<View style={{ marginHorizontal: 16 }}>
+					<NutritionFactsLabel
+						nutrients={nutrientsMap}
+						servings={1} // Pass 1 so perServing inside the label uses exact totals from nutrientsMap instead of recipe vals
+						totalWeightG={totalWeightG}
+						servingUnitText={`${parsedQty} ${selectedServing?.label ?? "serving"}`}
+					/>
 				</View>
 			</ScrollView>
 
 			<AddServingModal
 				visible={addServingModalVisible}
-				foodId={food_id}
+				foodId={food.id}
 				foodName={food.name}
 				availableUnits={availableUnits}
 				theme={theme}

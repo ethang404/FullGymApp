@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMemo, useState, useRef, useCallback } from "react";
+import { router } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
@@ -447,12 +448,35 @@ export default function Nutrition() {
 					{/* This is outside click handle ^^ */}
 
 					<View style={[styles.createMenu, { top: headerHeight }]}>
-						<TouchableOpacity style={styles.createMenuItem} onPress={() => setCreateMenuOpen(false)}>
+						<TouchableOpacity
+							style={styles.createMenuItem}
+							onPress={() => {
+								setCreateMenuOpen(false);
+								router.push("/nutrition/CreateFood");
+							}}
+						>
 							<Text style={styles.createMenuText}>Create food</Text>
 						</TouchableOpacity>
 						<View style={styles.createMenuDivider} />
-						<TouchableOpacity style={styles.createMenuItem} onPress={() => setCreateMenuOpen(false)}>
+						<TouchableOpacity
+							style={styles.createMenuItem}
+							onPress={() => {
+								setCreateMenuOpen(false);
+								router.push("/nutrition/CreateRecipe");
+							}}
+						>
 							<Text style={styles.createMenuText}>Create recipe</Text>
+						</TouchableOpacity>
+
+						{/* New view recipes button */}
+						<TouchableOpacity
+							style={styles.createMenuItem}
+							onPress={() => {
+								setCreateMenuOpen(false);
+								router.push("/nutrition/DisplayRecipes");
+							}}
+						>
+							<Text style={styles.createMenuText}>View recipes</Text>
 						</TouchableOpacity>
 					</View>
 				</>

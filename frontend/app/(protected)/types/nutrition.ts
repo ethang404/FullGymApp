@@ -18,7 +18,7 @@ export interface CalculatedNutrient extends MacroPer100g {
 }
 
 export interface FoodDetail {
-	id: string;
+	id: number;
 	name: string;
 	brand?: string | null;
 	serving_sizes: ServingSize[];
@@ -39,7 +39,7 @@ export interface DefaultServing {
 }
 
 export interface FoodSearchResult {
-	id: string;
+	id: number;
 	name: string;
 	brand?: string;
 	serving_sizes: ServingSize[];
@@ -47,12 +47,49 @@ export interface FoodSearchResult {
 	nutrients_per_100g: MacroPer100g[];
 }
 
-export const NUTRIENT_IDS = {
+export const NUTRIENT_NAME_TO_IDS = {
+	// ── Core macros ──────────────────────────────────────────
 	ENERGY: 1008,
 	PROTEIN: 1003,
-	CARBS: 1005,
 	FAT: 1004,
+	CARBS: 1005,
+
+	// ── Carb breakdown ───────────────────────────────────────
+	FIBER: 1079,
+	SUGAR: 2000,
+	ADDED_SUGAR: 1235,
+
+	// ── Fat breakdown ────────────────────────────────────────
+	SATURATED_FAT: 1258,
+	TRANS_FAT: 1257,
+	POLYUNSATURATED_FAT: 1293,
+	MONOUNSATURATED_FAT: 1292,
+
+	// ── Minerals ─────────────────────────────────────────────
+	SODIUM: 1093,
+	CHOLESTEROL: 1253,
+	CALCIUM: 1087,
+	IRON: 1089,
+	POTASSIUM: 1092,
+	MAGNESIUM: 1090,
+	PHOSPHORUS: 1091,
+	ZINC: 1095,
+
+	// ── Vitamins ─────────────────────────────────────────────
+	VITAMIN_A: 1106,
+	VITAMIN_C: 1162,
+	VITAMIN_D: 1114,
+	VITAMIN_E: 1109,
+	VITAMIN_K: 1185,
+	VITAMIN_B6: 1175,
+	VITAMIN_B12: 1178,
+	FOLATE: 1177,
+	THIAMIN: 1165,
+	RIBOFLAVIN: 1166,
+	NIACIN: 1167,
 } as const;
+
+export const NUTRIENT_IDS_TO_NAMES = Object.fromEntries(Object.entries(NUTRIENT_NAME_TO_IDS).map(([key, value]) => [value, key]));
 
 export function calcMacrosFromPer100g(
 	quantity: number,
@@ -67,10 +104,10 @@ export function calcMacrosFromPer100g(
 	};
 
 	return {
-		cals: get(NUTRIENT_IDS.ENERGY),
-		protein: get(NUTRIENT_IDS.PROTEIN),
-		carbs: get(NUTRIENT_IDS.CARBS),
-		fat: get(NUTRIENT_IDS.FAT),
+		cals: get(NUTRIENT_NAME_TO_IDS.ENERGY),
+		protein: get(NUTRIENT_NAME_TO_IDS.PROTEIN),
+		carbs: get(NUTRIENT_NAME_TO_IDS.CARBS),
+		fat: get(NUTRIENT_NAME_TO_IDS.FAT),
 	};
 }
 
@@ -89,9 +126,23 @@ export function calcNutrientsFromPer100g(quantity: number, unitWeightG: number, 
 	}));
 }
 
+//Recipe screens
+export interface RecipeIngredient {
+	id: string; // local-only id, e.g. `${food.id}-${Date.now()}`
+	food: FoodSearchResult;
+	quantity: number;
+	serving: ServingSize;
+	cals: number;
+	protein: number;
+	carbs: number;
+	fat: number;
+}
+
 //Constants we use all over:
 export const COMMON_UNITS = ["oz", "lb", "kg", "cup", "tbsp", "tsp", "ml"];
+export const SERVING_UNIT_OPTIONS: string[] = ["g", "kg", "oz", "lb", "ml", "l", "cup", "tbsp", "tsp", "slice", "piece", "serving"];
 export const FIXED_UNIT_CONVERSIONS: Record<string, number> = {
+	g: 1,
 	kg: 1000,
 	lb: 453.592,
 	oz: 28.3495,

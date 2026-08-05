@@ -8,6 +8,7 @@ export default function NutritionLayout() {
 			<Stack.Screen name="Nutrition" />
 			<Stack.Screen name="[food_id]" />
 			<Stack.Screen name="CreateFood" />
+			<Stack.Screen name="CreateRecipe" />
 		</Stack>
 	);
 }

@@ -38,7 +38,13 @@
 					"backgroundColor": "#ffffff"
 				}
 			],
-			"expo-secure-store"
+			"expo-secure-store",
+			[
+				"expo-camera",
+				{
+					"cameraPermission": "Allow Kratos to access your camera."
+				}
+			]
 		],
 		"experiments": {
 			"typedRoutes": true

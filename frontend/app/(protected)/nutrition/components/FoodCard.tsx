@@ -6,9 +6,9 @@ import { router } from "expo-router";
 
 import { instance } from "@/utils/AxiosInterceptorHandler";
 
-import { COMMON_UNITS } from "../types/nutrition";
-import { AddServingModal } from "../components/AddServingModal";
-import { calcMacrosFromPer100g, type ServingSize, type FoodSearchResult } from "../types/nutrition";
+import { COMMON_UNITS } from "../../types/nutrition";
+import { AddServingModal } from "./AddServingModal";
+import { calcMacrosFromPer100g, type ServingSize, type FoodSearchResult } from "../../types/nutrition";
 
 interface FoodCardProps {
 	food: FoodSearchResult;
@@ -30,10 +30,12 @@ export default function FoodCard({ food, displayLogButton, mealType, loggedAt, o
 
 	const [addServingModalVisible, setAddServingModalVisible] = useState(false);
 
-	const [servingOptions, setServingOptions] = useState<ServingSize[]>(() => {
+	/* const [servingOptions, setServingOptions] = useState<ServingSize[]>(() => {
 		const hasGrams = food.serving_sizes.some((s) => s.label === "g");
 		return hasGrams ? food.serving_sizes : [{ label: "g", weight_g: 1 }, ...food.serving_sizes];
-	});
+	}); */
+
+	const [servingOptions, setServingOptions] = useState<ServingSize[]>(food.serving_sizes);
 
 	const usedLabels = useMemo(() => new Set(servingOptions.map((s) => s.label)), [servingOptions]);
 	const availableUnits = useMemo(() => COMMON_UNITS.filter((u) => !usedLabels.has(u)), [usedLabels]);
