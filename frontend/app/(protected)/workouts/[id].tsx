@@ -1,5 +1,6 @@
 import { useLocalSearchParams } from "expo-router";
-import { View, Text, StyleSheet, TextInput, SafeAreaView, ScrollView } from "react-native";
+import { View, Text, StyleSheet, TextInput, ScrollView } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useMemo } from "react";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { Card, DataTable } from "react-native-paper";

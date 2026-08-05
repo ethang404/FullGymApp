@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIndicator, Alert, Modal, FlatList } from "react-native";
+import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Modal, FlatList } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { ServingSize, NUTRIENT_NAME_TO_IDS, FIXED_UNIT_CONVERSIONS } from "../types/nutrition";
@@ -363,7 +364,7 @@ export default function CreateFood() {
 			<Modal visible={isCameraOpen} animationType="slide" onRequestClose={() => setIsCameraOpen(false)}>
 				<View style={styles.cameraContainer}>
 					<CameraView
-						style={StyleSheet.absoluteFillObject}
+						style={StyleSheet.absoluteFill}
 						facing="back"
 						onBarcodeScanned={handleBarcodeScanned}
 						barcodeScannerSettings={{

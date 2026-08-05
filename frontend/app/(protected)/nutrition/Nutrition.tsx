@@ -17,7 +17,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMemo, useState, useRef, useCallback } from "react";
 import { router } from "expo-router";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect } from "expo-router";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
@@ -444,7 +444,7 @@ export default function Nutrition() {
 
 			{createMenuOpen && (
 				<>
-					<Pressable style={StyleSheet.absoluteFillObject} onPress={() => setCreateMenuOpen(false)} />
+					<Pressable style={StyleSheet.absoluteFill} onPress={() => setCreateMenuOpen(false)} />
 					{/* This is outside click handle ^^ */}
 
 					<View style={[styles.createMenu, { top: headerHeight }]}>
