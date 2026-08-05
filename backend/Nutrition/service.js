@@ -116,64 +116,6 @@ const calcNutrients = (quantity, unit, servingSizes, nutrients) => {
 	return result;
 };
 
-/**
- * Expected: (ingredients: Array, scale: number)
- * Logic: Should scale the snapshot macros of a recipe by the portion eaten.
- */
-const scaleMacros = (ingredients, scale) => {
-	//sum up all the stored macro snapshots across every ingredient
-	const totalCalories = ingredients.reduce((sum, ing) => sum + parseFloat(ing.calories ?? 0), 0);
-	const totalProtein = ingredients.reduce((sum, ing) => sum + parseFloat(ing.protein ?? 0), 0);
-	const totalCarbs = ingredients.reduce((sum, ing) => sum + parseFloat(ing.carbs ?? 0), 0);
-	const totalFat = ingredients.reduce((sum, ing) => sum + parseFloat(ing.fat ?? 0), 0);
-
-	//multiply by scale to get only the portion the user ate
-	//ex: recipe makes 4 servings, user ate 1...scale = 1/4 = 0.25
-	return {
-		calories: parseFloat((totalCalories * scale).toFixed(4)),
-		protein: parseFloat((totalProtein * scale).toFixed(4)),
-		carbs: parseFloat((totalCarbs * scale).toFixed(4)),
-		fat: parseFloat((totalFat * scale).toFixed(4)),
-	};
-};
-
-async function buildIngredientRows(ingredients, recipe_id) {
-	//Given array of ingrediants and a optional recipe id.
-
-	//Get nutrition data for foods to calculate recipe ingrediants
-	const food_ids = ingredients.map((i) => i.food_id);
-
-	const full_food_data = await FoodModel.findAll({
-		where: { id: { [Op.in]: food_ids } },
-		include: [
-			{ model: FoodNutrientModel, required: true },
-			{ model: FoodServingSizeModel, required: true },
-		],
-	});
-
-	const foodMap = Object.fromEntries(full_food_data.map((f) => [f.id, f]));
-
-	return ingredients.map((ing) => {
-		const food = foodMap[ing.food_id];
-		if (!food) throw new NotFoundError(`Food ${ing.food_id} not found`);
-
-		//convert fetched foods to user given amounts from 100g
-		toGrams(ing.quantity, ing.unit, food.foodServingSizes); //used for throwing if serving not found
-		const nutrients = calcNutrients(ing.quantity, ing.unit, food.foodServingSizes, food.foodNutrients);
-
-		return {
-			recipe_id,
-			food_id: food.id,
-			quantity: ing.quantity,
-			unit: ing.unit,
-			calories: nutrients[1008] ?? null,
-			protein: nutrients[1003] ?? null,
-			carbs: nutrients[1005] ?? null,
-			fat: nutrients[1004] ?? null,
-		};
-	});
-}
-
 //given raw nutrient ID's in an array, return macro names with amounts in dictionary
 function mapNutrients(rawNutrients) {
 	const mapped = {};
@@ -182,6 +124,72 @@ function mapNutrients(rawNutrients) {
 		if (key) mapped[key] = parseFloat(n.amount) || 0;
 	}
 	return mapped;
+}
+
+//takes in array of food items and calculates nutrients for each
+//used to build out recipe ingredients.
+async function buildIngredientRows(ingredients, recipe_id, t) {
+	const rows = [];
+
+	//do this across all food id's to avoid N+1 queries
+	const foodIds = [...new Set(ingredients.map((item) => item.food_id))];
+
+	const foods = await FoodModel.findAll({
+		where: {
+			id: { [Op.in]: foodIds },
+			is_deleted: false,
+		},
+		include: [{ model: FoodNutrientModel }, { model: FoodServingSizeModel }],
+		transaction: t,
+	});
+
+	const foodMap = new Map(foods.map((f) => [f.id, f]));
+
+	for (const item of ingredients) {
+		const { food_id, quantity, unit } = item;
+
+		if (!food_id) throw new DataError("Each ingredient requires a food_id");
+		if (quantity == null || isNaN(quantity) || quantity <= 0) throw new DataError("Each ingredient requires a valid quantity");
+		if (!unit) throw new DataError("Each ingredient requires a unit");
+
+		const food = foodMap.get(food_id);
+		if (!food) throw new DataError(`Food with id ${food_id} not found`);
+
+		const raw_nutrients = calcNutrients(quantity, unit, food.foodServingSizes, food.foodNutrients);
+		const mapped = mapNutrients(raw_nutrients); //fetches everything, but we only care about cals/protein/carbs/fats
+
+		rows.push({
+			recipe_id,
+			food_id,
+			quantity,
+			unit,
+			calories: mapped.calories ?? null,
+			protein: mapped.protein ?? null,
+			carbs: mapped.carbs ?? null,
+			fat: mapped.fat ?? null,
+		});
+	}
+
+	return rows;
+}
+
+//sum nutrients to however much the user logged/ate
+//so like if the recipe makes 10 servings, and we ate 1. Scale is 0.1 so we scale ingrediants down
+function scaleRecipeNutrients(recipeIngredients, scale) {
+	const totals = {};
+
+	for (const ing of recipeIngredients ?? []) {
+		const raw_nutrients = calcNutrients(parseFloat(ing.quantity), ing.unit, ing.food.foodServingSizes, ing.food.foodNutrients);
+
+		for (const n of raw_nutrients) {
+			totals[n.nutrient_id] = (totals[n.nutrient_id] ?? 0) + n.amount;
+		}
+	}
+
+	return Object.entries(totals).map(([nutrient_id, total]) => ({
+		nutrient_id: parseInt(nutrient_id),
+		amount: parseFloat((total * scale).toFixed(4)),
+	}));
 }
 
 // ---------------------------------------------
@@ -269,7 +277,7 @@ async function CreateFood(data, user_id) {
 	if (!Array.isArray(data.serving_sizes) || data.serving_sizes.length === 0) throw new DataError("At least one serving size is required");
 
 	for (const n of data.nutrients) {
-		if (!n.nutrient_id) throw new DataError("Each nutrient must have a nutrient_id");
+		//if (!n.nutrient_id) throw new DataError("Each nutrient must have a nutrient_id");
 		if (!n.nutrient_name?.trim()) throw new DataError("Each nutrient must have a nutrient_name");
 		if (!n.unit?.trim()) throw new DataError("Each nutrient must have a unit");
 		if (n.nutrient_amount == null || isNaN(n.nutrient_amount)) throw new DataError("Each nutrient must have a valid nutrient_amount");
@@ -318,7 +326,11 @@ async function CreateFood(data, user_id) {
 			{ transaction: t },
 		);
 
-		return newFood;
+		//need to do reload here to make sure we display the correct data
+		return newFood.reload({
+			include: [{ model: FoodNutrientModel }, { model: FoodServingSizeModel }],
+			transaction: t,
+		});
 	});
 
 	return result;
@@ -470,7 +482,17 @@ async function getDiaryEntries(user_id, start_date, end_date, meal_type) {
 			{
 				model: RecipeModel,
 				required: false,
-				include: [{ model: RecipeIngredientModel }], // pre-stored macros for scaling
+				include: [
+					{
+						model: RecipeIngredientModel,
+						include: [
+							{
+								model: FoodModel,
+								include: [{ model: FoodNutrientModel }, { model: FoodServingSizeModel }],
+							},
+						],
+					},
+				],
 			},
 		],
 		order: [
@@ -499,7 +521,7 @@ async function getDiaryEntries(user_id, start_date, end_date, meal_type) {
 		}
 		if (e.recipe_id) {
 			const scale = parseFloat(e.quantity) / parseFloat(e.recipe.servings);
-			const raw_nutrients = scaleMacros(e.recipe.recipeIngredients, scale);
+			const raw_nutrients = scaleRecipeNutrients(e.recipe.recipeIngredients, scale);
 			return {
 				id: e.id,
 				type: "recipe",
@@ -518,7 +540,7 @@ async function getDiaryEntries(user_id, start_date, end_date, meal_type) {
 	});
 
 	// TODO: Fetch DiaryEntries with joins (Food+Nutrients+ServingSizes or Recipe+Ingredients)
-	// TODO: Calculate nutrients for each entry (calcNutrients for food, scaleMacros for recipes)
+	// TODO: Calculate nutrients for each entry (calcNutrients for food, scaleRecipeNutrients for recipes)
 }
 
 /**
@@ -576,7 +598,7 @@ async function editDiaryEntry(entry_id, data, user_id) {
 	});
 
 	if (updated.food_id) {
-		const nutrients = calcNutrients(updated.quantity, updated.unit, updated.food.foodServingSizes, updated.food.foodNutrients);
+		const raw_nutrients = calcNutrients(updated.quantity, updated.unit, updated.food.foodServingSizes, updated.food.foodNutrients);
 		return {
 			id: updated.id,
 			type: "food",
@@ -589,13 +611,13 @@ async function editDiaryEntry(entry_id, data, user_id) {
 				name: updated.food.name,
 				brand: updated.food.brand,
 			},
-			nutrients,
+			nutrients: mapNutrients(raw_nutrients),
 		};
 	}
 
 	if (updated.recipe_id) {
 		const scale = parseFloat(updated.quantity) / parseFloat(updated.recipe.servings);
-		const nutrients = scaleMacros(updated.recipe.recipeIngredients, scale);
+		const raw_nutrients = scaleRecipeNutrients(updated.recipe.recipeIngredients, scale);
 		return {
 			id: updated.id,
 			type: "recipe",
@@ -608,7 +630,7 @@ async function editDiaryEntry(entry_id, data, user_id) {
 				name: updated.recipe.name,
 				servings: parseFloat(updated.recipe.servings),
 			},
-			nutrients,
+			nutrients: mapNutrients(raw_nutrients),
 		};
 	}
 }
@@ -639,20 +661,13 @@ async function createRecipe(data, user_id) {
 	if (!Array.isArray(ingredients) || ingredients.length === 0) throw new DataError("At least one ingredient is required");
 
 	const result = await sequelize.transaction(async (t) => {
-		const recipe = await RecipeModel.create(
-			{
-				user_id,
-				name: name.trim(),
-				description: description?.trim() ?? null,
-				servings: servings ?? 1,
-			},
-			{ transaction: t },
-		);
+		const newRecipe = await RecipeModel.create({ user_id, name: name.trim(), description: description ?? null, servings: servings ?? 1 }, { transaction: t });
 
-		const ingredientRows = await buildIngredientRows(ingredients, recipe.recipe_id);
+		const rows = await buildIngredientRows(ingredients, newRecipe.recipe_id, t);
 
-		const created = await RecipeIngredientModel.bulkCreate(ingredientRows, { transaction: t });
-		return { recipe, ingredients: created };
+		await RecipeIngredientModel.bulkCreate(rows, { transaction: t });
+
+		return newRecipe.reload({ include: RecipeIngredientModel, transaction: t });
 	});
 
 	return result;
@@ -676,7 +691,19 @@ async function editRecipe(recipe_id, user_id, data) {
 	if (!recipe) throw new NotFoundError("Recipe not found");
 	if (recipe.user_id !== user_id) throw new ForbiddenError("Not your recipe");
 
-	const { name, description, servings } = data;
+	if (!Array.isArray(data.ingredients) || data.ingredients.length === 0) {
+		throw new DataError("At least one ingredient is required");
+	}
+
+	//Do checks before destructure to handle possible missing errors
+	const name = data.name?.trim() ?? recipe.name;
+	if (!name) throw new DataError("Recipe name is required");
+
+	const description = data.description !== undefined ? data.description : recipe.description;
+	const servings = data.servings != null ? parseFloat(data.servings) : parseFloat(recipe.servings);
+	if (isNaN(servings) || servings <= 0) throw new DataError("servings must be a positive number");
+
+	//const { name, description, servings } = data;
 
 	const result = await sequelize.transaction(async (t) => {
 		await recipe.update({ name, description, servings }, { transaction: t });
@@ -688,7 +715,7 @@ async function editRecipe(recipe_id, user_id, data) {
 		await Promise.all(toDelete.map((ing) => ing.destroy({ transaction: t })));
 
 		//Build recalculated macro rows for all incoming ingredients
-		const rows = await buildIngredientRows(data.ingredients, recipe_id);
+		const rows = await buildIngredientRows(data.ingredients, recipe_id, t);
 
 		await Promise.all(
 			rows.map((row, index) => {
@@ -696,7 +723,7 @@ async function editRecipe(recipe_id, user_id, data) {
 				if (incoming.ingredient_id) {
 					//Existing ingred: update
 					return RecipeIngredientModel.update(row, {
-						where: { ingredient_id: incoming.ingredient_id },
+						where: { ingredient_id: incoming.ingredient_id, recipe_id },
 						transaction: t,
 					});
 				} else {
@@ -736,6 +763,7 @@ async function getRecipes(user_id) {
 
 		return {
 			...recipe.toJSON(),
+			id: recipe.recipe_id,
 			calories_per_serving: Math.round(totals.total_calories / servings),
 			protein_per_serving: Math.round(totals.total_protein / servings),
 			carbs_per_serving: Math.round(totals.total_carbs / servings),
@@ -751,38 +779,77 @@ async function getRecipe(recipe_id, user_id) {
 			{
 				model: RecipeIngredientModel,
 				required: false,
+				include: [
+					{
+						model: FoodModel,
+						include: [{ model: FoodNutrientModel }, { model: FoodServingSizeModel }],
+					},
+				],
 			},
 		],
 	});
 
 	if (!recipe) throw new NotFoundError("Recipe not found");
 
-	const ingredients = recipe.recipeIngredients ?? [];
-	const servings = parseFloat(recipe.servings) || 1;
+	const recipeIngredients = recipe.recipeIngredients ?? [];
 
-	const totals = {
-		calories: ingredients.reduce((sum, i) => sum + (parseFloat(i.calories) || 0), 0),
-		protein: ingredients.reduce((sum, i) => sum + (parseFloat(i.protein) || 0), 0),
-		carbs: ingredients.reduce((sum, i) => sum + (parseFloat(i.carbs) || 0), 0),
-		fat: ingredients.reduce((sum, i) => sum + (parseFloat(i.fat) || 0), 0),
-	};
+	const servingsRaw = parseFloat(recipe.servings);
+	const servings = servingsRaw > 0 ? servingsRaw : 1; //handle NaN/0 issues
+
+	// Recompute nutrients live from each ingredient's food data
+	const ingredients = recipeIngredients.map((ing) => {
+		const raw_nutrients = calcNutrients(parseFloat(ing.quantity), ing.unit, ing.food.foodServingSizes, ing.food.foodNutrients);
+
+		let nutrients_per_100g = ing.food.foodNutrients.map((n) => ({
+			//we use this data to convert on frontend for display purposes
+			nutrient_id: n.nutrient_id,
+			name: n.nutrient_name,
+			unit: n.unit,
+			amount_per_100g: parseFloat(n.amount_per_100g),
+		}));
+
+		const servingSizes = (ing.food.foodServingSizes ?? []).map(({ label, weight_g }) => ({
+			label,
+			weight_g: parseFloat(weight_g),
+		}));
+
+		return {
+			ingredient_id: ing.ingredient_id,
+			food_id: ing.food_id,
+			food_name: ing.food.name,
+			serving_sizes: servingSizes,
+			quantity: parseFloat(ing.quantity),
+			unit: ing.unit,
+			nutrients: mapNutrients(raw_nutrients),
+			nutrients_per_100g,
+		};
+	});
+
+	// Sum every nutrient across all ingredients to show totals for recipe
+	const totals = {};
+	for (const ing of ingredients) {
+		for (const [key, amount] of Object.entries(ing.nutrients)) {
+			totals[key] = (totals[key] ?? 0) + amount;
+		}
+	}
+
+	//divide by serving count to show per serving values
+	const per_serving = {};
+	for (const [key, amount] of Object.entries(totals)) {
+		per_serving[key] = parseFloat((amount / servings).toFixed(2));
+	}
+
+	const { recipeIngredients: _raw, ...recipeJson } = recipe.toJSON();
 
 	return {
-		...recipe.toJSON(),
-		calories_per_serving: Math.round(totals.calories / servings),
-		protein_per_serving: Math.round(totals.protein / servings),
-		carbs_per_serving: Math.round(totals.carbs / servings),
-		fat_per_serving: Math.round(totals.fat / servings),
-		ingredients: ingredients.map((i) => ({
-			ingredient_id: i.ingredient_id,
-			food_id: i.food_id,
-			quantity: parseFloat(i.quantity),
-			unit: i.unit,
-			calories: parseFloat(i.calories),
-			protein: parseFloat(i.protein),
-			carbs: parseFloat(i.carbs),
-			fat: parseFloat(i.fat),
-		})),
+		...recipeJson,
+		calories_per_serving: Math.round(per_serving.calories ?? 0),
+		protein_per_serving: Math.round(per_serving.protein ?? 0),
+		carbs_per_serving: Math.round(per_serving.carbs ?? 0),
+		fat_per_serving: Math.round(per_serving.fat ?? 0),
+		totals,
+		per_serving,
+		ingredients,
 	};
 }
 
