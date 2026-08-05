@@ -1,35 +1,41 @@
 const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt");
 
 const usersDB = require("../models/modelInits").users;
+const { UnauthorizedError, GeneralError, DataError } = require("../error");
 
-async function test() {
-	console.log("This is my function in service");
-	const users = await usersDB.findAll();
-	console.log("All users:", JSON.stringify(users, null, 2));
-	return JSON.stringify(users, null, 2);
-}
+async function refreshToken(token) {
+	if (!token) throw new DataError("Missing refreshToken for refresh");
 
-function refreshToken(refreshToken) {
-	const user = jwt.verify(refreshToken, process.env.JWT_SECRET, {
-		audience: "my-gym-app",
-		issuer: "gym-auth-server",
-	});
-	const accessToken = jwt.sign({ user_id: user.user_id }, process.env.JWT_SECRET, {
+	let payload;
+	try {
+		payload = jwt.verify(token, process.env.JWT_SECRET, {
+			audience: "my-gym-app",
+			issuer: "gym-auth-server",
+		});
+	} catch (err) {
+		throw new UnauthorizedError("Invalid or expired refresh token");
+	}
+
+	if (payload.type !== "refresh") {
+		throw new UnauthorizedError("Token provided is not a refresh token");
+	}
+
+	const accessToken = jwt.sign({ user_id: payload.user_id, type: "access" }, process.env.JWT_SECRET, {
 		expiresIn: "1h",
 		audience: "my-gym-app",
 		issuer: "gym-auth-server",
 	});
 	return accessToken;
-	//assuming refreshToken is valid (hit catch outside this function if not)
 }
 
 function generateTokens(user_id) {
-	const accessToken = jwt.sign({ user_id: user_id }, process.env.JWT_SECRET, {
+	const accessToken = jwt.sign({ user_id, type: "access" }, process.env.JWT_SECRET, {
 		expiresIn: "1h",
 		audience: "my-gym-app",
 		issuer: "gym-auth-server",
 	});
-	const refreshToken = jwt.sign({ user_id: user_id }, process.env.JWT_SECRET, {
+	const refreshToken = jwt.sign({ user_id, type: "refresh" }, process.env.JWT_SECRET, {
 		expiresIn: "30 days",
 		audience: "my-gym-app",
 		issuer: "gym-auth-server",
@@ -41,27 +47,42 @@ function generateTokens(user_id) {
 }
 
 async function register(userData) {
-	const goku = await usersDB.create({
-		first_name: userData.firstName,
-		last_name: userData.lastName,
-		user_name: userData.userName,
-		password: userData.password, //salt/pepper this with bcrypt..or do in controller maybe
-	});
-	console.log(goku);
-	return goku;
-	/* const goku = await User.create({
-		firstName: "Goku",
-		lastName: "Gordon",
-		user_name: "GokuGod44",
-		password: "123",
-	}); */
-	//console.log("Jane's auto-generated ID:", jane.id);
+	const { firstName, lastName, userName, password } = userData;
+	if (!firstName || !lastName || !userName || !password) {
+		throw new DataError("Missing required fields for registration");
+	}
+
+	const saltRounds = 10;
+	const salt = await bcrypt.genSalt(saltRounds);
+	const hash = await bcrypt.hash(password + process.env.PEPPER, salt);
+
+	try {
+		const user = await usersDB.create({
+			first_name: firstName,
+			last_name: lastName,
+			user_name: userName,
+			password: hash,
+		});
+		return user;
+	} catch (err) {
+		throw new GeneralError("Failed to register user");
+	}
 }
 
-async function login(username) {
+async function login(username, password) {
+	if (!username || !password) {
+		throw new DataError("Missing required fields for username and password");
+	}
+
 	const user = await usersDB.findOne({ where: { user_name: username } });
-	if (!user) return null;
+
+	if (!user) throw new UnauthorizedError("Invalid credentials with provided username and password");
+
+	const fullPass = password + process.env.PEPPER;
+	const validPassword = await bcrypt.compare(fullPass, user.password);
+	if (!validPassword) throw new UnauthorizedError("Invalid credentials with provided username and password");
+
 	return user;
 }
 
-module.exports = { test, register, refreshToken, login, generateTokens };
+module.exports = { register, refreshToken, login, generateTokens };

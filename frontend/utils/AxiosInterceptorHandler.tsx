@@ -19,6 +19,29 @@ export const authInstance = axios.create({
 	timeout: 5000,
 });
 
+// Shared in-flight refresh promise so concurrent 401s only trigger ONE
+// /auth/refresh call, instead of each failed request kicking off its own.
+let refreshPromise: Promise<string> | null = null;
+
+async function getRefreshedToken(): Promise<string> {
+	if (!refreshPromise) {
+		refreshPromise = (async () => {
+			const refreshToken = await SecureStore.getItemAsync("refreshToken");
+			if (!refreshToken) {
+				throw new Error("No refresh token found");
+			}
+
+			const resp = await axios.post(`${process.env.EXPO_PUBLIC_BACKEND_URL}/auth/refresh`, { refreshToken });
+			const newToken = resp.data.accessToken;
+			await SecureStore.setItemAsync("accessToken", newToken);
+			return newToken;
+		})().finally(() => {
+			refreshPromise = null;
+		});
+	}
+	return refreshPromise;
+}
+
 export function AxiosInterceptorHandler({ children }: PropsWithChildren) {
 	const { signOut, signIn } = useContext(AuthContext);
 
@@ -45,34 +68,28 @@ export function AxiosInterceptorHandler({ children }: PropsWithChildren) {
 		const responseInterceptor = instance.interceptors.response.use(
 			(resp) => resp,
 			async (error) => {
-				// if access token invalid
-				if (error.response?.status === 401 || error.response?.status === 400) {
+				const originalRequest = error.config;
+
+				//Added retry guard to handle not calling the same request twice (don't spam retry)
+				if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
+					originalRequest._retry = true;
+
 					try {
 						console.log("in response interceptor area-trying to refresh token");
-						const refreshToken = await SecureStore.getItemAsync("refreshToken");
 
-						if (!refreshToken) {
-							console.log("No refresh token found - signing out");
-							signOut();
-							return Promise.reject(error);
-						}
-
-						const resp = await axios.post(`${process.env.EXPO_PUBLIC_BACKEND_URL}/auth/refresh`, { refreshToken });
-
-						const newToken = resp.data.accessToken;
-						await SecureStore.setItemAsync("accessToken", newToken);
+						const newToken = await getRefreshedToken();
 
 						// update original request with new token
-						error.config.headers.Authorization = `Bearer ${newToken}`;
+						originalRequest.headers.Authorization = `Bearer ${newToken}`;
 						console.log("in response interceptor area-trying request with new token");
 						// retry original request
-						return instance(error.config);
+						return instance(originalRequest);
 					} catch (err: any) {
 						console.log("in response interceptor area-Refresh failed");
 
 						const status = err?.response?.status;
 						//Specifically a auth error, sign out - refreshToken invalid
-						if (status === 400 || status === 401) {
+						if (status === 401) {
 							signOut();
 						} else {
 							console.log("Refresh failed for non-auth reason", err);
