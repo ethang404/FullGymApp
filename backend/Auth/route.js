@@ -7,8 +7,6 @@ const authController = require("./controller");
 //middlwear
 const verifyToken = require("../Middlewear/token");
 
-console.log("Are you working?");
-router.get("/test", authController.test);
 router.post("/register", authController.register);
 router.post("/refresh", authController.refreshToken);
 router.post("/login", authController.login);

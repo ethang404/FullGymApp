@@ -1,34 +1,20 @@
 const authService = require("./service");
-const bcrypt = require("bcrypt");
 
-async function test(req, res) {
-	console.log("In controller");
-	const resp = await authService.test();
-	return res.status(200).json({ message: resp });
-}
-
-function refreshToken(req, res) {
-	//const refreshToken = req.headers.authorization.split(" ")[1];
-	const refreshToken = req.body.refreshToken;
-	if (!refreshToken) res.status(401).json({ message: "Missing RefreshToken for refresh" });
+async function refreshToken(req, res) {
 	try {
-		const resp = authService.refreshToken(refreshToken);
-		return res
-			.status(200)
-			.json({ accessToken: resp, message: "Sucessfully refreshed Access Token" });
-	} catch (err) {
-		return res.status(401).json({ message: "Failed to refreshToken. Invalid refreshToken" });
+		const accessToken = await authService.refreshToken(req.body.refreshToken);
+		return res.status(200).json({ accessToken, message: "Successfully refreshed access token" });
+	} catch (error) {
+		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
+		return res.status(500).json({ message: error.message });
 	}
 }
 
 async function register(req, res) {
-	const saltRounds = 10;
-	const salt = await bcrypt.genSalt(saltRounds);
-	const hash = await bcrypt.hash(req.body.password + process.env.PEPPER, salt);
-	req.body.password = hash;
 	try {
 		const user = await authService.register(req.body);
 		const { accessToken, refreshToken } = authService.generateTokens(user.user_id);
+
 		return res.status(201).json({
 			message: "User created!",
 			userId: user.user_id,
@@ -37,47 +23,30 @@ async function register(req, res) {
 			refreshToken,
 		});
 	} catch (error) {
-		console.error("Error during registration:", error);
-		return res.status(500).json({ message: "Failed to register user" });
+		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
+		return res.status(500).json({ message: error.message });
 	}
 }
 
 async function login(req, res) {
-	let validPassword;
-	let user_id;
-	let hashedPassword;
-	let user;
-
 	try {
 		const { userName, password } = req.body;
-		if (!userName || !password) {
-			return res.status(400).json({ message: "Missing required fields for username and password" });
-		}
-		user = await authService.login(userName);
-		if (!user)
-			return res
-				.status(401)
-				.json({ message: "Invalid Credentials with provided username and password" });
-		let fullPass = password + process.env.PEPPER;
+		const user = await authService.login(userName, password);
+		const { accessToken, refreshToken } = authService.generateTokens(user.user_id);
 
-		validPassword = bcrypt.compare(fullPass, user.password); //returns true if valid user. False otherwise
-	} catch (error) {}
-
-	if (!validPassword)
-		return res
-			.status(401)
-			.json({ message: "Invalid Credentials with provided username and password" });
-
-	const { accessToken, refreshToken } = authService.generateTokens(user.user_id);
-	return res.status(200).json({
-		message: "Login successful",
-		accessToken,
-		refreshToken,
-	});
+		return res.status(200).json({
+			message: "Login successful",
+			accessToken,
+			refreshToken,
+		});
+	} catch (error) {
+		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
+		return res.status(500).json({ message: error.message });
+	}
 }
 
 async function IsValidToken(req, res) {
 	return res.status(200).json({ message: "user is valid" });
 }
 
-module.exports = { test, register, refreshToken, login, IsValidToken };
+module.exports = { register, refreshToken, login, IsValidToken };
