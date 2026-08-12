@@ -1,6 +1,29 @@
 const service = require("./service");
 const jwt = require("jsonwebtoken");
 
+//helper function to serialze some data for frontend use
+function serializeWorkoutListItem(workout) {
+	const w = workout.toJSON();
+	const allSets = (w.exercises ?? []).flatMap((e) => e.sets ?? []);
+
+	const totalVolumeKg = allSets.reduce((sum, s) => sum + (s.weight ?? 0) * (s.reps ?? 0), 0);
+
+	let durationMinutes;
+	if (w.finished_at && w.workout_date) {
+		const diffMs = new Date(w.finished_at) - new Date(w.workout_date);
+		if (diffMs > 0) durationMinutes = Math.round(diffMs / 60000);
+	}
+
+	return {
+		id: w.workout_id,
+		name: w.name,
+		date: w.workout_date,
+		notes: w.notes,
+		duration_minutes: durationMinutes,
+		total_volume_kg: totalVolumeKg || undefined,
+	};
+}
+
 async function getWorkoutsList(req, res) {
 	let { filter } = req.query; //So we might apply a time frame or a specific type of lift etc.
 	//Might turn this into a POST request so we can apply more and more filters
@@ -16,16 +39,16 @@ async function getWorkoutsList(req, res) {
 
 	let workouts = await service.GetWorkouts(user_id, filter);
 	if (workouts.length == 0) return res.status(200).json({ workouts, message: "No Workouts Found" });
-	return res.status(200).json({ workouts });
+	return res.status(200).json({ workouts: workouts.map(serializeWorkoutListItem) });
 	//For now we'll keep as GET and just allow 'week', 'month', 'year', 'all' filters (all is default)
 }
 
 async function getWorkout(req, res) {
 	let workoutId = req.params.id;
 	//shouldn't need user_id here since workout id corresponds to certain user's workout
-
+	console.log("THIS SHIT IS FUCKING GAY");
 	try {
-		let workout = await service.GetWorkouts(workoutId);
+		let workout = await service.GetWorkout(workoutId);
 		return res.status(200).json({ workout });
 	} catch (error) {
 		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });

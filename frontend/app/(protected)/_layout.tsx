@@ -62,7 +62,8 @@ export default function ProtectedLayout() {
 					tabBarIcon: ({ color, size }) => <FontAwesome5 name="user" size={size - 2} color={color} />,
 				}}
 			/>
-			<Tabs.Screen name="workouts/[id]" options={{ href: null }} />
+			<Tabs.Screen name="workouts/[workout_id]" options={{ href: null }} />
+			<Tabs.Screen name="types/workouts" options={{ href: null }} />
 			<Tabs.Screen name="types/nutrition" options={{ href: null }} />
 			{/* 			<Tabs.Screen name="components/NutritionLabel" options={{ href: null }} />
 			<Tabs.Screen name="components/RecipeFoodCard" options={{ href: null }} />
