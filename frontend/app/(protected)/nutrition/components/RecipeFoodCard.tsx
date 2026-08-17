@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
@@ -70,6 +70,14 @@ export default function RecipeFoodCard(props: RecipeFoodCardProps) {
 		return res.data.food ?? res.data;
 	}
 
+	//we use this to handle changing quantity of recipes ingrediants.
+	//So if we double recipe ingrediant amounts for a recipe, it will update the individual food cards display too
+	useEffect(() => {
+		if (props.mode !== "edit") return;
+		setQuantity(String(props.ingredient.quantity));
+		setSelectedServing(props.ingredient.serving);
+	}, [props.ingredient?.quantity, props.ingredient?.serving]);
+
 	function handleServingAdded(created: ServingSize) {
 		setServingOptions((prev) => [...prev, created]);
 		setSelectedServing(created);
@@ -79,8 +87,9 @@ export default function RecipeFoodCard(props: RecipeFoodCardProps) {
 
 	function commitChange(nextQty: number, nextServing: ServingSize) {
 		if (props.mode !== "edit") return;
-		const macros = calcMacrosFromPer100g(nextQty, nextServing.weight_g, food.nutrients_per_100g);
-		props.onChange({ ...props.ingredient, quantity: nextQty, serving: nextServing, ...macros });
+		//const macros = calcMacrosFromPer100g(nextQty, nextServing.weight_g, food.nutrients_per_100g);
+		//props.onChange({ ...props.ingredient, quantity: nextQty, baseQuantity: nextQty, serving: nextServing, ...macros });
+		props.onChange({ ...props.ingredient, quantity: nextQty, baseQuantity: nextQty, serving: nextServing }); //don't need macros since we re-calc anyway
 	}
 
 	function stepQuantity(delta: number) {
@@ -104,6 +113,7 @@ export default function RecipeFoodCard(props: RecipeFoodCardProps) {
 				id: `${food.id}-${Date.now()}`, //do something like this to handle same food twice in a recipe
 				food: fullFood,
 				quantity: parsedQty,
+				baseQuantity: parsedQty,
 				serving: selectedServing,
 				cals: cals ?? 0,
 				protein: protein ?? 0,
@@ -200,6 +210,10 @@ export default function RecipeFoodCard(props: RecipeFoodCardProps) {
 							{Math.round(selectedServing.weight_g * parsedQty)}g{food.brand ? ` — ${food.brand}` : ""}
 						</Text>
 						<View style={styles.macrosRow}>
+							<View style={styles.macroChip}>
+								<View style={[styles.macroDot, { backgroundColor: theme.primary }]} />
+								<Text style={styles.macroChipText}>{(cals ?? 0).toFixed(0)} cals</Text>
+							</View>
 							<View style={styles.macroChip}>
 								<View style={[styles.macroDot, { backgroundColor: "#4ADE80" }]} />
 								<Text style={styles.macroChipText}>{(protein ?? 0).toFixed(0)}g P</Text>
