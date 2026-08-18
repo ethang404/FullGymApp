@@ -139,4 +139,32 @@ async function deleteWorkout(req, res) {
 	}
 }
 
-module.exports = { getWorkoutsList, getWorkout, createWorkout, editWorkout, deleteWorkout };
+async function searchCatalog(req, res) {
+	let { search, muscle_group } = req.query;
+
+	try {
+		let exercises = await service.SearchCatalogExercises({ search, muscle_group });
+		return res.status(200).json({ exercises });
+	} catch (error) {
+		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
+		return res.status(500).json({ message: error.message });
+	}
+}
+
+async function createCatalogExercise(req, res) {
+	/*
+	{
+		name: "Bench Press",
+		muscle_group: "chest"
+	}
+	*/
+	try {
+		let exercise = await service.CreateCatalogExercise(req.body);
+		return res.status(200).json({ exercise });
+	} catch (error) {
+		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
+		return res.status(500).json({ message: error.message });
+	}
+}
+
+module.exports = { getWorkoutsList, getWorkout, createWorkout, editWorkout, deleteWorkout, searchCatalog, createCatalogExercise };

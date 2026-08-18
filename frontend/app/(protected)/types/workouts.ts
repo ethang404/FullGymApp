@@ -12,7 +12,8 @@ export interface WorkoutSet {
 
 export interface WorkoutExercise {
 	exercise_id?: number; // undefined/null if not in database
-	tempId?: string; // only here if set_id is missing (new exercise)
+	tempId?: string; // only here if exercise_id is missing (new exercise)
+	catalog_id?: number;
 	exercise_name: string;
 	notes: string;
 	order_number: number;

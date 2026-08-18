@@ -1,5 +1,17 @@
 import { useLocalSearchParams, router } from "expo-router";
-import { View, Text, StyleSheet, TextInput, Pressable, ActivityIndicator, TouchableOpacity } from "react-native";
+import {
+	View,
+	Text,
+	StyleSheet,
+	TextInput,
+	Pressable,
+	ActivityIndicator,
+	TouchableOpacity,
+	Modal,
+	FlatList,
+	KeyboardAvoidingView,
+	Platform,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -20,6 +32,12 @@ const emptyWorkout: types.WorkoutData = {
 	finished_at: null,
 	exercises: [],
 };
+
+interface exercise {
+	catalog_id: Number;
+	name: string;
+	muscle_group: string;
+}
 
 // ---- Key helpers: fall back to tempId for unsaved items ----
 const getExerciseKey = (ex: types.WorkoutExercise) => ex.exercise_id?.toString() ?? ex.tempId!;
@@ -42,6 +60,24 @@ export default function Workout() {
 	const [workout, setWorkout] = useState<types.WorkoutData>(emptyWorkout);
 	const [loading, setLoading] = useState(mode === "edit" || mode === "copy");
 	const [saving, setSaving] = useState(false);
+
+	const [availExercises, setAvailExercises] = useState<exercise[]>([]);
+	const [activeExerciseKey, setActiveExerciseKey] = useState<string | null>(null);
+
+	useEffect(() => {
+		const getAllExercises = async () => {
+			try {
+				const resp = await instance.get(`/workouts/catalog/`);
+				setAvailExercises(resp.data.exercises);
+			} catch (err) {
+				console.error(err);
+			} finally {
+				setLoading(false);
+			}
+		};
+
+		getAllExercises();
+	}, []);
 
 	useEffect(() => {
 		if ((mode === "edit" || mode === "copy") && workout_id != null) {
@@ -108,19 +144,21 @@ export default function Workout() {
 	// ---------------- Add / edit / delete helpers ----------------
 
 	const addExercise = useCallback(() => {
+		const newTempId = randomUUID();
 		setWorkout((prev) => ({
 			...prev,
 			exercises: [
 				...prev.exercises,
 				{
-					tempId: randomUUID(),
-					exercise_name: "New Exercise",
+					tempId: newTempId,
+					exercise_name: "",
 					notes: "",
 					order_number: prev.exercises.length + 1,
 					sets: [],
 				},
 			],
 		}));
+		setActiveExerciseKey(newTempId);
 	}, []);
 
 	const deleteExercise = useCallback((exerciseKey: string) => {
@@ -179,13 +217,40 @@ export default function Workout() {
 		}));
 	}, []);
 
+	const handleCreateNewCatalogExercise = async (name: string, muscleGroup: string) => {
+		try {
+			const resp = await instance.post(`/workouts/catalog/`, { name, muscle_group: muscleGroup });
+			const created: exercise = resp.data.exercise;
+
+			setAvailExercises((prev) => [...prev, created]);
+
+			if (activeExerciseKey) {
+				updateExercise(activeExerciseKey, {
+					exercise_name: created.name,
+					catalog_id: Number(created.catalog_id),
+				});
+			}
+		} catch (err) {
+			console.error("Error creating exercise catalog entry:", err);
+		}
+	};
+
 	const handleSave = useCallback(async () => {
+		//loop through exercises and ensure each one has a catalog_id
+		const validExercises = workout.exercises.filter((exercise) => exercise.catalog_id);
+
+		//only pass exercises with valid catalog_ids to backend
+		const payload = {
+			...workout,
+			exercises: validExercises,
+		};
+
 		setSaving(true);
 		try {
 			if (mode === "edit" && workout_id != null) {
-				await instance.put(`/workouts/${workout_id}`, workout);
+				await instance.put(`/workouts/${workout_id}`, payload);
 			} else {
-				await instance.post(`/workouts`, workout);
+				await instance.post(`/workouts`, payload);
 			}
 		} catch (err) {
 			console.error(err);
@@ -256,6 +321,7 @@ export default function Workout() {
 							onSetReorder={(event) => handleSetReorder(getExerciseKey(item), event)}
 							onDeleteSet={(setKey) => deleteSet(getExerciseKey(item), setKey)}
 							onUpdateSet={(setKey, patch) => updateSet(getExerciseKey(item), setKey, patch)}
+							onOpenSelector={() => setActiveExerciseKey(getExerciseKey(item))}
 							styles={styles}
 							theme={theme}
 						/>
@@ -264,6 +330,23 @@ export default function Workout() {
 					ListHeaderComponent={ListHeader}
 					ListFooterComponent={ListFooter}
 					contentContainerStyle={{ paddingBottom: 40 }}
+				/>
+
+				<ExerciseSelectorModal
+					visible={activeExerciseKey !== null}
+					onClose={() => setActiveExerciseKey(null)}
+					availExercises={availExercises}
+					onSelect={(selected) => {
+						if (activeExerciseKey) {
+							updateExercise(activeExerciseKey, {
+								exercise_name: selected.name,
+								catalog_id: Number(selected.catalog_id),
+							});
+						}
+					}}
+					onAddNew={handleCreateNewCatalogExercise}
+					theme={theme}
+					styles={styles}
 				/>
 			</SafeAreaView>
 		</GestureHandlerRootView>
@@ -278,6 +361,7 @@ function ExerciseCard({
 	onSetReorder,
 	onDeleteSet,
 	onUpdateSet,
+	onOpenSelector,
 	styles,
 	theme,
 }: {
@@ -288,6 +372,7 @@ function ExerciseCard({
 	onSetReorder: (event: ReorderableListReorderEvent) => void;
 	onDeleteSet: (setKey: string) => void;
 	onUpdateSet: (setKey: string, patch: Partial<types.WorkoutSet>) => void;
+	onOpenSelector: () => void;
 	styles: ReturnType<typeof createStyles>;
 	theme: Theme;
 }) {
@@ -299,7 +384,11 @@ function ExerciseCard({
 				<Pressable onLongPress={drag} hitSlop={10}>
 					<Ionicons name="reorder-three" size={22} color={theme.text} />
 				</Pressable>
-				<TextInput style={styles.exerciseTitle} value={exercise.exercise_name} onChangeText={(text) => onUpdate({ exercise_name: text })} />
+
+				<TouchableOpacity style={{ flex: 1 }} onPress={onOpenSelector}>
+					<Text style={[styles.exerciseTitle, !exercise.exercise_name && { color: theme.text + "66" }]}>{exercise.exercise_name || "Select Exercise..."}</Text>
+				</TouchableOpacity>
+
 				<Pressable onPress={onDelete} hitSlop={10}>
 					<Ionicons name="trash-outline" size={18} color={theme.text} />
 				</Pressable>
@@ -380,6 +469,119 @@ function SetRow({
 				<Ionicons name="close-circle-outline" size={18} color={theme.error} />
 			</Pressable>
 		</View>
+	);
+}
+
+function ExerciseSelectorModal({
+	visible,
+	onClose,
+	availExercises,
+	onSelect,
+	onAddNew,
+	theme,
+	styles,
+}: {
+	visible: boolean;
+	onClose: () => void;
+	availExercises: exercise[];
+	onSelect: (selected: exercise) => void;
+	onAddNew: (name: string, muscleGroup: string) => void;
+	theme: Theme;
+	styles: ReturnType<typeof createStyles>;
+}) {
+	const [searchQuery, setSearchQuery] = useState("");
+	const [selectedGroup, setSelectedGroup] = useState("all");
+
+	const muscleGroups = useMemo(() => {
+		const groups = new Set(availExercises.map((e) => e.muscle_group).filter(Boolean));
+		return ["all", ...Array.from(groups)];
+	}, [availExercises]);
+
+	const filteredExercises = useMemo(() => {
+		return availExercises.filter((item) => {
+			const matchesFilter = selectedGroup === "all" || item.muscle_group === selectedGroup;
+			const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
+			return matchesFilter && matchesSearch;
+		});
+	}, [availExercises, selectedGroup, searchQuery]);
+
+	const exactMatchExists = useMemo(() => {
+		return availExercises.some((e) => e.name.toLowerCase() === searchQuery.trim().toLowerCase());
+	}, [availExercises, searchQuery]);
+
+	const handleCreateNew = () => {
+		if (searchQuery.trim()) {
+			onAddNew(searchQuery.trim(), selectedGroup === "all" ? "Other" : selectedGroup);
+			setSearchQuery("");
+			onClose();
+		}
+	};
+
+	return (
+		<Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+			<KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.modalContainer}>
+				<View style={styles.modalHeader}>
+					<Text style={styles.modalTitle}>Select Exercise</Text>
+					<TouchableOpacity onPress={onClose} hitSlop={10}>
+						<Ionicons name="close" size={24} color={theme.text} />
+					</TouchableOpacity>
+				</View>
+
+				<TextInput
+					style={styles.modalSearchInput}
+					placeholder="Search exercise..."
+					placeholderTextColor={theme.text + "88"}
+					value={searchQuery}
+					onChangeText={setSearchQuery}
+				/>
+
+				<View style={styles.filterChipContainer}>
+					<FlatList
+						horizontal
+						data={muscleGroups}
+						keyExtractor={(item) => item}
+						showsHorizontalScrollIndicator={false}
+						renderItem={({ item }) => (
+							<TouchableOpacity
+								style={[styles.filterChip, selectedGroup === item && { backgroundColor: theme.primary || "#2563eb" }]}
+								onPress={() => setSelectedGroup(item)}
+							>
+								<Text style={[styles.filterChipText, selectedGroup === item && { color: "#fff" }]}>{item}</Text>
+							</TouchableOpacity>
+						)}
+					/>
+				</View>
+
+				<FlatList
+					data={filteredExercises}
+					keyExtractor={(item) => item.catalog_id.toString()}
+					renderItem={({ item }) => (
+						<TouchableOpacity
+							style={styles.exerciseListItem}
+							onPress={() => {
+								onSelect(item);
+								onClose();
+							}}
+						>
+							<Text style={styles.exerciseListItemName}>{item.name}</Text>
+							<Text style={styles.exerciseListItemSub}>{item.muscle_group}</Text>
+						</TouchableOpacity>
+					)}
+					ListEmptyComponent={() => (
+						<View style={styles.emptyContainer}>
+							<Text style={{ color: theme.text }}>No exercises found.</Text>
+						</View>
+					)}
+					ListFooterComponent={
+						!exactMatchExists && searchQuery.trim().length > 0 ? (
+							<TouchableOpacity style={[styles.saveButton, { margin: 16 }]} onPress={handleCreateNew}>
+								<Text style={styles.saveButtonText}>Add "{searchQuery.trim()}" to Catalog</Text>
+							</TouchableOpacity>
+						) : null
+					}
+				/>
+			</KeyboardAvoidingView>
+		</Modal>
 	);
 }
 
@@ -465,6 +667,31 @@ function createStyles(theme: Theme) {
 			alignItems: "center",
 		},
 		saveButtonText: { color: "#fff", fontWeight: "600", fontSize: 16 },
+
+		modalContainer: { flex: 1, backgroundColor: theme.background, padding: 16 },
+		modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
+		modalTitle: { fontSize: 18, fontWeight: "600", color: theme.text },
+		modalSearchInput: {
+			borderWidth: 1,
+			borderColor: theme.text + "33",
+			borderRadius: 8,
+			padding: 10,
+			color: theme.text,
+			marginBottom: 12,
+		},
+		filterChipContainer: { marginBottom: 12 },
+		filterChip: {
+			paddingHorizontal: 12,
+			paddingVertical: 6,
+			borderRadius: 16,
+			backgroundColor: theme.text + "15",
+			marginRight: 8,
+		},
+		filterChipText: { color: theme.text, fontSize: 14, textTransform: "capitalize" },
+		exerciseListItem: { paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.text + "33" },
+		exerciseListItemName: { fontSize: 16, fontWeight: "500", color: theme.text },
+		exerciseListItemSub: { fontSize: 12, color: theme.text + "88", marginTop: 2 },
+		emptyContainer: { padding: 20, alignItems: "center" },
 	});
 }
 

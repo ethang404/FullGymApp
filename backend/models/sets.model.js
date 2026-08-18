@@ -39,6 +39,23 @@ const sets = sequelize.define(
 			type: DataTypes.INTEGER, //order of sets for workout
 			allowNull: false,
 		},
+
+		duration_seconds: {
+			//for cardio/timed things (planks, rows, runs, etc). Store raw seconds, format to mins/secs on the frontend.
+			type: DataTypes.INTEGER,
+			allowNull: true,
+		},
+		distance: {
+			//for cardio. Store in a single consistent unit (meters) and convert for display client-side.
+			type: DataTypes.DECIMAL,
+			allowNull: true,
+			get() {
+				const rawValue = this.getDataValue("distance");
+				return rawValue ? parseFloat(rawValue) : null;
+			},
+		},
+
+		//perhaps add option for time and stuff here for cardio reasons? instead of weight/reps n stuff
 	},
 	{
 		tableName: "sets",
