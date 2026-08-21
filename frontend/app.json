@@ -1,10 +1,10 @@
 {
 	"expo": {
-		"name": "frontend",
-		"slug": "frontend",
+		"name": "Kratos",
+		"slug": "gym-app",
 		"version": "1.0.0",
 		"orientation": "portrait",
-		"icon": "./assets/images/icon.png",
+		"icon": "./assets/images/NewIcon.png",
 		"scheme": "frontend",
 		"userInterfaceStyle": "automatic",
 		"newArchEnabled": true,
@@ -19,8 +19,9 @@
 				"foregroundImage": "./assets/images/adaptive-icon.png",
 				"backgroundColor": "#ffffff"
 			},
-			"permissions": ["android.permission.CAMERA"],
-			"edgeToEdgeEnabled": true
+			"permissions": ["android.permission.CAMERA", "android.permission.RECORD_AUDIO"],
+			"edgeToEdgeEnabled": true,
+			"package": "com.anonymous.frontend"
 		},
 		"web": {
 			"bundler": "metro",
@@ -48,6 +49,13 @@
 		],
 		"experiments": {
 			"typedRoutes": true
-		}
+		},
+		"extra": {
+			"router": {},
+			"eas": {
+				"projectId": "f9bb0df0-17d1-4f4c-a5b1-216c3305b399"
+			}
+		},
+		"owner": "ethang420s-team"
 	}
 }

@@ -10,7 +10,18 @@ import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 
 import { CameraView, useCameraPermissions } from "expo-camera";
-//import { recognizeText, type OcrResult } from "expo-ocr-kit"; //Need to do proper build for this, so delay
+import { recognizeText, type OcrResult } from "expo-ocr-kit"; //Need to do proper build for this, so delay
+import { parseNutritionLabel } from "@/utils/parseNutritionLabel";
+
+//used for manipulating the image to ignore background, maybe it helps
+import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
+import { Dimensions } from "react-native";
+
+const SCREEN = Dimensions.get("window");
+const BOX_WIDTH = 280;
+const BOX_HEIGHT = 380;
+const BOX_X = (SCREEN.width - BOX_WIDTH) / 2;
+const BOX_Y = (SCREEN.height - BOX_HEIGHT) / 2;
 
 interface ServingSizeRow {
 	name: string; // unit label as it appears on the package, e.g. "oz", "slice", "Grams (g)"
@@ -395,6 +406,13 @@ export default function CreateFood() {
 					borderRadius: 12,
 					backgroundColor: "transparent",
 				},
+				nutritionTargetBox: {
+					width: 280,
+					height: 380,
+					borderWidth: 2,
+					borderColor: "#e0524f",
+					borderRadius: 12,
+				},
 				scannerGuideText: {
 					color: "#fff",
 					fontSize: 14,
@@ -500,8 +518,50 @@ export default function CreateFood() {
 		setIsOcrCameraOpen(false);
 		setIsOcrCameraReady(false);
 
+		//crop photo before OCR:
+		const scaleX = photo.width / SCREEN.width;
+		const scaleY = photo.height / SCREEN.height;
+
+		const cropRegion = {
+			originX: Math.max(0, BOX_X * scaleX),
+			originY: Math.max(0, BOX_Y * scaleY),
+			width: Math.min(photo.width, BOX_WIDTH * scaleX),
+			height: Math.min(photo.height, BOX_HEIGHT * scaleY),
+		};
+
+		const context = ImageManipulator.manipulate(photo.uri);
+		context.crop(cropRegion);
+
+		// Render the cropped image result
+		const croppedImage = await context.renderAsync();
+		const resultImage = await croppedImage.saveAsync({ format: SaveFormat.JPEG });
+
 		// pass photo.uri into OCR here
-		//const result: OcrResult = await recognizeText(photo.uri);
+		const result: OcrResult = await recognizeText(resultImage.uri);
+		console.log(result);
+		const parsed = parseNutritionLabel(result);
+
+		if (parsed.calories != null) setCalories(String(parsed.calories));
+		if (parsed.macros.protein != null) setProtein(String(parsed.macros.protein));
+		if (parsed.macros.carbs != null) setCarbs(String(parsed.macros.carbs));
+		if (parsed.macros.fats != null) setFats(String(parsed.macros.fats));
+
+		setMicronutrients((prev) =>
+			prev.map((m) => (parsed.micronutrients[m.nutrient_name] != null ? { ...m, value: String(parsed.micronutrients[m.nutrient_name]) } : m)),
+		);
+
+		if (parsed.servingSize) {
+			const { name, qty, weight_g } = parsed.servingSize;
+			setServingSizes((prev) => {
+				const first = prev[0] ?? { name: "", qty: "", weight_g: "" };
+				return [{ ...first, name, qty, weight_g: String(weight_g) }, ...prev.slice(1)];
+			});
+		}
+
+		//Ingredients/allergens are intentionally not auto-filled into any field
+		//they're returned as raw text (parsed.ingredientsRawText / parsed.allergensRawText)
+
+		Alert.alert("Label scanned", "Review the pre-filled values below. OCR reads can be off, especially on garbled or curved labels.");
 	};
 
 	const handleBarcodeScanned = ({ data }: { data: string }) => {
@@ -795,7 +855,7 @@ export default function CreateFood() {
 						<TouchableOpacity style={styles.closeCameraButton} onPress={() => setIsOcrCameraOpen(false)}>
 							<Ionicons name="close-circle" size={40} color="#fff" />
 						</TouchableOpacity>
-						<View style={styles.scannerTargetBox} />
+						<View style={styles.nutritionTargetBox} />
 						<TouchableOpacity
 							style={[styles.createButton, { opacity: isOcrCameraReady ? 1 : 0.5, marginBottom: 20 }]}
 							onPress={handleCaptureLabel}
