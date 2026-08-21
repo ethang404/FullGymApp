@@ -18,6 +18,7 @@ export default function CreateRecipe() {
 
 	const [recipeName, setRecipeName] = useState("");
 	const [servings, setServings] = useState("1");
+	const [baseServings, setBaseServings] = useState("1");
 	const [ingredients, setIngredients] = useState<RecipeIngredient[]>([]);
 	const [addModalVisible, setAddModalVisible] = useState(false);
 	const [loading, setLoading] = useState(!!recipe_id);
@@ -36,6 +37,7 @@ export default function CreateRecipe() {
 
 				setRecipeName(recipeData.name ?? "");
 				setServings(String(recipeData.servings ?? 1));
+				setBaseServings(String(recipeData.servings ?? 1));
 
 				// Map ingredients from backend structure into frontend state
 				const mappedIngredients: RecipeIngredient[] = (recipeData.ingredients ?? []).map((ing: any) => {
@@ -57,6 +59,7 @@ export default function CreateRecipe() {
 							serving_sizes: ing.serving_sizes ?? [],
 						},
 						quantity: ing.quantity,
+						baseQuantity: ing.quantity,
 						serving: {
 							label: ing.unit,
 							weight_g: unitWeightG,
@@ -140,6 +143,22 @@ export default function CreateRecipe() {
 			nutrients: nutrientsByKey,
 		};
 	}, [ingredients]);
+
+	//allow us to scale all ingredients with a button!
+	function scaleAllIngredients(factor: number) {
+		setIngredients((prev) =>
+			prev.map((ing) => {
+				const base = ing.baseQuantity ?? ing.quantity;
+				const nextQty = base * factor;
+				const nutrients = calcNutrientsFromPer100g(nextQty, ing.serving.weight_g, ing.food.nutrients_per_100g);
+				return { ...ing, quantity: nextQty, ...nutrients };
+			}),
+		);
+
+		//also scale serving size
+		const baseServingAmount = parseFloat(baseServings) || 1;
+		setServings(String(baseServingAmount * factor));
+	}
 
 	function handleAddIngredient(ingredient: RecipeIngredient) {
 		setIngredients((prev) => [...prev, ingredient]);
@@ -233,6 +252,19 @@ export default function CreateRecipe() {
 					marginTop: 20,
 				},
 				saveButtonText: { color: theme.cardBg, fontSize: 15, fontWeight: "700" },
+
+				scaleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 1, flexWrap: "wrap", paddingBottom: 12 },
+				scaleLabel: { color: theme.textMuted, fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },
+				scaleButtons: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+				scaleBtn: {
+					paddingVertical: 6,
+					paddingHorizontal: 12,
+					borderRadius: 20,
+					borderWidth: StyleSheet.hairlineWidth,
+					borderColor: theme.border,
+					backgroundColor: theme.cardBg,
+				},
+				scaleBtnText: { fontSize: 12, fontWeight: "700", color: theme.primary },
 			}),
 		[theme],
 	);
@@ -282,6 +314,17 @@ export default function CreateRecipe() {
 					<Text style={styles.tapToEdit}>TAP TO EDIT</Text>
 				</View>
 
+				<View style={styles.scaleRow}>
+					<Text style={styles.scaleLabel}>SCALE RECIPE</Text>
+					<View style={styles.scaleButtons}>
+						{[0.25, 0.5, 1, 1.5, 2, 3].map((factor) => (
+							<TouchableOpacity key={factor} style={styles.scaleBtn} onPress={() => scaleAllIngredients(factor)} disabled={ingredients.length === 0}>
+								<Text style={styles.scaleBtnText}>{factor}x</Text>
+							</TouchableOpacity>
+						))}
+					</View>
+				</View>
+
 				{ingredients.map((ing) => (
 					<RecipeFoodCard key={ing.id} mode="edit" ingredient={ing} onChange={handleChangeIngredient} onRemove={handleRemoveIngredient} />
 				))}
@@ -293,7 +336,15 @@ export default function CreateRecipe() {
 
 				<View style={styles.servingsRow}>
 					<Text style={styles.servingsLabel}>SERVINGS PER RECIPE</Text>
-					<TextInput style={styles.servingsInput} keyboardType="number-pad" value={servings} onChangeText={setServings} />
+					<TextInput
+						style={styles.servingsInput}
+						keyboardType="number-pad"
+						value={servings}
+						onChangeText={(serv) => {
+							setServings(serv);
+							setBaseServings(serv);
+						}}
+					/>
 				</View>
 
 				{/* <NutritionFactsLabel

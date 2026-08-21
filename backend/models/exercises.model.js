@@ -9,13 +9,13 @@ const exercises = sequelize.define(
 			primaryKey: true,
 			autoIncrement: true,
 		},
-		exercise_name: {
-			type: DataTypes.STRING(30),
-			allowNull: false,
-		},
 		workout_id: {
 			//foreign key
 			type: DataTypes.INTEGER,
+			allowNull: false,
+		},
+		catalog_id: {
+			type: DataTypes.INTEGER, //foreign key, this is the ground truth label for knowing our exercise name
 			allowNull: false,
 		},
 		notes: {
@@ -31,6 +31,7 @@ const exercises = sequelize.define(
 		tableName: "exercises",
 		timestamps: true,
 		underscored: true,
+		indexes: [{ fields: ["workout_id"] }, { fields: ["catalog_id"] }], //apparently I have to add fk index's manually
 	},
 );
 module.exports = exercises;

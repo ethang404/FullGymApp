@@ -6,8 +6,6 @@ import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
 interface Workout {
 	id: string;
 	name: string;
@@ -17,15 +15,18 @@ interface Workout {
 	notes?: string;
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// Helper functions here
 
+//General Date formatting to help with errors
 function formatDate(dateStr: string) {
 	const d = new Date(dateStr);
+	if (isNaN(d.getTime())) return "Unknown date";
 	return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
 function formatRelativeDate(dateStr: string) {
 	const date = new Date(dateStr);
+	if (isNaN(date.getTime())) return "Unknown date";
 	const now = new Date();
 	const diffDays = Math.floor((now.getTime() - date.getTime()) / 86400000);
 	if (diffDays === 0) return "Today";
@@ -33,8 +34,6 @@ function formatRelativeDate(dateStr: string) {
 	if (diffDays < 7) return `${diffDays} days ago`;
 	return formatDate(dateStr);
 }
-
-// ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function Workouts() {
 	const { theme } = useTheme();
@@ -44,10 +43,7 @@ export default function Workouts() {
 
 	async function fetchWorkouts() {
 		try {
-			const res = await instance.get("/Workouts");
-			console.log("What does res look like?");
-			console.log(res.data.workouts);
-			console.log("--------");
+			const res = await instance.get("/workouts/");
 			setWorkouts(res.data.workouts ?? []);
 		} catch (e) {
 			console.error("Workouts fetch error:", e);
@@ -68,7 +64,6 @@ export default function Workouts() {
 				scroll: { flex: 1 },
 				content: { padding: 16, paddingBottom: 32, gap: 12 },
 
-				// Page header
 				header: {
 					flexDirection: "row",
 					alignItems: "center",
@@ -97,7 +92,7 @@ export default function Workouts() {
 					letterSpacing: 0.5,
 				},
 
-				// CTA banner
+				//Start workout btn stuff
 				ctaBanner: {
 					backgroundColor: theme.cardBg,
 					borderRadius: 16,
@@ -135,7 +130,6 @@ export default function Workouts() {
 					letterSpacing: 0.5,
 				},
 
-				// Section label
 				sectionLabel: {
 					fontSize: 11,
 					fontWeight: "700",
@@ -146,7 +140,7 @@ export default function Workouts() {
 					marginTop: 4,
 				},
 
-				// Workout card
+				// Workout card stuff
 				workoutCard: {
 					flexDirection: "row",
 					alignItems: "center",
@@ -248,17 +242,26 @@ export default function Workouts() {
 					</TouchableOpacity>
 				</View>
 
-				{/* Start session CTA */}
+				{/* Start session */}
 				<View style={styles.ctaBanner}>
 					<Text style={styles.ctaTitle}>Ready to train?</Text>
 					<Text style={styles.ctaSub}>Log your sets, track your progress, beat your records.</Text>
-					<TouchableOpacity style={styles.ctaButton} activeOpacity={0.8}>
+					<TouchableOpacity
+						style={styles.ctaButton}
+						activeOpacity={0.8}
+						onPress={() => {
+							router.push({
+								pathname: "/(protected)/workouts/[workout_id]",
+								params: { workout_id: "new", mode: "new" },
+							});
+						}}
+					>
 						<FontAwesome5 name="play" size={12} color={theme.textInverse} />
 						<Text style={styles.ctaButtonText}>Start New Session</Text>
 					</TouchableOpacity>
 				</View>
 
-				{/* Workout history */}
+				{/* Workout history list*/}
 				{workouts.length === 0 ? (
 					<View style={styles.emptyState}>
 						<FontAwesome5 name="dumbbell" size={32} color={theme.textTertiary} />
@@ -269,7 +272,17 @@ export default function Workouts() {
 					<>
 						<Text style={styles.sectionLabel}>History</Text>
 						{workouts.map((w) => (
-							<TouchableOpacity key={w.id} style={styles.workoutCard} onPress={() => router.push(`/(protected)/workouts/${w.id}`)} activeOpacity={0.7}>
+							<TouchableOpacity
+								key={w.id}
+								style={styles.workoutCard}
+								onPress={() => {
+									router.push({
+										pathname: "/(protected)/workouts/[workout_id]",
+										params: { workout_id: w.id, mode: "edit" },
+									});
+								}}
+								activeOpacity={0.7}
+							>
 								<View style={styles.iconWrap}>
 									<FontAwesome5 name="dumbbell" size={16} color={theme.primary} />
 								</View>

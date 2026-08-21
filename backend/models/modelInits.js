@@ -7,6 +7,8 @@ const { diaryEntries } = require("./diaryEntries.model");
 const recipe = require("./recipe.model");
 const recipeIngredient = require("./recipeIngredient.model");
 
+const exercise_catalog = require("./exerciseCatalog");
+
 const { food } = require("./food.model");
 const foodNutrient = require("./foodNutrients.model");
 const foodServingSize = require("./foodServingSize.model");
@@ -59,6 +61,23 @@ function defineRelationships() {
 			name: "workout_id",
 			allowNull: false,
 		},
+	});
+
+	//exercises is constrained to exercise_catalog
+	exercise_catalog.hasMany(exercises, {
+		foreignKey: {
+			name: "catalog_id",
+			allowNull: false,
+		},
+		onDelete: "RESTRICT",
+	});
+
+	exercises.belongsTo(exercise_catalog, {
+		foreignKey: {
+			name: "catalog_id",
+			allowNull: false,
+		},
+		onDelete: "RESTRICT",
 	});
 
 	//Each exercise has many sets
@@ -199,6 +218,7 @@ module.exports = {
 	users,
 	workouts,
 	exercises,
+	exercise_catalog,
 	sets,
 	diaryEntries,
 	recipe,

@@ -131,6 +131,7 @@ export interface RecipeIngredient {
 	id: string; // local-only id, e.g. `${food.id}-${Date.now()}`
 	food: FoodSearchResult;
 	quantity: number;
+	baseQuantity: number;
 	serving: ServingSize;
 	cals: number;
 	protein: number;
