@@ -1,9 +1,17 @@
-import React, { useState, useRef, useMemo } from "react";
+import React, { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Modal, FlatList } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { ServingSize, NUTRIENT_NAME_TO_IDS, FIXED_UNIT_CONVERSIONS } from "../types/nutrition";
+import {
+	ServingSize,
+	NUTRIENT_NAME_TO_IDS,
+	FIXED_UNIT_CONVERSIONS,
+	VOLUME_UNITS_TO_ML,
+	SERVING_UNIT_OPTIONS,
+	resolveServingWeightG,
+	estimateDensityForFood,
+} from "../types/nutrition";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 
@@ -27,11 +35,16 @@ interface ServingSizeRow {
 	name: string; // unit label as it appears on the package, e.g. "oz", "slice", "Grams (g)"
 	qty: string; // how many of that unit make up the gram equivalent, e.g. "4"
 	weight_g: string; // gram equivalent for that qty, e.g. "112"
+	// Tracks WHO last set weight_g, so auto-derived guesses can keep updating
+	// as the user refines the food name/brand, without ever clobbering a
+	// value the user actually typed themselves:
+	//   undefined -> blank, never touched, eligible for auto-fill
+	//   true      -> we derived this (sibling ratio or density guess) - keep re-deriving
+	//   false     -> the user typed this directly - never touch again
+	autoFilled?: boolean;
 }
 
-// Pre-specified list of selectable units for the serving size
-const SERVING_UNIT_OPTIONS: string[] = ["g", "kg", "oz", "lb", "mg", "ml", "l", "cup", "tbsp", "tsp", "slice", "piece", "serving"];
-
+//round to nearest hundreth, not integer
 function roundGrams(grams: number): string {
 	return (Math.round(grams * 100) / 100).toString();
 }
@@ -99,6 +112,18 @@ export default function CreateFood() {
 
 	// Index of the serving size row whose unit picker is currently open (null = closed)
 	const [openUnitPickerIndex, setOpenUnitPickerIndex] = useState<number | null>(null);
+	// Text typed into the "custom unit" entry at the bottom of the unit picker
+	const [customUnitText, setCustomUnitText] = useState("");
+
+	const openUnitPicker = (index: number) => {
+		setCustomUnitText("");
+		setOpenUnitPickerIndex(index);
+	};
+
+	const closeUnitPicker = () => {
+		setOpenUnitPickerIndex(null);
+		setCustomUnitText("");
+	};
 
 	//Camera & Barcode state specific items:
 	const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -295,6 +320,21 @@ export default function CreateFood() {
 					height: StyleSheet.hairlineWidth,
 					backgroundColor: DIVIDER,
 				},
+				customUnitRow: {
+					flexDirection: "row",
+					alignItems: "center",
+					gap: 10,
+					paddingTop: 14,
+				},
+				customUnitInput: {
+					flex: 1,
+					color: "#fff",
+					fontSize: 16,
+					paddingVertical: 4,
+				},
+				customUnitAddButton: {
+					padding: 2,
+				},
 
 				macroRow: {
 					flexDirection: "row",
@@ -428,22 +468,25 @@ export default function CreateFood() {
 		[theme],
 	);
 
-	function Field({
-		label,
-		placeholder,
-		value,
-		onChangeText,
-		isLast,
-		rightElement,
-	}: {
-		label: string;
-		placeholder: string;
-		value: string;
-		onChangeText: (v: string) => void;
-		isLast?: boolean;
-		rightElement?: React.ReactNode;
-	}) {
-		return (
+	// Defined via useCallback (not as plain nested function declarations)
+	//Otherwise it re-renders each call. Kicks us out of field.
+
+	const Field = useCallback(
+		({
+			label,
+			placeholder,
+			value,
+			onChangeText,
+			isLast,
+			rightElement,
+		}: {
+			label: string;
+			placeholder: string;
+			value: string;
+			onChangeText: (v: string) => void;
+			isLast?: boolean;
+			rightElement?: React.ReactNode;
+		}) => (
 			<View style={[styles.field, isLast && styles.fieldLast]}>
 				<Text style={styles.fieldLabel}>{label}</Text>
 				<View style={styles.fieldInputRow}>
@@ -451,25 +494,26 @@ export default function CreateFood() {
 					{rightElement}
 				</View>
 			</View>
-		);
-	}
+		),
+		[styles],
+	);
 
-	function MacroRow({
-		label,
-		value,
-		onChangeText,
-		unit,
-		barColor,
-		isLast,
-	}: {
-		label: string;
-		value: string;
-		onChangeText: (v: string) => void;
-		unit: string;
-		barColor?: string;
-		isLast?: boolean;
-	}) {
-		return (
+	const MacroRow = useCallback(
+		({
+			label,
+			value,
+			onChangeText,
+			unit,
+			barColor,
+			isLast,
+		}: {
+			label: string;
+			value: string;
+			onChangeText: (v: string) => void;
+			unit: string;
+			barColor?: string;
+			isLast?: boolean;
+		}) => (
 			<View style={[styles.macroRow, isLast && styles.noBorder]}>
 				{barColor ? <View style={[styles.macroBar, { backgroundColor: barColor }]} /> : <View style={styles.macroBarSpacer} />}
 				<Text style={styles.macroLabel}>{label}</Text>
@@ -486,8 +530,9 @@ export default function CreateFood() {
 					<Text style={styles.macroUnit}>{unit}</Text>
 				</View>
 			</View>
-		);
-	}
+		),
+		[styles],
+	);
 
 	const handleOpenScanner = async () => {
 		if (!permission?.granted) {
@@ -551,10 +596,23 @@ export default function CreateFood() {
 		);
 
 		if (parsed.servingSize) {
-			const { name, qty, weight_g } = parsed.servingSize;
+			const { name, qty, weight_g, volume_ml } = parsed.servingSize;
+
+			//if OCR doesn't find grams mapping, try to guess on it via estimateDensity
+			//and setting autoFilled to true.
+
+			//autoFilled is FALSE if it finds a grams mapping. Treat it as user input
+			let resolvedWeightG = weight_g;
+			let resolvedAutoFilled: boolean | undefined = weight_g != null ? false : undefined;
+			if (resolvedWeightG == null && volume_ml != null) {
+				const gPerMl = estimateDensityForFood(foodName, brand);
+				resolvedWeightG = gPerMl != null ? Math.round(gPerMl * volume_ml * 100) / 100 : null;
+				resolvedAutoFilled = gPerMl != null ? true : undefined;
+			}
+
 			setServingSizes((prev) => {
 				const first = prev[0] ?? { name: "", qty: "", weight_g: "" };
-				return [{ ...first, name, qty, weight_g: String(weight_g) }, ...prev.slice(1)];
+				return [{ ...first, name, qty, weight_g: resolvedWeightG != null ? String(resolvedWeightG) : "", autoFilled: resolvedAutoFilled }, ...prev.slice(1)];
 			});
 		}
 
@@ -568,10 +626,19 @@ export default function CreateFood() {
 		setBarcode(data); //automatically populate barcode for us!
 		setIsCameraOpen(false);
 	};
-	//----
 
 	const addServingSize = () => {
 		setServingSizes((prev) => [...prev, { name: "", qty: "", weight_g: "" }]);
+	};
+
+	const estimateVolumeWeightG = (unit: string, otherServings: ServingSize[]): number | null => {
+		if (VOLUME_UNITS_TO_ML[unit] == null) return null;
+
+		const derived = resolveServingWeightG(unit, otherServings);
+		if (derived != null) return derived;
+
+		const gPerMl = estimateDensityForFood(foodName, brand);
+		return gPerMl != null ? gPerMl * VOLUME_UNITS_TO_ML[unit] : null;
 	};
 
 	const updateServingSize = (index: number, field: keyof ServingSizeRow, value: string) => {
@@ -581,11 +648,43 @@ export default function CreateFood() {
 
 				const updated = { ...row, [field]: value };
 
+				if (field === "weight_g") {
+					// Directly typed by the user - this is now their ground. Ground truth -> false autofill
+					//if later cleared out, then we allow it to be auto calculated again (undefined)
+
+					updated.autoFilled = value.trim() === "" ? undefined : false;
+				}
+
 				if (field === "qty") {
-					const factor = FIXED_UNIT_CONVERSIONS[row.name];
-					if (factor != null) {
-						const qty = Number(value) || 0;
-						updated.weight_g = qty > 0 ? roundGrams(qty * factor) : "";
+					const unit = row.name.trim();
+					const newQty = Number(value) || 0;
+					const massFactor = FIXED_UNIT_CONVERSIONS[unit];
+
+					if (massFactor != null) {
+						updated.weight_g = newQty > 0 ? roundGrams(newQty * massFactor) : "";
+					} else if (VOLUME_UNITS_TO_ML[unit] != null) {
+						// Volume units have no fixed conversion - rescale from
+						// whatever per-unit rate this row already implies
+
+						//attempt to use existing row's numbers to update grams after quantity changes
+						const oldQty = Number(row.qty) || 1;
+						const currentWeight = Number(row.weight_g) || 0;
+						let perUnit = currentWeight > 0 ? currentWeight / oldQty : null;
+
+						//row has no weight previous: derive one from scratch of our best guess
+						if (perUnit == null) {
+							const otherServings: ServingSize[] = prev
+								.filter((r, ri) => ri !== index && r.name.trim() && Number(r.weight_g) > 0)
+								.map((r) => ({ label: r.name.trim(), weight_g: (Number(r.weight_g) || 0) / (Number(r.qty) || 1) }));
+							perUnit = estimateVolumeWeightG(unit, otherServings);
+
+							updated.autoFilled = perUnit != null ? true : undefined; //we auto filled (assuming not null)
+						}
+
+						//update
+						if (perUnit != null) {
+							updated.weight_g = newQty > 0 ? roundGrams(newQty * perUnit) : "";
+						}
 					}
 				}
 
@@ -594,6 +693,7 @@ export default function CreateFood() {
 		);
 	};
 
+	//occurs when picking label (tbsp or something)
 	const selectServingUnit = (unit: string) => {
 		if (openUnitPickerIndex === null) return;
 		const index = openUnitPickerIndex;
@@ -603,22 +703,76 @@ export default function CreateFood() {
 				if (i !== index) return row;
 
 				const factor = FIXED_UNIT_CONVERSIONS[unit];
-				if (factor == null) {
-					return { ...row, name: unit };
-				}
+				if (factor != null) {
+					const qty = Number(row.qty) || 1;
+					return {
+						...row,
+						name: unit,
+						qty: row.qty || "1",
+						weight_g: roundGrams(qty * factor),
+						autoFilled: false,
+					};
+				} //easy mass calculation, therefore we treat it as truth
 
-				const qty = Number(row.qty) || 1;
+				//if volume like serving or unrecognized serving
+				//try to guess based on other servings
+				//if found guess: autofilled is true
+				//else: undefined (we don't know yet..)
+				const otherServings: ServingSize[] = prev
+					.filter((r, ri) => ri !== index && r.name.trim() && Number(r.weight_g) > 0)
+					.map((r) => ({ label: r.name.trim(), weight_g: (Number(r.weight_g) || 0) / (Number(r.qty) || 1) }));
+
+				const derived = estimateVolumeWeightG(unit, otherServings);
+
 				return {
 					...row,
 					name: unit,
-					qty: row.qty || "1",
-					weight_g: roundGrams(qty * factor),
+					qty: "1",
+					weight_g: derived != null ? roundGrams(derived) : "",
+					autoFilled: derived != null ? true : undefined,
 				};
 			}),
 		);
 
 		setOpenUnitPickerIndex(null);
 	};
+
+	//if brand, food, or any part of serving size is changed, re-calc weights
+	//servingsizeSignature is our way of tracking if the contents of servingSize changed, not just a ref + infinite loop
+	//if smth changed, loop over each serving and re-calculate weight_g
+	const servingSizesSignature = servingSizes.map((r) => `${r.name}|${r.qty}|${r.weight_g}|${r.autoFilled ?? ""}`).join(";");
+	useEffect(() => {
+		setServingSizes((prev) => {
+			let changed = false; //track if we change for each row
+
+			const next = prev.map((row, index) => {
+				const unit = row.name.trim();
+				if (!unit || VOLUME_UNITS_TO_ML[unit] == null) return row; //skip non volume based rows
+
+				if (row.autoFilled === false) return row; // user-typed - never touch
+
+				//this line filters by siblings (not same row, not blank, non 0 weight)
+				//divides weight/quantity to ensure weight_g for 1 quantity
+				const otherServings: ServingSize[] = prev
+					.filter((r, ri) => ri !== index && r.name.trim() && Number(r.weight_g) > 0)
+					.map((r) => ({ label: r.name.trim(), weight_g: (Number(r.weight_g) || 0) / (Number(r.qty) || 1) }));
+
+				//then estimateVolumeWeightG can convert based new unit off it's siblings in theory
+				const derived = estimateVolumeWeightG(unit, otherServings);
+				const qty = Number(row.qty) || 1;
+				const newWeight = derived != null ? roundGrams(qty * derived) : "";
+				//we then mark autoFilled as true or undefined if we couldn't match it
+
+				if (newWeight === row.weight_g) return row; //same val, don't update
+
+				changed = true;
+				return { ...row, qty: row.qty || "1", weight_g: newWeight, autoFilled: derived != null ? true : undefined };
+			});
+
+			return changed ? next : prev;
+		});
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [foodName, brand, servingSizesSignature]);
 
 	const updateMicronutrient = (nutrientId: number, value: string) => {
 		setMicronutrients((prev) => prev.map((m) => (m.nutrient_id === nutrientId ? { ...m, value } : m)));
@@ -630,33 +784,49 @@ export default function CreateFood() {
 			return;
 		}
 
-		const servingSizesPayload: ServingSize[] = servingSizes
+		// Normalize each row to "1 unit = X grams" (bare unit label, per-1-unit weight)
+		// We used to just store it like "label, weight_g". But we need 1 unit weight with just the label (no quantity in there)
+		// for purposes of calculating/guessing on volume
+
+		//divides weight/quantity to get 1 unit basis for that label
+		const normalizedRows = servingSizes
 			.map((row) => {
 				const name = row.name.trim();
-				const qty = row.qty.trim();
-				const label = qty && name ? `${qty} ${name}` : name || qty;
-
-				return {
-					label,
-					weight_g: Number(row.weight_g) || 0,
-				};
+				const qty = Number(row.qty) || 1;
+				const totalWeight = Number(row.weight_g) || 0;
+				if (!name || totalWeight <= 0 || qty <= 0) return null;
+				return { label: name, weight_g: totalWeight / qty, qty };
 			})
-			.filter((s) => s.label && s.weight_g > 0);
+			.filter((s): s is { label: string; weight_g: number; qty: number } => s !== null);
 
-		if (servingSizesPayload.length === 0) {
+		if (normalizedRows.length === 0) {
 			Alert.alert("Serving size required", "Enter a valid name, quantity, and gram equivalent for at least one serving size.");
 			return;
 		}
 
+		//building payload for backend
+		const servingSizesPayload: ServingSize[] = normalizedRows.map(({ label, weight_g, qty }) => ({
+			label,
+			weight_g: Math.round(weight_g * 100) / 100,
+			default_quantity: qty,
+		}));
+
+		//The original serving label on package might be 4Tbsp 50g is 120 calories etc.
+		//so when we divide to get a 1Tbsp conversion, we also need to divide all nutrients by that ratio
+
+		const anchorQty = normalizedRows[0].qty; //we go based off our first serving size entry
+		const scaledAmount = (raw: number) => raw / anchorQty;
+		//^^ and scale each nutrient down by that amount after our division
+
 		const nutrients = [
-			{ nutrient_name: "calories", unit: "kcal", nutrient_amount: Number(calories) || 0 },
-			{ nutrient_name: "protein", unit: "g", nutrient_amount: Number(protein) || 0 },
-			{ nutrient_name: "carbs", unit: "g", nutrient_amount: Number(carbs) || 0 },
-			{ nutrient_name: "fat", unit: "g", nutrient_amount: Number(fats) || 0 },
+			{ nutrient_name: "calories", unit: "kcal", nutrient_amount: scaledAmount(Number(calories) || 0) },
+			{ nutrient_name: "protein", unit: "g", nutrient_amount: scaledAmount(Number(protein) || 0) },
+			{ nutrient_name: "carbs", unit: "g", nutrient_amount: scaledAmount(Number(carbs) || 0) },
+			{ nutrient_name: "fat", unit: "g", nutrient_amount: scaledAmount(Number(fats) || 0) },
 			...micronutrients.map((m) => ({
 				nutrient_name: m.nutrient_name,
 				unit: m.unit,
-				nutrient_amount: Number(m.value) || 0,
+				nutrient_amount: scaledAmount(Number(m.value) || 0),
 			})),
 		];
 
@@ -736,7 +906,7 @@ export default function CreateFood() {
 
 					{servingSizes.map((row, index) => (
 						<View key={index} style={[styles.servingRow, index === servingSizes.length - 1 && styles.noBorder]}>
-							<TouchableOpacity style={[styles.unitSelect, { flex: 1.6 }]} onPress={() => setOpenUnitPickerIndex(index)} activeOpacity={0.7}>
+							<TouchableOpacity style={[styles.unitSelect, { flex: 1.6 }]} onPress={() => openUnitPicker(index)} activeOpacity={0.7}>
 								<Text style={row.name ? styles.unitSelectText : styles.unitSelectPlaceholder} numberOfLines={1}>
 									{row.name || "Select"}
 								</Text>
@@ -807,9 +977,9 @@ export default function CreateFood() {
 			</ScrollView>
 
 			{/* Unit Selection Modal */}
-			<Modal visible={openUnitPickerIndex !== null} transparent animationType="fade" onRequestClose={() => setOpenUnitPickerIndex(null)}>
+			<Modal visible={openUnitPickerIndex !== null} transparent animationType="fade" onRequestClose={closeUnitPicker}>
 				<View style={styles.modalBackdrop}>
-					<TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={() => setOpenUnitPickerIndex(null)} />
+					<TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={closeUnitPicker} />
 					<View style={styles.modalSheet}>
 						<Text style={styles.modalTitle}>SELECT UNIT</Text>
 						<FlatList
@@ -821,6 +991,30 @@ export default function CreateFood() {
 									<Text style={styles.modalOptionText}>{item}</Text>
 								</TouchableOpacity>
 							)}
+							ListFooterComponent={
+								<>
+									<View style={styles.modalDivider} />
+									<View style={styles.customUnitRow}>
+										<TextInput
+											style={styles.customUnitInput}
+											placeholder="Custom unit (e.g. scoop)"
+											placeholderTextColor="#555"
+											value={customUnitText}
+											onChangeText={setCustomUnitText}
+											onSubmitEditing={() => customUnitText.trim() && selectServingUnit(customUnitText.trim())}
+											returnKeyType="done"
+										/>
+										<TouchableOpacity
+											style={styles.customUnitAddButton}
+											onPress={() => customUnitText.trim() && selectServingUnit(customUnitText.trim())}
+											disabled={!customUnitText.trim()}
+											hitSlop={8}
+										>
+											<Ionicons name="checkmark-circle" size={26} color={customUnitText.trim() ? "#e0524f" : "#444"} />
+										</TouchableOpacity>
+									</View>
+								</>
+							}
 						/>
 					</View>
 				</View>

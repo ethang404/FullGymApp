@@ -14,6 +14,9 @@ const {
 	addDiaryEntryPayload,
 	editDiaryEntryPayload,
 	addDiaryEntryServingPayload,
+	addOilFoodPayload,
+	addHoneyFoodPayload,
+	addBroiledChickenPayload,
 	createRecipePayload,
 } = require("./NutritionPayloads");
 
@@ -426,5 +429,172 @@ describe("Recipe Endpoints", () => {
 		// Ingredients cascade deleted
 		const dbIngs = await RecipeIngredModel.findAll({ where: { recipe_id: createdRecipeId } });
 		expect(dbIngs.length).toBe(0);
+	});
+});
+
+// ─────────────────────────────────────────────
+// LIQUID / VOLUME UNIT CONVERSION
+// ─────────────────────────────────────────────
+
+describe("Liquid/Volume Unit Conversion", () => {
+	let oilFoodId;
+	let honeyFoodId;
+	let chickenFoodId;
+
+	beforeAll(async () => {
+		const oilResp = await request(app)
+			.post("/nutrition/foods")
+			.set("Content-Type", "application/json")
+			.set("Authorization", `Bearer ${token}`)
+			.send(addOilFoodPayload);
+		oilFoodId = oilResp.body.food.id;
+
+		const honeyResp = await request(app)
+			.post("/nutrition/foods")
+			.set("Content-Type", "application/json")
+			.set("Authorization", `Bearer ${token}`)
+			.send(addHoneyFoodPayload);
+		honeyFoodId = honeyResp.body.food.id;
+
+		const chickenResp = await request(app)
+			.post("/nutrition/foods")
+			.set("Content-Type", "application/json")
+			.set("Authorization", `Bearer ${token}`)
+			.send(addBroiledChickenPayload);
+		chickenFoodId = chickenResp.body.food.id;
+	});
+
+	test("Ratio derivation - tsp derived from explicit tbsp row", async () => {
+		const payload = {
+			food_id: oilFoodId,
+			meal_type: "snack",
+			logged_at: "2025-02-01",
+			quantity: 1,
+			unit: "tsp", // never explicitly defined — only "tbsp" is
+		};
+
+		const resp = await request(app).post("/nutrition/diary").set("Content-Type", "application/json").set("Authorization", `Bearer ${token}`).send(payload);
+
+		expect(resp.status).toBe(201);
+
+		// 13.5g/tbsp / 15mL per tbsp = 0.9 g/mL; 1 tsp = 5mL -> 4.5g
+		// 884 kcal per 100g basis -> 884 * 4.5 / 100 = 39.78 kcal
+		const getResp = await request(app).get("/nutrition/diary?start_date=2025-02-01").set("Authorization", `Bearer ${token}`);
+		const entry = getResp.body.diary_entries.find((e) => e.id === resp.body.diary_entry.id);
+		expect(parseFloat(entry.nutrients.calories)).toBeCloseTo(39.78, 1);
+	});
+
+	test("Ratio derivation - cup derived from explicit tbsp row", async () => {
+		const payload = {
+			food_id: oilFoodId,
+			meal_type: "snack",
+			logged_at: "2025-02-01",
+			quantity: 1,
+			unit: "cup", // never explicitly defined
+		};
+
+		const resp = await request(app).post("/nutrition/diary").set("Content-Type", "application/json").set("Authorization", `Bearer ${token}`).send(payload);
+
+		expect(resp.status).toBe(201);
+
+		// 0.9 g/mL * 240mL = 216g -> 884 * 216 / 100 = 1909.44 kcal
+		const getResp = await request(app).get("/nutrition/diary?start_date=2025-02-01").set("Authorization", `Bearer ${token}`);
+		const entry = getResp.body.diary_entries.find((e) => e.id === resp.body.diary_entry.id);
+		expect(parseFloat(entry.nutrients.calories)).toBeCloseTo(1909.44, 1);
+	});
+
+	test("Ratio derivation - ml derived from explicit tbsp row", async () => {
+		const payload = {
+			food_id: oilFoodId,
+			meal_type: "snack",
+			logged_at: "2025-02-01",
+			quantity: 100,
+			unit: "ml", // never explicitly defined
+		};
+
+		const resp = await request(app).post("/nutrition/diary").set("Content-Type", "application/json").set("Authorization", `Bearer ${token}`).send(payload);
+
+		expect(resp.status).toBe(201);
+
+		// 0.9 g/mL * 100mL = 90g -> 884 * 90 / 100 = 795.6 kcal
+		const getResp = await request(app).get("/nutrition/diary?start_date=2025-02-01").set("Authorization", `Bearer ${token}`);
+		const entry = getResp.body.diary_entries.find((e) => e.id === resp.body.diary_entry.id);
+		expect(parseFloat(entry.nutrients.calories)).toBeCloseTo(795.6, 1);
+	});
+
+	test("Category fallback - honey with zero volume data resolves tbsp via keyword", async () => {
+		const payload = {
+			food_id: honeyFoodId,
+			meal_type: "snack",
+			logged_at: "2025-02-01",
+			quantity: 1,
+			unit: "tbsp", // honey has ONLY a "serving" row — no volume data at all
+		};
+
+		const resp = await request(app).post("/nutrition/diary").set("Content-Type", "application/json").set("Authorization", `Bearer ${token}`).send(payload);
+
+		expect(resp.status).toBe(201);
+
+		// honey keyword -> 1.42 g/mL * 15mL = 21.3g -> 320 * 21.3 / 100 = 68.16 kcal
+		const getResp = await request(app).get("/nutrition/diary?start_date=2025-02-01").set("Authorization", `Bearer ${token}`);
+		const entry = getResp.body.diary_entries.find((e) => e.id === resp.body.diary_entry.id);
+		expect(parseFloat(entry.nutrients.calories)).toBeCloseTo(68.16, 1);
+	});
+
+	test("False-positive regression - 'Broiled' does not match the 'oil' keyword", async () => {
+		const payload = {
+			food_id: chickenFoodId,
+			meal_type: "snack",
+			logged_at: "2025-02-01",
+			quantity: 1,
+			unit: "tbsp", // no volume data, and name contains "oil" inside "Broiled"
+		};
+
+		const resp = await request(app).post("/nutrition/diary").set("Content-Type", "application/json").set("Authorization", `Bearer ${token}`).send(payload);
+
+		expect(resp.status).toBe(400);
+	});
+
+	test("Explicit-row-wins regression - existing 'oz' row unaffected by fixed mass constant", async () => {
+		const payload = {
+			food_id: createdFoodId, // Chicken Breast fixture, has {label:"oz", weight_g:28.35}
+			meal_type: "snack",
+			logged_at: "2025-02-01",
+			quantity: 1,
+			unit: "oz",
+		};
+
+		const resp = await request(app).post("/nutrition/diary").set("Content-Type", "application/json").set("Authorization", `Bearer ${token}`).send(payload);
+
+		expect(resp.status).toBe(201);
+
+		// 165 kcal/100g * 28.35g = 46.7775 kcal (would be 46.777675... at 28.3495 - close but this
+		// pins down that the EXPLICIT row value (28.35) is used, not the fixed constant)
+		const getResp = await request(app).get("/nutrition/diary?start_date=2025-02-01").set("Authorization", `Bearer ${token}`);
+		const entry = getResp.body.diary_entries.find((e) => e.id === resp.body.diary_entry.id);
+		expect(parseFloat(entry.nutrients.calories)).toBeCloseTo(165 * 0.2835, 3);
+	});
+
+	test("Recipe path - ratio-derived unit flows through buildIngredientRows + getRecipe", async () => {
+		const createResp = await request(app)
+			.post("/nutrition/recipes")
+			.set("Content-Type", "application/json")
+			.set("Authorization", `Bearer ${token}`)
+			.send({
+				name: "Oil Test Recipe",
+				servings: 1,
+				ingredients: [{ food_id: oilFoodId, quantity: 2, unit: "tsp" }],
+			});
+
+		expect(createResp.status).toBe(201);
+		const recipeId = createResp.body.recipe.recipe_id;
+
+		const getResp = await request(app).get(`/nutrition/recipes/${recipeId}`).set("Authorization", `Bearer ${token}`);
+		expect(getResp.status).toBe(200);
+
+		// 2 tsp = 10mL * 0.9 g/mL = 9g -> 884 * 9 / 100 = 79.56 kcal
+		expect(getResp.body.recipe.calories_per_serving).toBeCloseTo(80, 0);
+
+		await request(app).delete(`/nutrition/recipes/${recipeId}`).set("Authorization", `Bearer ${token}`);
 	});
 });

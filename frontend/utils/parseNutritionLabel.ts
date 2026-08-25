@@ -37,7 +37,11 @@ export interface ParsedNutritionLabel {
 	calories?: number;
 	macros: Partial<Record<Exclude<MacroField, "calories">, number>>;
 	micronutrients: Record<string, number>; // keyed by nutrient_name, e.g. "saturated_fat"
-	servingSize?: { qty: string; name: string; weight_g: number };
+	// weight_g is null when the label only states a volume (e.g. "1 Tbsp
+	// (15mL)") with no gram weight anywhere - volume_ml carries that instead
+	// so the caller can estimate a gram weight rather than treating it as a
+	// literal 0.
+	servingSize?: { qty: string; name: string; weight_g: number | null; volume_ml?: number };
 	servingsPerContainer?: number;
 	allergensRawText?: string;
 	ingredientsRawText?: string;
@@ -238,12 +242,17 @@ export function parseNutritionLabel(ocr: OcrResult): ParsedNutritionLabel {
 	if (servingMatch) {
 		const raw = servingMatch[1].trim();
 		const weightMatch = raw.match(/\(?([\d.]+)\s*g\)?/i);
+		// Many liquid/oil labels state only a volume ("1 Tbsp (15mL)"), no
+		// gram weight at all - checked only when no gram match was found, so
+		// a label like "1 tbsp (14g)" still takes the gram value as-is.
+		const volumeMatch = !weightMatch ? raw.match(/\(?([\d.]+)\s*ml\)?/i) : null;
 		const withoutParens = raw.replace(/\([^)]*\)/, "").trim();
 		const qtyNameMatch = withoutParens.match(/^([\d.]+)\s*(.+)$/);
 		result.servingSize = {
 			qty: qtyNameMatch?.[1] ?? "1",
 			name: (qtyNameMatch?.[2] ?? withoutParens).trim(),
-			weight_g: weightMatch ? Number(weightMatch[1]) : 0,
+			weight_g: weightMatch ? Number(weightMatch[1]) : null,
+			...(volumeMatch ? { volume_ml: Number(volumeMatch[1]) } : {}),
 		};
 	}
 

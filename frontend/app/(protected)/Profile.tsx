@@ -7,10 +7,11 @@ import {
 	Switch,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useMemo } from "react";
+import { useContext, useMemo } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { type ThemeName } from "@/theme/colors";
+import { AuthContext } from "@/utils/AuthProvider";
 
 // ─── Theme options ─────────────────────────────────────────────────────────────
 
@@ -26,6 +27,7 @@ const THEME_OPTIONS: { name: ThemeName; label: string; primary: string; bg: stri
 
 export default function Profile() {
 	const { theme, name: activeName, setTheme } = useTheme();
+	const { signOut } = useContext(AuthContext);
 
 	const styles = useMemo(
 		() =>
@@ -267,13 +269,19 @@ export default function Profile() {
 						<Text style={styles.rowLabel}>Notifications</Text>
 						<FontAwesome5 name="chevron-right" size={12} color={theme.textTertiary} />
 					</View>
-					<View style={[styles.row, styles.rowLast]}>
+					<View style={styles.row}>
 						<View style={styles.rowIcon}>
 							<FontAwesome5 name="shield-alt" size={13} color={theme.textSecondary} />
 						</View>
 						<Text style={styles.rowLabel}>Privacy Policy</Text>
 						<FontAwesome5 name="external-link-alt" size={11} color={theme.textTertiary} />
 					</View>
+					<TouchableOpacity style={[styles.row, styles.rowLast]} onPress={signOut} activeOpacity={0.7}>
+						<View style={styles.rowIcon}>
+							<FontAwesome5 name="sign-out-alt" size={13} color={theme.textSecondary} />
+						</View>
+						<Text style={styles.rowLabel}>Log Out</Text>
+					</TouchableOpacity>
 				</View>
 
 				{/* Danger */}

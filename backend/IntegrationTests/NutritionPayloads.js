@@ -52,6 +52,51 @@ const addDiaryEntryServingPayload = {
 	quantity: 2,
 	unit: "serving", // 2 servings = 2 * 140g = 280g
 };
+
+// Liquid food with only ONE volume unit explicitly defined (tbsp) — tests
+// tier-4 ratio derivation for other volume units (tsp/cup/ml) not explicitly defined.
+const addOilFoodPayload = {
+	name: "Olive Oil",
+	brand: null,
+	barcode: null,
+	nutrients: [
+		{ nutrient_id: 1008, nutrient_name: "calories", unit: "kcal", nutrient_amount: 119.34 }, // 884 kcal/100g * 13.5g serving
+		{ nutrient_id: 1004, nutrient_name: "fat", unit: "g", nutrient_amount: 13.5 },
+		{ nutrient_id: 1005, nutrient_name: "carbs", unit: "g", nutrient_amount: 0 },
+		{ nutrient_id: 1003, nutrient_name: "protein", unit: "g", nutrient_amount: 0 },
+	],
+	serving_sizes: [{ label: "tbsp", weight_g: 13.5 }],
+};
+
+// Food with zero volume-unit data at all — tests tier-5 category-keyword
+// density fallback (matches "honey" keyword).
+const addHoneyFoodPayload = {
+	name: "Organic Honey",
+	brand: null,
+	barcode: null,
+	nutrients: [
+		{ nutrient_id: 1008, nutrient_name: "calories", unit: "kcal", nutrient_amount: 64 }, // 320 kcal/100g * 20g serving
+		{ nutrient_id: 1004, nutrient_name: "fat", unit: "g", nutrient_amount: 0 },
+		{ nutrient_id: 1005, nutrient_name: "carbs", unit: "g", nutrient_amount: 17.4 },
+		{ nutrient_id: 1003, nutrient_name: "protein", unit: "g", nutrient_amount: 0 },
+	],
+	serving_sizes: [{ label: "serving", weight_g: 20 }],
+};
+
+// False-positive regression bait — name contains "oil" as a substring of
+// "Broiled" (Br-OIL-ed). Must NOT match the oil density keyword.
+const addBroiledChickenPayload = {
+	name: "Broiled Chicken Breast",
+	brand: null,
+	barcode: null,
+	nutrients: [
+		{ nutrient_id: 1008, nutrient_name: "calories", unit: "kcal", nutrient_amount: 165 },
+		{ nutrient_id: 1004, nutrient_name: "fat", unit: "g", nutrient_amount: 3.6 },
+		{ nutrient_id: 1005, nutrient_name: "carbs", unit: "g", nutrient_amount: 0 },
+		{ nutrient_id: 1003, nutrient_name: "protein", unit: "g", nutrient_amount: 31 },
+	],
+	serving_sizes: [{ label: "serving", weight_g: 100 }],
+};
 //#endregion
 
 //#region RecipeVars
@@ -76,5 +121,8 @@ module.exports = {
 	addDiaryEntryPayload,
 	editDiaryEntryPayload,
 	addDiaryEntryServingPayload,
+	addOilFoodPayload,
+	addHoneyFoodPayload,
+	addBroiledChickenPayload,
 	createRecipePayload,
 };

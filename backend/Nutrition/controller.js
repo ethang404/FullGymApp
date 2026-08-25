@@ -31,7 +31,7 @@ async function searchFoods(req, res) {
 	}
 }
 
-// Body needs: { name, brand, barcode, serving_size_g, serving_size_label, nutrients: [...] }
+// Body needs: { name, brand?, barcode?, nutrients: [...], serving_sizes: [{label, weight_g, default_quantity?}] }
 async function createFood(req, res) {
 	const user_id = getUserId(req);
 	try {
@@ -54,10 +54,10 @@ async function getFood(req, res) {
 
 async function addFoodServing(req, res) {
 	const { id } = req.params;
-	const { label, weight_g } = req.body;
+	const { label, weight_g, default_quantity } = req.body;
 
 	try {
-		const foodServing = await service.addFoodServing(id, label, weight_g);
+		const foodServing = await service.addFoodServing(id, label, weight_g, default_quantity);
 		return res.status(200).json({ foodServing });
 	} catch (error) {
 		return handleError(res, error);
