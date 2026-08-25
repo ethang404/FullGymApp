@@ -266,23 +266,21 @@ describe("Recipe Endpoints", () => {
 
 		expect(resp.status).toBe(201);
 
-		// Controller wraps in { recipe }
-		// createRecipe returns { recipe, ingredients } - the raw transaction result
+		// Controller wraps the raw Recipe row (with its recipeIngredients association) in { recipe }
 		const result = resp.body.recipe;
 		expect(result).toBeDefined();
-		expect(result.recipe).toBeDefined();
-		expect(result.recipe.recipe_id).toBeDefined();
-		createdRecipeId = result.recipe.recipe_id;
+		expect(result.recipe_id).toBeDefined();
+		createdRecipeId = result.recipe_id;
 
-		expect(result.recipe.name).toBe(payload.name);
-		expect(result.recipe.description).toBe(payload.description);
-		expect(parseFloat(result.recipe.servings)).toBe(payload.servings);
+		expect(result.name).toBe(payload.name);
+		expect(result.description).toBe(payload.description);
+		expect(parseFloat(result.servings)).toBe(payload.servings);
 
-		// Ingredients array from bulkCreate
-		expect(Array.isArray(result.ingredients)).toBe(true);
-		expect(result.ingredients.length).toBe(1);
+		// recipeIngredients array from the reload({ include: RecipeIngredientModel })
+		expect(Array.isArray(result.recipeIngredients)).toBe(true);
+		expect(result.recipeIngredients.length).toBe(1);
 
-		const ing = result.ingredients[0];
+		const ing = result.recipeIngredients[0];
 		expect(ing.food_id).toBe(createdFoodId);
 		expect(ing.calories).not.toBeNull();
 		expect(ing.protein).not.toBeNull();

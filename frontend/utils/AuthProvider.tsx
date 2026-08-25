@@ -5,40 +5,50 @@ import React, {
 	type PropsWithChildren,
 	useEffect,
 } from "react";
+import axios from "axios";
+import * as SecureStore from "expo-secure-store";
 
 export const AuthContext = createContext<{
 	signIn: () => void;
 	signOut: () => void;
 	isValidUser: boolean;
+	isLoading: boolean;
 }>({
 	signIn: () => null,
 	signOut: () => null,
 	isValidUser: false,
+	isLoading: true,
 });
 
 export function AuthProvider({ children }: PropsWithChildren) {
 	const [isValidUser, setValidUser] = useState(false);
+	const [isLoading, setIsLoading] = useState(true);
 
-	/*useEffect(() => {
+	useEffect(() => {
 		async function verifyToken() {
-			//get accessToken from expo secure store here--
-			let authToken = await SecureStore.getItemAsync("accessToken");
-			if (!authToken) return;
+			const accessToken = await SecureStore.getItemAsync("accessToken");
+			if (!accessToken) {
+				setValidUser(false);
+				setIsLoading(false);
+				return;
+			}
 
-			let resp = await axios.get(`${process.env.EXPO_PUBLIC_BACKEND_URL}/auth/validToken`, {
-				headers: {
-					Authorization: `Bearer ${authToken}`,
-					"Content-Type": "application/json",
-					"Custom-Header": "My-Custom-Value",
-				},
-			});
-			if (resp.status) {
-				console.log("User is valid! YAY!");
+			try {
+				await axios.get(`${process.env.EXPO_PUBLIC_BACKEND_URL}/auth/validToken`, {
+					headers: {
+						Authorization: `Bearer ${accessToken}`,
+					},
+				});
 				setValidUser(true);
-			} else console.log("User is SUS!");
+			} catch {
+				// token invalid or expired
+				setValidUser(false);
+			} finally {
+				setIsLoading(false);
+			}
 		}
 		verifyToken();
-	}, []);*/
+	}, []);
 
 	return (
 		<AuthContext.Provider
@@ -51,6 +61,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 					setValidUser(false);
 				},
 				isValidUser,
+				isLoading,
 			}}
 		>
 			{children}

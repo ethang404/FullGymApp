@@ -1,14 +1,11 @@
-import React, { useContext, useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
-import * as SecureStore from "expo-secure-store";
-import { AuthContext } from "../utils/AuthProvider";
 import { useTheme } from "@/theme/ThemeProvider";
-import { instance, authInstance } from "../utils/AxiosInterceptorHandler";
+import { authInstance } from "../utils/AxiosInterceptorHandler";
 
 export default function Login() {
 	const { theme } = useTheme();
-	const { signIn, isValidUser } = useContext(AuthContext);
 	const [userName, setUserName] = useState("");
 	const [password, setPassword] = useState("");
 	const [firstName, setFirstName] = useState("");
@@ -16,22 +13,6 @@ export default function Login() {
 	const [mode, setMode] = useState<"login" | "register">("login"); //determins if I do login or register
 	const [error, setError] = useState<string | null>(null);
 	const [loading, setLoading] = useState(false);
-
-	// On init see if user is valid.
-	useEffect(() => {
-		async function verifyToken() {
-			const accessToken = await SecureStore.getItemAsync("accessToken");
-			if (!accessToken) return;
-
-			try {
-				await instance.get("/auth/validToken");
-				signIn();
-			} catch {
-				// token invalid or expired, stay on login
-			}
-		}
-		verifyToken();
-	}, [signIn]);
 
 	async function handleAuth() {
 		setLoading(true);
