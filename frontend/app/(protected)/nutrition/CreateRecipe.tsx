@@ -9,7 +9,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import AddIngredientModal from "./components/AddIngredientModal";
 import RecipeFoodCard from "./components/RecipeFoodCard";
 import NutritionFactsLabel from "./components/NutritionLabel";
-import { calcNutrientsFromPer100g, NUTRIENT_NAME_TO_IDS, NUTRIENT_IDS_TO_NAMES, type RecipeIngredient, type ServingSize } from "../types/nutrition";
+import { calcNutrientsFromPer100g, resolveServingWeightG, NUTRIENT_NAME_TO_IDS, NUTRIENT_IDS_TO_NAMES, type RecipeIngredient } from "../types/nutrition";
 
 export default function CreateRecipe() {
 	const { theme } = useTheme();
@@ -41,13 +41,14 @@ export default function CreateRecipe() {
 
 				// Map ingredients from backend structure into frontend state
 				const mappedIngredients: RecipeIngredient[] = (recipeData.ingredients ?? []).map((ing: any) => {
-					// 1. Determine unit weight in grams
-					let unitWeightG = 1;
-					if (ing.unit.toLowerCase() === "g" || ing.unit.toLowerCase() === "grams") {
-						unitWeightG = 1;
-					} else {
-						const matchingServing = ing.serving_sizes?.find((s: ServingSize) => s.label === ing.unit);
-						unitWeightG = matchingServing?.weight_g ?? 100;
+					// Resolve unit weight in grams (explicit serving row, fixed mass
+					// unit, or derived volume ratio). If truly unresolvable, fall back
+					// to 1 (treat quantity as literal grams) rather than silently
+					// guessing 100g, and flag it so the user notices.
+					const resolved = resolveServingWeightG(ing.unit, ing.serving_sizes ?? []);
+					const unitWeightG = resolved ?? 1;
+					if (resolved == null) {
+						console.warn(`Could not resolve unit "${ing.unit}" for ingredient "${ing.food_name}" - defaulting to 1g/unit.`);
 					}
 
 					return {

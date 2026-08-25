@@ -13,6 +13,7 @@ const {
 } = require("../models/modelInits");
 
 const { NotFoundError, DataError, ForbiddenError } = require("../error");
+const { resolveUnitWeightG } = require("./unitConversion");
 
 //Mapping of nutrients to compare against
 const NUTRIENT_MAP = {
@@ -77,28 +78,20 @@ function isValidDate(str) {
 // ---------------------------------------------
 
 /**
- * Expected: (quantity: number, unit: string, servingSizes: Array)
- * Logic: Should find the unit in servingSizes and return the weight in grams.
+ * Expected: (quantity, unit, servingSizes, foodMeta?: { name, brand })
+ * Resolves the unit to a per-unit gram weight via resolveUnitWeightG (exact
+ * serving-size match, fixed mass units, derived volume ratio, or density
+ * fallback keyed off foodMeta) and throws if nothing resolves.
  */
-const toGrams = (quantity, unit, servingSizes) => {
-	// Check if unit is 'g', 'kg', or matches a servingSizes label
-	// Throw DataError if unit is invalid for this food
-	switch (unit) {
-		case "g":
-			return quantity;
-		case "kg":
-			return quantity * 1000;
-		default: {
-			const serving = servingSizes.find((s) => s.label === unit);
-			if (!serving) throw new DataError(`Unit "${unit}" is not available for this food`);
-			return quantity * parseFloat(serving.weight_g);
-		}
-	}
+const toGrams = (quantity, unit, servingSizes, foodMeta = {}) => {
+	const perUnitG = resolveUnitWeightG(unit, servingSizes, foodMeta.name, foodMeta.brand);
+	if (perUnitG == null) throw new DataError(`Unit "${unit}" is not available for this food`);
+	return quantity * perUnitG;
 };
 
 //This converts from our database 100g basis to whatever amount the user chose
-const calcNutrients = (quantity, unit, servingSizes, nutrients) => {
-	const grams = toGrams(quantity, unit, servingSizes);
+const calcNutrients = (quantity, unit, servingSizes, nutrients, foodMeta = {}) => {
+	const grams = toGrams(quantity, unit, servingSizes, foodMeta);
 
 	let result = [];
 	let amount;
@@ -155,7 +148,7 @@ async function buildIngredientRows(ingredients, recipe_id, t) {
 		const food = foodMap.get(food_id);
 		if (!food) throw new DataError(`Food with id ${food_id} not found`);
 
-		const raw_nutrients = calcNutrients(quantity, unit, food.foodServingSizes, food.foodNutrients);
+		const raw_nutrients = calcNutrients(quantity, unit, food.foodServingSizes, food.foodNutrients, { name: food.name, brand: food.brand });
 		const mapped = mapNutrients(raw_nutrients); //fetches everything, but we only care about cals/protein/carbs/fats
 
 		rows.push({
@@ -179,7 +172,10 @@ function scaleRecipeNutrients(recipeIngredients, scale) {
 	const totals = {};
 
 	for (const ing of recipeIngredients ?? []) {
-		const raw_nutrients = calcNutrients(parseFloat(ing.quantity), ing.unit, ing.food.foodServingSizes, ing.food.foodNutrients);
+		const raw_nutrients = calcNutrients(parseFloat(ing.quantity), ing.unit, ing.food.foodServingSizes, ing.food.foodNutrients, {
+			name: ing.food.name,
+			brand: ing.food.brand,
+		});
 
 		for (const n of raw_nutrients) {
 			totals[n.nutrient_id] = (totals[n.nutrient_id] ?? 0) + n.amount;
@@ -237,10 +233,14 @@ async function SearchFoods(query) {
 	return foods.map((food) => {
 		const { foodNutrients, foodServingSizes, ...foodJson } = food.toJSON();
 
-		const servingSizes = (foodServingSizes ?? []).map(({ label, weight_g }) => ({ label, weight_g: parseFloat(weight_g) }));
+		const servingSizes = (foodServingSizes ?? []).map(({ label, weight_g, default_quantity }) => ({
+			label,
+			weight_g: parseFloat(weight_g),
+			default_quantity: default_quantity != null ? parseFloat(default_quantity) : null,
+		}));
 		const nutrients = foodNutrients ?? [];
 
-		const fallback = { label: "g", weight_g: 100 }; //use a fallback of 100g basis stored in db if we have no serving size data.
+		const fallback = { label: "g", weight_g: 100, default_quantity: null }; //use a fallback of 100g basis stored in db if we have no serving size data.
 
 		const displayServing = servingSizes[0] ?? fallback;
 		const usingFallback = servingSizes.length === 0;
@@ -254,7 +254,8 @@ async function SearchFoods(query) {
 			default_serving: {
 				label: usingFallback ? "g" : displayServing.label,
 				weight_g: displayServing.weight_g,
-				macros: calcNutrients(quantity, unit, servingSizes, nutrients),
+				default_quantity: displayServing.default_quantity ?? null,
+				macros: calcNutrients(quantity, unit, servingSizes, nutrients, { name: foodJson.name, brand: foodJson.brand }),
 			},
 			nutrients_per_100g: nutrients.map((n) => ({
 				//we use this data to convert on frontend for display purposes
@@ -287,6 +288,8 @@ async function CreateFood(data, user_id) {
 	for (const s of data.serving_sizes) {
 		if (!s.label?.trim()) throw new DataError("Each serving size must have a label");
 		if (s.weight_g == null || isNaN(s.weight_g) || s.weight_g <= 0) throw new DataError("Each serving size must have a valid weight_g");
+		if (s.default_quantity != null && (isNaN(s.default_quantity) || s.default_quantity <= 0))
+			throw new DataError("default_quantity must be a positive number");
 	}
 
 	//for each nutrient, convert to a 100g basis for database
@@ -322,7 +325,12 @@ async function CreateFood(data, user_id) {
 		);
 
 		await FoodServingSizeModel.bulkCreate(
-			data.serving_sizes.map((s) => ({ food_id: newFood.id, label: s.label.trim(), weight_g: s.weight_g })),
+			data.serving_sizes.map((s) => ({
+				food_id: newFood.id,
+				label: s.label.trim(),
+				weight_g: s.weight_g,
+				default_quantity: s.default_quantity ?? null,
+			})),
 			{ transaction: t },
 		);
 
@@ -350,9 +358,10 @@ async function getFood(food_id) {
 
 	const { foodNutrients, foodServingSizes, ...foodJson } = food.toJSON();
 
-	const servingSizes = (foodServingSizes ?? []).map(({ label, weight_g }) => ({
+	const servingSizes = (foodServingSizes ?? []).map(({ label, weight_g, default_quantity }) => ({
 		label,
 		weight_g: parseFloat(weight_g),
+		default_quantity: default_quantity != null ? parseFloat(default_quantity) : null,
 	}));
 
 	let nutrients = foodNutrients ?? [];
@@ -374,7 +383,7 @@ async function getFood(food_id) {
 	return retVal;
 }
 
-async function addFoodServing(food_id, label, weight_g) {
+async function addFoodServing(food_id, label, weight_g, default_quantity) {
 	const food = await FoodModel.findByPk(food_id);
 	if (!food) throw new DataError("Food ID doesn't exist");
 
@@ -382,6 +391,7 @@ async function addFoodServing(food_id, label, weight_g) {
 		food_id,
 		label,
 		weight_g,
+		default_quantity: default_quantity ?? null,
 	});
 	return newServing;
 }
@@ -415,7 +425,7 @@ async function addDiaryEntry(data, user_id) {
 
 		if (!food || food.is_deleted) throw new NotFoundError("No food found");
 
-		toGrams(quantity, unit, food.foodServingSizes); //throws if invalid
+		toGrams(quantity, unit, food.foodServingSizes, { name: food.name, brand: food.brand }); //throws if invalid
 
 		const diary_entry = await DiaryEntryModel.create({
 			user_id,
@@ -503,7 +513,10 @@ async function getDiaryEntries(user_id, start_date, end_date, meal_type) {
 
 	return diary_entries.map((e) => {
 		if (e.food_id) {
-			const raw_nutrients = calcNutrients(e.quantity, e.unit, e.food.foodServingSizes, e.food.foodNutrients);
+			const raw_nutrients = calcNutrients(e.quantity, e.unit, e.food.foodServingSizes, e.food.foodNutrients, {
+				name: e.food.name,
+				brand: e.food.brand,
+			});
 			return {
 				id: e.id,
 				type: "food",
@@ -571,7 +584,7 @@ async function editDiaryEntry(entry_id, data, user_id) {
 			const food = await FoodModel.findByPk(entry.food_id, {
 				include: [{ model: FoodServingSizeModel }],
 			});
-			toGrams(quantity, unit, food.foodServingSizes);
+			toGrams(quantity, unit, food.foodServingSizes, { name: food.name, brand: food.brand });
 		}
 	}
 
@@ -598,7 +611,10 @@ async function editDiaryEntry(entry_id, data, user_id) {
 	});
 
 	if (updated.food_id) {
-		const raw_nutrients = calcNutrients(updated.quantity, updated.unit, updated.food.foodServingSizes, updated.food.foodNutrients);
+		const raw_nutrients = calcNutrients(updated.quantity, updated.unit, updated.food.foodServingSizes, updated.food.foodNutrients, {
+			name: updated.food.name,
+			brand: updated.food.brand,
+		});
 		return {
 			id: updated.id,
 			type: "food",
@@ -798,7 +814,10 @@ async function getRecipe(recipe_id, user_id) {
 
 	// Recompute nutrients live from each ingredient's food data
 	const ingredients = recipeIngredients.map((ing) => {
-		const raw_nutrients = calcNutrients(parseFloat(ing.quantity), ing.unit, ing.food.foodServingSizes, ing.food.foodNutrients);
+		const raw_nutrients = calcNutrients(parseFloat(ing.quantity), ing.unit, ing.food.foodServingSizes, ing.food.foodNutrients, {
+			name: ing.food.name,
+			brand: ing.food.brand,
+		});
 
 		let nutrients_per_100g = ing.food.foodNutrients.map((n) => ({
 			//we use this data to convert on frontend for display purposes
@@ -808,9 +827,10 @@ async function getRecipe(recipe_id, user_id) {
 			amount_per_100g: parseFloat(n.amount_per_100g),
 		}));
 
-		const servingSizes = (ing.food.foodServingSizes ?? []).map(({ label, weight_g }) => ({
+		const servingSizes = (ing.food.foodServingSizes ?? []).map(({ label, weight_g, default_quantity }) => ({
 			label,
 			weight_g: parseFloat(weight_g),
+			default_quantity: default_quantity != null ? parseFloat(default_quantity) : null,
 		}));
 
 		return {

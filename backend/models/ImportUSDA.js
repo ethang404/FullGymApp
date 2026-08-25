@@ -14,8 +14,9 @@ console.log("DB URL:", process.env.DB_CONNECTION_URL);
 const fs = require("fs");
 const path = require("path");
 const { parse } = require("csv-parse");
-const { food, foodNutrient } = require("./modelInits");
+const { food, foodNutrient, foodServingSize } = require("./modelInits");
 const sequelize = require("./db");
+const { findDensityForFood } = require("../Nutrition/unitConversion");
 
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
 
@@ -147,26 +148,37 @@ async function buildPortionMap() {
 
 	// food_portion.csv columns: id, fdc_id, seq_num, amount, measure_unit_id,
 	//                           portion_description, modifier, gram_weight, etc
+	// USDA gives MULTIPLE portion rows per food (e.g. "1 cup", "1 tbsp"), each
+	// with its own precise gram weight — real ground truth for liquid/volume
+	// conversions. Keep all of them (dedup by label) instead of just the first.
 	const rows = await loadCSV("food_portion.csv");
 
-	const portionMap = new Map();
+	const portionMap = new Map(); // fdc_id -> [{ label, weight_g, default_quantity }, ...]
 	for (const row of rows) {
 		const fdcId = row.fdc_id;
+		const grams = toFloat(row.gram_weight);
+		const label = (row.portion_description || row.modifier || "").trim();
 
-		// only keep the first portion per food (seq_num = 1 is the primary serving)
-		if (!portionMap.has(fdcId)) {
-			const grams = toFloat(row.gram_weight);
-			const label = row.portion_description || row.modifier || null;
+		if (!grams || !label) continue;
 
-			if (grams) {
-				portionMap.set(fdcId, {
-					serving_size_g: grams,
-					serving_size_label: label,
-				});
-			}
+		// USDA's `amount` is how many of the label the stated gram_weight is
+		// for (e.g. amount=2, modifier="slice" -> gram_weight is for 2 slices).
+		// Previously ignored entirely, which silently treated gram_weight as
+		// if it were always for exactly 1 unit. Divide it out for a true
+		// per-1-unit weight_g, and keep the original amount as default_quantity.
+		const amount = toFloat(row.amount);
+		const qty = amount && amount > 0 ? amount : 1;
+
+		if (!portionMap.has(fdcId)) portionMap.set(fdcId, []);
+		const portions = portionMap.get(fdcId);
+		if (!portions.some((p) => p.label === label)) {
+			portions.push({ label, weight_g: grams / qty, default_quantity: qty });
 		}
 	}
 
+	// serving_size_g/serving_size_label on the `food` row still uses the
+	// "primary" (first) portion as before, for backward compatibility with
+	// existing code that reads those fields off the food row.
 	console.log(`  Built portion map with ${portionMap.size} entries`);
 	return portionMap;
 }
@@ -184,12 +196,17 @@ async function importFoods(portionMap) {
 	const brandedMap = new Map();
 
 	await streamCSV("branded_food.csv", (row) => {
+		const unit = row.serving_size_unit?.toLowerCase();
+		const amount = toFloat(row.serving_size);
 		brandedMap.set(row.fdc_id, {
 			brand: row.brand_owner || row.brand_name || null,
 			barcode: row.gtin_upc || null,
 			// branded foods store serving size differently
 			// serving_size is the amount, serving_size_unit is the unit (g, ml etc)
-			serving_size_g: row.serving_size_unit?.toLowerCase() === "g" ? toFloat(row.serving_size) : null,
+			serving_size_g: unit === "g" ? amount : null,
+			// previously discarded entirely — kept now so ml-denominated branded
+			// servings can become a real food_serving_sizes row via density lookup
+			serving_size_ml: unit === "ml" ? amount : null,
 			serving_size_label: row.household_serving_fulltext || null,
 		});
 	});
@@ -208,6 +225,7 @@ async function importFoods(portionMap) {
 	let batch = [];
 	let totalInserted = 0;
 	let totalSkipped = 0;
+	let totalServingSizes = 0;
 
 	const flushBatch = async () => {
 		if (batch.length === 0) return;
@@ -221,6 +239,40 @@ async function importFoods(portionMap) {
 		// store fdc_id → db uuid mapping for use in step 4
 		for (const food of inserted) {
 			fdcToIdMap.set(String(food.fdc_id), food.id);
+		}
+
+		// Populate food_serving_sizes from the (now multi-row) portion map and
+		// from branded ml-denominated servings resolved through the density
+		// fallback table. This previously never happened at all — food.model.js
+		// has no serving_size_g/serving_size_label columns, so those keys on
+		// the food batch above are silently dropped by bulkCreate.
+		const servingSizeRows = [];
+		for (const insertedFood of inserted) {
+			const fdcId = String(insertedFood.fdc_id);
+			const seen = new Set(); // unique(food_id, label) constraint
+
+			for (const p of portionMap.get(fdcId) ?? []) {
+				if (seen.has(p.label)) continue;
+				seen.add(p.label);
+				servingSizeRows.push({ food_id: insertedFood.id, label: p.label, weight_g: p.weight_g, default_quantity: p.default_quantity });
+			}
+
+			const branded = brandedMap.get(fdcId);
+			if (branded?.serving_size_label && branded?.serving_size_g && !seen.has(branded.serving_size_label)) {
+				seen.add(branded.serving_size_label);
+				servingSizeRows.push({ food_id: insertedFood.id, label: branded.serving_size_label, weight_g: branded.serving_size_g });
+			}
+			if (branded?.serving_size_ml && !seen.has("ml")) {
+				const gPerMl = findDensityForFood(insertedFood.name, branded.brand);
+				if (gPerMl != null) {
+					seen.add("ml");
+					servingSizeRows.push({ food_id: insertedFood.id, label: "ml", weight_g: gPerMl * branded.serving_size_ml });
+				}
+			}
+		}
+		if (servingSizeRows.length > 0) {
+			await foodServingSize.bulkCreate(servingSizeRows, { ignoreDuplicates: true });
+			totalServingSizes += servingSizeRows.length;
 		}
 
 		totalInserted += inserted.length;
@@ -237,16 +289,16 @@ async function importFoods(portionMap) {
 		// look up brand/barcode/serving from branded map
 		const branded = brandedMap.get(row.fdc_id);
 
-		// fall back to portion map for serving info if not branded
-		const portion = portionMap.get(row.fdc_id);
+		// fall back to portion map (primary/first portion) for serving info if not branded
+		const portion = portionMap.get(row.fdc_id)?.[0];
 
 		batch.push({
 			fdc_id: parseInt(row.fdc_id),
 			name: row.description,
 			brand: branded?.brand || null,
 			barcode: branded?.barcode || null,
-			serving_size_g: branded?.serving_size_g || portion?.serving_size_g || null,
-			serving_size_label: branded?.serving_size_label || portion?.serving_size_label || null,
+			serving_size_g: branded?.serving_size_g || portion?.weight_g || null,
+			serving_size_label: branded?.serving_size_label || portion?.label || null,
 			source: "usda",
 			submitted_by: null,
 			is_deleted: false,
@@ -262,7 +314,7 @@ async function importFoods(portionMap) {
 	// flush any remaining rows
 	await flushBatch();
 
-	console.log(`  Done — inserted ${totalInserted} foods, skipped ${totalSkipped}`);
+	console.log(`  Done — inserted ${totalInserted} foods, skipped ${totalSkipped}, ${totalServingSizes} serving sizes`);
 	return fdcToIdMap;
 }
 

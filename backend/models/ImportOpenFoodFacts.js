@@ -17,8 +17,9 @@ console.log("DB URL:", process.env.DB_CONNECTION_URL);
 
 const fs = require("fs");
 const { parse } = require("csv-parse");
-const { food, foodNutrient } = require("./modelInits");
+const { food, foodNutrient, foodServingSize } = require("./modelInits");
 const sequelize = require("./db");
+const { findDensityForFood } = require("../Nutrition/unitConversion");
 
 // ─── CONFIG ──────────────────────────────────────────────────────────────────
 
@@ -75,16 +76,22 @@ const toFloat = (val) => {
 // Parses serving size from OFF's free-text field
 // OFF stores serving_size as strings like "30g", "1 cup (240ml)", "2 tbsp"
 // We want to extract the gram value where possible
-const parseServingGrams = (servingSizeStr) => {
+const parseServingGrams = (servingSizeStr, foodName, brand) => {
 	if (!servingSizeStr) return null;
 
 	// Try to match "Xg" or "X g" — most common format
 	const gramsMatch = servingSizeStr.match(/(\d+(?:\.\d+)?)\s*g\b/i);
 	if (gramsMatch) return parseFloat(gramsMatch[1]);
 
-	// Try to match "Xml" and approximate (1ml ≈ 1g for most beverages)
+	// Try to match "Xml" — resolve via a density lookup instead of assuming
+	// 1ml ≈ 1g, which is wrong for anything that isn't water-density (oil,
+	// honey, syrup, etc.). If no density match, leave it unresolved rather
+	// than guessing.
 	const mlMatch = servingSizeStr.match(/(\d+(?:\.\d+)?)\s*ml\b/i);
-	if (mlMatch) return parseFloat(mlMatch[1]);
+	if (mlMatch) {
+		const gPerMl = findDensityForFood(foodName, brand);
+		return gPerMl != null ? parseFloat(mlMatch[1]) * gPerMl : null;
+	}
 
 	// Can't parse it — return null, we just won't have a serving size
 	return null;
@@ -168,8 +175,9 @@ async function importOpenFoodFacts() {
 		}
 
 		// ── Build the food row
+		const brandForServing = row.brands?.split(",")[0]?.trim() || null;
 		const servingSizeRaw = row.serving_size || row.serving_quantity || null;
-		const servingSizeG = parseServingGrams(servingSizeRaw);
+		const servingSizeG = parseServingGrams(servingSizeRaw, name, brandForServing);
 
 		// OFF serving_size is a string like "30g" — keep original as the label
 		// but only if it's a human-readable label (not just "30g" which is useless)
@@ -255,6 +263,7 @@ async function flushFoodBatch(batch) {
 
 	// Now build nutrient rows linked to the inserted food UUIDs
 	const nutrientRows = [];
+	const servingSizeRows = [];
 	for (const { foodRow, rowNutrients } of batch) {
 		const foodId = foodRow.barcode ? insertedMap.get(foodRow.barcode) : insertedMap.get(foodRow.name);
 
@@ -266,10 +275,25 @@ async function flushFoodBatch(batch) {
 				...nutrient,
 			});
 		}
+
+		// Previously never populated — food.model.js has no serving_size_g/
+		// serving_size_label columns, so those keys on foodRow were silently
+		// dropped by bulkCreate above. Insert the real food_serving_sizes row
+		// here instead, now that we have the food's generated id.
+		if (foodRow.serving_size_g) {
+			servingSizeRows.push({
+				food_id: foodId,
+				label: foodRow.serving_size_label || "serving",
+				weight_g: foodRow.serving_size_g,
+			});
+		}
 	}
 
 	if (nutrientRows.length > 0) {
 		await foodNutrient.bulkCreate(nutrientRows, { ignoreDuplicates: true });
+	}
+	if (servingSizeRows.length > 0) {
+		await foodServingSize.bulkCreate(servingSizeRows, { ignoreDuplicates: true });
 	}
 
 	return { foods: inserted.length, nutrients: nutrientRows.length };

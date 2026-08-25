@@ -21,19 +21,15 @@ interface FoodCardProps {
 export default function FoodCard({ food, displayLogButton, mealType, loggedAt, onLogged }: FoodCardProps) {
 	const { theme } = useTheme();
 	const [expanded, setExpanded] = useState(false);
-	const [quantity, setQuantity] = useState<string>("1");
+	const [quantity, setQuantity] = useState<string>(String(food.default_serving.default_quantity ?? 1));
 
 	const [selectedServing, setSelectedServing] = useState<ServingSize>({
 		label: food.default_serving.label,
 		weight_g: food.default_serving.weight_g,
+		default_quantity: food.default_serving.default_quantity,
 	});
 
 	const [addServingModalVisible, setAddServingModalVisible] = useState(false);
-
-	/* const [servingOptions, setServingOptions] = useState<ServingSize[]>(() => {
-		const hasGrams = food.serving_sizes.some((s) => s.label === "g");
-		return hasGrams ? food.serving_sizes : [{ label: "g", weight_g: 1 }, ...food.serving_sizes];
-	}); */
 
 	const [servingOptions, setServingOptions] = useState<ServingSize[]>(food.serving_sizes);
 
@@ -53,6 +49,7 @@ export default function FoodCard({ food, displayLogButton, mealType, loggedAt, o
 	function handleServingAdded(created: ServingSize) {
 		setServingOptions((prev) => [...prev, created]);
 		setSelectedServing(created);
+		setQuantity(String(created.default_quantity ?? 1));
 		setAddServingModalVisible(false);
 	}
 
@@ -243,7 +240,10 @@ export default function FoodCard({ food, displayLogButton, mealType, loggedAt, o
 									<TouchableOpacity
 										key={opt.label}
 										style={[styles.servingPill, isSelected && styles.servingPillSelected]}
-										onPress={() => setSelectedServing(opt)}
+										onPress={() => {
+											setSelectedServing(opt);
+											setQuantity(String(opt.default_quantity ?? 1));
+										}}
 									>
 										<Text style={[styles.servingPillText, isSelected && styles.servingPillTextSelected]}>{opt.label}</Text>
 									</TouchableOpacity>
@@ -269,6 +269,7 @@ export default function FoodCard({ food, displayLogButton, mealType, loggedAt, o
 				foodId={food.id}
 				foodName={food.name}
 				availableUnits={availableUnits}
+				existingServings={servingOptions}
 				theme={theme}
 				onClose={() => setAddServingModalVisible(false)}
 				onServingAdded={handleServingAdded}

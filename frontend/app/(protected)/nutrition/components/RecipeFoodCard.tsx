@@ -35,18 +35,17 @@ export default function RecipeFoodCard(props: RecipeFoodCardProps) {
 	const food = props.mode === "add" ? props.food : props.ingredient.food;
 
 	const [expanded, setExpanded] = useState(false);
-	const [quantity, setQuantity] = useState<string>(props.mode === "edit" ? String(props.ingredient.quantity) : "1");
+	const [quantity, setQuantity] = useState<string>(
+		props.mode === "edit" ? String(props.ingredient.quantity) : String(food.default_serving.default_quantity ?? 1),
+	);
 
 	const [selectedServing, setSelectedServing] = useState<ServingSize>(
-		props.mode === "edit" ? props.ingredient.serving : { label: food.default_serving.label, weight_g: food.default_serving.weight_g },
+		props.mode === "edit"
+			? props.ingredient.serving
+			: { label: food.default_serving.label, weight_g: food.default_serving.weight_g, default_quantity: food.default_serving.default_quantity },
 	);
 
 	const [addServingModalVisible, setAddServingModalVisible] = useState(false);
-
-	/* const [servingOptions, setServingOptions] = useState<ServingSize[]>(() => {
-		const hasGrams = food.serving_sizes.some((s) => s.label === "g");
-		return hasGrams ? food.serving_sizes : [{ label: "g", weight_g: 1 }, ...food.serving_sizes];
-	}); */
 
 	const [servingOptions, setServingOptions] = useState<ServingSize[]>(food.serving_sizes);
 
@@ -79,10 +78,12 @@ export default function RecipeFoodCard(props: RecipeFoodCardProps) {
 	}, [props.ingredient?.quantity, props.ingredient?.serving]);
 
 	function handleServingAdded(created: ServingSize) {
+		const newQty = created.default_quantity ?? 1;
 		setServingOptions((prev) => [...prev, created]);
 		setSelectedServing(created);
+		setQuantity(String(newQty));
 		setAddServingModalVisible(false);
-		if (props.mode === "edit") commitChange(parsedQty, created);
+		if (props.mode === "edit") commitChange(newQty, created);
 	}
 
 	function commitChange(nextQty: number, nextServing: ServingSize) {
@@ -99,8 +100,10 @@ export default function RecipeFoodCard(props: RecipeFoodCardProps) {
 	}
 
 	function selectServing(opt: ServingSize) {
+		const newQty = opt.default_quantity ?? 1;
+		setQuantity(String(newQty));
 		setSelectedServing(opt);
-		if (props.mode === "edit") commitChange(parsedQty, opt);
+		if (props.mode === "edit") commitChange(newQty, opt);
 	}
 
 	async function handleAdd() {
@@ -298,6 +301,7 @@ export default function RecipeFoodCard(props: RecipeFoodCardProps) {
 				foodId={food.id}
 				foodName={food.name}
 				availableUnits={availableUnits}
+				existingServings={servingOptions}
 				theme={theme}
 				onClose={() => setAddServingModalVisible(false)}
 				onServingAdded={handleServingAdded}

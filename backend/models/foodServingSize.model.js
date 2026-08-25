@@ -29,6 +29,15 @@ const foodServingSize = sequelize.define(
 			type: DataTypes.DECIMAL,
 			allowNull: false,
 		},
+		default_quantity: {
+			// Pure UX metadata - never read by gram math (toGrams/resolveUnitWeightG).
+			// Records "the package's stated serving was actually N of this unit",
+			// e.g. label="tbsp", weight_g=14, default_quantity=4 means the label said
+			// "4 Tbsp (56g)" - weight_g stays per-1-unit regardless. Used only to
+			// pre-fill the logging UI's quantity field. null = unknown, treat as 1.
+			type: DataTypes.DECIMAL,
+			allowNull: true,
+		},
 	},
 	{
 		tableName: "food_serving_sizes",

@@ -91,6 +91,7 @@ export default function FoodDetailScreen() {
 	function handleServingAdded(created: ServingSize) {
 		setServingOptions((prev) => [...prev, created]);
 		setSelectedServing(created);
+		setQuantityText(String(created.default_quantity ?? 1));
 		setAddServingModalVisible(false);
 	}
 
@@ -261,7 +262,10 @@ export default function FoodDetailScreen() {
 								<TouchableOpacity
 									key={opt.label}
 									style={[styles.servingPill, isSelected && styles.servingPillSelected]}
-									onPress={() => setSelectedServing(opt)}
+									onPress={() => {
+										setSelectedServing(opt);
+										setQuantityText(String(opt.default_quantity ?? 1));
+									}}
 								>
 									<Text style={[styles.servingPillText, isSelected && styles.servingPillTextSelected]}>
 										{opt.label} ({opt.weight_g}g)
@@ -290,6 +294,7 @@ export default function FoodDetailScreen() {
 				foodId={food.id}
 				foodName={food.name}
 				availableUnits={availableUnits}
+				existingServings={servingOptions}
 				theme={theme}
 				onClose={() => setAddServingModalVisible(false)}
 				onServingAdded={handleServingAdded}

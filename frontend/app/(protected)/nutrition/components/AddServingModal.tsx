@@ -7,21 +7,23 @@ import { instance } from "@/utils/AxiosInterceptorHandler";
 
 import type { ServingSize } from "../../types/nutrition";
 
-import { FIXED_UNIT_CONVERSIONS } from "../../types/nutrition";
+import { FIXED_UNIT_CONVERSIONS, resolveServingWeightG } from "../../types/nutrition";
 
 interface AddServingModalProps {
 	visible: boolean;
 	foodId: number;
 	foodName: string;
 	availableUnits: string[];
+	existingServings: ServingSize[];
 	theme: Theme;
 	onClose: () => void;
 	onServingAdded: (serving: ServingSize) => void;
 }
 
-export function AddServingModal({ visible, foodId, foodName, availableUnits, theme, onClose, onServingAdded }: AddServingModalProps) {
+export function AddServingModal({ visible, foodId, foodName, availableUnits, existingServings, theme, onClose, onServingAdded }: AddServingModalProps) {
 	const [newLabel, setNewLabel] = useState("");
 	const [newWeight, setNewWeight] = useState("");
+	const [newQty, setNewQty] = useState("1");
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
@@ -30,18 +32,24 @@ export function AddServingModal({ visible, foodId, foodName, availableUnits, the
 		if (visible) {
 			setNewLabel("");
 			setNewWeight("");
+			setNewQty("1");
 			setError(null);
 		}
 	}, [visible]);
 
 	async function handleSave() {
 		const weight = parseFloat(newWeight);
+		const qty = parseFloat(newQty) || 1;
 		if (!newLabel) {
 			setError("Choose a unit first.");
 			return;
 		}
 		if (!weight || weight <= 0) {
 			setError("Enter a valid weight in grams.");
+			return;
+		}
+		if (qty <= 0) {
+			setError("Enter a valid quantity.");
 			return;
 		}
 
@@ -51,11 +59,13 @@ export function AddServingModal({ visible, foodId, foodName, availableUnits, the
 			const res = await instance.post(`/nutrition/foods/${foodId}/serving-sizes`, {
 				label: newLabel,
 				weight_g: weight,
+				default_quantity: qty,
 			});
 
 			const created: ServingSize = {
 				label: res.data.foodServing.label,
 				weight_g: parseFloat(res.data.foodServing.weight_g), //convert from string to number...change on backend later
+				default_quantity: res.data.foodServing.default_quantity != null ? parseFloat(res.data.foodServing.default_quantity) : qty,
 			};
 
 			onServingAdded(created);
@@ -74,9 +84,15 @@ export function AddServingModal({ visible, foodId, foodName, availableUnits, the
 		const fixedWeight = FIXED_UNIT_CONVERSIONS[unit];
 		if (fixedWeight != null) {
 			setNewWeight(String(fixedWeight)); // pre-computed: pull from dict.
-		} else {
-			setNewWeight(""); // user entered number
+			return;
 		}
+
+		// For volume units (ml/tsp/tbsp/cup/fl oz/l), try to derive a sane
+		// starting value from another serving size already defined on this
+		// food (e.g. food only has "tbsp" - derive "tsp" from it). Still
+		// editable - this is a best-effort pre-fill, not an authoritative value.
+		const derived = resolveServingWeightG(unit, existingServings);
+		setNewWeight(derived != null ? String(derived) : "");
 	}
 
 	const styles = useMemo(
@@ -215,24 +231,37 @@ export function AddServingModal({ visible, foodId, foodName, availableUnits, the
 					</View>
 
 					{newLabel ? (
-						FIXED_UNIT_CONVERSIONS[newLabel] != null ? (
-							<Text style={styles.hint}>
-								1 {newLabel} = {FIXED_UNIT_CONVERSIONS[newLabel]}g — ready to save.
-							</Text>
-						) : (
-							<>
-								<Text style={styles.sectionLabel}>WEIGHT</Text>
-								<TextInput
-									style={styles.weightInput}
-									placeholder="0"
-									placeholderTextColor={theme.inputPlaceholder}
-									keyboardType="decimal-pad"
-									value={newWeight}
-									onChangeText={setNewWeight}
-								/>
-								<Text style={styles.hint}>How many grams is in 1 {newLabel}?</Text>
-							</>
-						)
+						<>
+							{FIXED_UNIT_CONVERSIONS[newLabel] == null && (
+								<>
+									<Text style={styles.sectionLabel}>WEIGHT</Text>
+									<TextInput
+										style={styles.weightInput}
+										placeholder="0"
+										placeholderTextColor={theme.inputPlaceholder}
+										keyboardType="decimal-pad"
+										value={newWeight}
+										onChangeText={setNewWeight}
+									/>
+									<Text style={styles.hint}>How many grams is in 1 {newLabel}?</Text>
+								</>
+							)}
+							<Text style={styles.sectionLabel}>QUANTITY ON PACKAGE</Text>
+							<TextInput
+								style={styles.weightInput}
+								placeholder="1"
+								placeholderTextColor={theme.inputPlaceholder}
+								keyboardType="decimal-pad"
+								value={newQty}
+								onChangeText={setNewQty}
+							/>
+							<Text style={styles.hint}>How many {newLabel} did the package say a serving was? (usually 1)</Text>
+							{FIXED_UNIT_CONVERSIONS[newLabel] != null && (
+								<Text style={styles.hint}>
+									1 {newLabel} = {FIXED_UNIT_CONVERSIONS[newLabel]}g — ready to save.
+								</Text>
+							)}
+						</>
 					) : (
 						<Text style={styles.hint}>Pick a unit above to continue.</Text>
 					)}
