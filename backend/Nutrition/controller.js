@@ -168,8 +168,8 @@ async function editRecipe(req, res) {
 	const user_id = getUserId(req);
 	const recipe_id = parseInt(req.params.id, 10);
 	try {
-		const result = await service.editRecipe(recipe_id, user_id, req.body);
-		return res.status(200).json(result);
+		const recipe = await service.editRecipe(recipe_id, user_id, req.body);
+		return res.status(200).json({ recipe });
 	} catch (error) {
 		return handleError(res, error);
 	}
