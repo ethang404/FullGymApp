@@ -1,11 +1,4 @@
-import {
-	View,
-	Text,
-	StyleSheet,
-	ScrollView,
-	TouchableOpacity,
-	ActivityIndicator,
-} from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useMemo, useEffect, useState } from "react";
 import { router } from "expo-router";
@@ -107,14 +100,10 @@ function RingProgress({
 						justifyContent: "center",
 					}}
 				>
-					<Text style={{ fontSize: 13, fontWeight: "700", color }}>
-						{Math.round(percent)}%
-					</Text>
+					<Text style={{ fontSize: 13, fontWeight: "700", color }}>{Math.round(percent)}%</Text>
 				</View>
 			</View>
-			<Text style={{ fontSize: 11, color, fontWeight: "600", letterSpacing: 0.5 }}>
-				{label}
-			</Text>
+			<Text style={{ fontSize: 11, color, fontWeight: "600", letterSpacing: 0.5 }}>{label}</Text>
 		</View>
 	);
 }
@@ -141,7 +130,7 @@ export default function Home() {
 				]);
 
 				if (diaryRes.status === "fulfilled") {
-					const entries: any[] = diaryRes.value.data;
+					const entries: any[] = diaryRes.value.data.diary_entries ?? [];
 					const totals = entries.reduce(
 						(acc, e) => {
 							const n = e.nutrients;
@@ -159,7 +148,7 @@ export default function Home() {
 				}
 
 				if (workoutsRes.status === "fulfilled") {
-					setWorkouts(workoutsRes.value.data?.slice(0, 3) ?? []);
+					setWorkouts(workoutsRes.value.data.workouts?.slice(0, 3) ?? []);
 				}
 			} catch (e) {
 				console.error("Dashboard fetch error:", e);
@@ -374,7 +363,6 @@ export default function Home() {
 	return (
 		<SafeAreaView style={styles.safe} edges={["top"]}>
 			<ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-
 				{/* Header */}
 				<View style={styles.header}>
 					<Text style={styles.appName}>Kratos</Text>
@@ -386,19 +374,10 @@ export default function Home() {
 					<Text style={styles.calLabel}>Daily Calories</Text>
 					<View style={styles.calRow}>
 						<View>
-							<Text style={styles.calNumber}>
-								{summary?.calories.toLocaleString() ?? "0"}
-							</Text>
+							<Text style={styles.calNumber}>{summary?.calories.toLocaleString() ?? "0"}</Text>
 							<Text style={styles.calGoal}>of {calorieGoal.toLocaleString()} kcal</Text>
 						</View>
-						<RingProgress
-							percent={calPercent}
-							color={theme.primary}
-							trackColor={theme.border}
-							label="GOAL"
-							size={80}
-							strokeWidth={8}
-						/>
+						<RingProgress percent={calPercent} color={theme.primary} trackColor={theme.border} label="GOAL" size={80} strokeWidth={8} />
 					</View>
 					<View style={styles.barTrack}>
 						<View style={[styles.barFill, { width: `${Math.min(calPercent, 100)}%` }]} />
@@ -407,49 +386,20 @@ export default function Home() {
 					{/* Macro rings */}
 					{summary && (
 						<View style={styles.macroRow}>
-							<RingProgress
-								percent={(summary.protein / 160) * 100}
-								color="#4ADE80"
-								trackColor={theme.border}
-								label="PROTEIN"
-								size={64}
-								strokeWidth={6}
-							/>
-							<RingProgress
-								percent={(summary.carbs / 250) * 100}
-								color="#38BDF8"
-								trackColor={theme.border}
-								label="CARBS"
-								size={64}
-								strokeWidth={6}
-							/>
-							<RingProgress
-								percent={(summary.fat / 75) * 100}
-								color="#FB923C"
-								trackColor={theme.border}
-								label="FAT"
-								size={64}
-								strokeWidth={6}
-							/>
+							<RingProgress percent={(summary.protein / 160) * 100} color="#4ADE80" trackColor={theme.border} label="PROTEIN" size={64} strokeWidth={6} />
+							<RingProgress percent={(summary.carbs / 250) * 100} color="#38BDF8" trackColor={theme.border} label="CARBS" size={64} strokeWidth={6} />
+							<RingProgress percent={(summary.fat / 75) * 100} color="#FB923C" trackColor={theme.border} label="FAT" size={64} strokeWidth={6} />
 						</View>
 					)}
 				</View>
 
 				{/* CTA buttons */}
 				<View style={styles.ctaRow}>
-					<TouchableOpacity
-						style={styles.ctaPrimary}
-						onPress={() => router.push("/(protected)/Nutrition")}
-						activeOpacity={0.8}
-					>
+					<TouchableOpacity style={styles.ctaPrimary} onPress={() => router.push("/(protected)/nutrition/Nutrition")} activeOpacity={0.8}>
 						<FontAwesome5 name="utensils" size={14} color={theme.textInverse} />
 						<Text style={styles.ctaPrimaryText}>Log Food</Text>
 					</TouchableOpacity>
-					<TouchableOpacity
-						style={styles.ctaSecondary}
-						onPress={() => router.push("/(protected)/Workouts")}
-						activeOpacity={0.8}
-					>
+					<TouchableOpacity style={styles.ctaSecondary} onPress={() => router.push("/(protected)/Workouts")} activeOpacity={0.8}>
 						<FontAwesome5 name="dumbbell" size={14} color={theme.text} />
 						<Text style={styles.ctaSecondaryText}>Workout</Text>
 					</TouchableOpacity>
@@ -471,10 +421,7 @@ export default function Home() {
 							workouts.map((w, i) => (
 								<TouchableOpacity
 									key={w.id}
-									style={[
-										styles.workoutRow,
-										i === workouts.length - 1 && { borderBottomWidth: 0 },
-									]}
+									style={[styles.workoutRow, i === workouts.length - 1 && { borderBottomWidth: 0 }]}
 									onPress={() => router.push(`/(protected)/workouts/${w.id}`)}
 									activeOpacity={0.7}
 								>
@@ -489,18 +436,12 @@ export default function Home() {
 											{w.total_volume_kg ? ` · ${w.total_volume_kg.toLocaleString()}kg` : ""}
 										</Text>
 									</View>
-									<FontAwesome5
-										name="chevron-right"
-										size={12}
-										color={theme.textTertiary}
-										style={styles.workoutChevron}
-									/>
+									<FontAwesome5 name="chevron-right" size={12} color={theme.textTertiary} style={styles.workoutChevron} />
 								</TouchableOpacity>
 							))
 						)}
 					</View>
 				</View>
-
 			</ScrollView>
 		</SafeAreaView>
 	);

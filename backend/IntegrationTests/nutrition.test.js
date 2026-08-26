@@ -357,8 +357,8 @@ describe("Recipe Endpoints", () => {
 
 		expect(resp.status).toBe(200);
 
-		// editRecipe returns recipe.reload() - raw Sequelize model with recipeIngredients
-		const result = resp.body;
+		// Controller wraps the raw Recipe row (with its recipeIngredients association) in { recipe }
+		const result = resp.body.recipe;
 		expect(result.name).toBe("Updated Lunch");
 		expect(result.description).toBe("Updated desc");
 		expect(parseFloat(result.servings)).toBe(3);
