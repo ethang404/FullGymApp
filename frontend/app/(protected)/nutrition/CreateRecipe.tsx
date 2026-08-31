@@ -298,15 +298,15 @@ export default function CreateRecipe() {
 				<View style={styles.macroCards}>
 					<View style={styles.macroCard}>
 						<Text style={styles.macroCardLabel}>PROTEIN</Text>
-						<Text style={[styles.macroCardValue, { color: "#4ADE80" }]}>{Math.round(totals.protein)}g</Text>
+						<Text style={[styles.macroCardValue, { color: theme.macroProtein }]}>{Math.round(totals.protein)}g</Text>
 					</View>
 					<View style={styles.macroCard}>
 						<Text style={styles.macroCardLabel}>CARBS</Text>
-						<Text style={[styles.macroCardValue, { color: "#38BDF8" }]}>{Math.round(totals.carbs)}g</Text>
+						<Text style={[styles.macroCardValue, { color: theme.macroCarbs }]}>{Math.round(totals.carbs)}g</Text>
 					</View>
 					<View style={styles.macroCard}>
 						<Text style={styles.macroCardLabel}>FATS</Text>
-						<Text style={[styles.macroCardValue, { color: "#FB923C" }]}>{Math.round(totals.fat)}g</Text>
+						<Text style={[styles.macroCardValue, { color: theme.macroFat }]}>{Math.round(totals.fat)}g</Text>
 					</View>
 				</View>
 

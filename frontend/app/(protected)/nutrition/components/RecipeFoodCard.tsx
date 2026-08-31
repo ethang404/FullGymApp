@@ -174,9 +174,9 @@ export default function RecipeFoodCard(props: RecipeFoodCardProps) {
 				},
 				servingPillSelected: { backgroundColor: theme.primary, borderColor: theme.primary },
 				servingPillText: { fontSize: 12, fontWeight: "600", color: theme.text },
-				servingPillTextSelected: { color: theme.cardBg },
+				servingPillTextSelected: { color: theme.textInverse },
 				addButton: { backgroundColor: theme.primary, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 16, marginLeft: 8 },
-				addButtonText: { fontSize: 14, fontWeight: "600", color: theme.text },
+				addButtonText: { fontSize: 14, fontWeight: "600", color: theme.textInverse },
 			}),
 		[theme],
 	);
@@ -218,15 +218,15 @@ export default function RecipeFoodCard(props: RecipeFoodCardProps) {
 								<Text style={styles.macroChipText}>{(cals ?? 0).toFixed(0)} cals</Text>
 							</View>
 							<View style={styles.macroChip}>
-								<View style={[styles.macroDot, { backgroundColor: "#4ADE80" }]} />
+								<View style={[styles.macroDot, { backgroundColor: theme.macroProtein }]} />
 								<Text style={styles.macroChipText}>{(protein ?? 0).toFixed(0)}g P</Text>
 							</View>
 							<View style={styles.macroChip}>
-								<View style={[styles.macroDot, { backgroundColor: "#38BDF8" }]} />
+								<View style={[styles.macroDot, { backgroundColor: theme.macroCarbs }]} />
 								<Text style={styles.macroChipText}>{(carbs ?? 0).toFixed(0)}g C</Text>
 							</View>
 							<View style={styles.macroChip}>
-								<View style={[styles.macroDot, { backgroundColor: "#FB923C" }]} />
+								<View style={[styles.macroDot, { backgroundColor: theme.macroFat }]} />
 								<Text style={styles.macroChipText}>{(fat ?? 0).toFixed(0)}g F</Text>
 							</View>
 						</View>
@@ -234,9 +234,9 @@ export default function RecipeFoodCard(props: RecipeFoodCardProps) {
 				) : (
 					<View style={styles.infoRow}>
 						<View style={styles.macrosRow}>
-							{protein != null && <Text style={[styles.macroText, { color: "#4ADE80" }]}>P {protein.toFixed(1)}</Text>}
-							{carbs != null && <Text style={[styles.macroText, { color: "#38BDF8" }]}>C {carbs.toFixed(1)}</Text>}
-							{fat != null && <Text style={[styles.macroText, { color: "#FB923C" }]}>F {fat.toFixed(1)}</Text>}
+							{protein != null && <Text style={[styles.macroText, { color: theme.macroProtein }]}>P {protein.toFixed(1)}</Text>}
+							{carbs != null && <Text style={[styles.macroText, { color: theme.macroCarbs }]}>C {carbs.toFixed(1)}</Text>}
+							{fat != null && <Text style={[styles.macroText, { color: theme.macroFat }]}>F {fat.toFixed(1)}</Text>}
 						</View>
 						<Text style={styles.serving}>
 							{selectedServing.label} ({selectedServing.weight_g}g)
@@ -288,7 +288,7 @@ export default function RecipeFoodCard(props: RecipeFoodCardProps) {
 									activeOpacity={0.85}
 									disabled={isAdding}
 								>
-									{isAdding ? <ActivityIndicator size="small" color={theme.text} /> : <Text style={styles.addButtonText}>Add</Text>}
+									{isAdding ? <ActivityIndicator size="small" color={theme.textInverse} /> : <Text style={styles.addButtonText}>Add</Text>}
 								</TouchableOpacity>
 							)}
 						</View>

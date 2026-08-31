@@ -10,18 +10,21 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useContext, useMemo } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
-import { type ThemeName } from "@/theme/colors";
+import { themes, themeLabels, type ThemeName } from "@/theme/colors";
 import { AuthContext } from "@/utils/AuthProvider";
 
 // ─── Theme options ─────────────────────────────────────────────────────────────
+// Derived from the theme registry itself so every theme added to theme/colors.ts
+// automatically shows up here with its real swatch colors.
 
-const THEME_OPTIONS: { name: ThemeName; label: string; primary: string; bg: string }[] = [
-	{ name: "kratosRed",    label: "Kratos",   primary: "#D72638", bg: "#0A0A0A" },
-	{ name: "midnight",     label: "Midnight", primary: "#FFFFFF", bg: "#000000" },
-	{ name: "crimsonLight", label: "Crimson",  primary: "#D72638", bg: "#F7F7F5" },
-	{ name: "carbon",       label: "Carbon",   primary: "#F97316", bg: "#111111" },
-	{ name: "slate",        label: "Slate",    primary: "#3B82F6", bg: "#0F172A" },
-];
+const THEME_OPTIONS: { name: ThemeName; label: string; primary: string; bg: string }[] = (
+	Object.keys(themes) as ThemeName[]
+).map((name) => ({
+	name,
+	label: themeLabels[name],
+	primary: themes[name].primary,
+	bg: themes[name].background,
+}));
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 

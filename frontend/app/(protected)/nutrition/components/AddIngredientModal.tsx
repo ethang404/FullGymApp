@@ -43,7 +43,7 @@ export default function AddIngredientModal({ visible, onClose, onAdd }: AddIngre
 	const styles = useMemo(
 		() =>
 			StyleSheet.create({
-				overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.4)" },
+				overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: theme.overlay },
 				card: { backgroundColor: theme.cardBg, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, height: "90%" },
 				headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
 				title: { color: theme.text, fontSize: 18, fontWeight: "700" },

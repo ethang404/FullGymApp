@@ -29,13 +29,6 @@ import LogFoodModal from "./LogFoodModal";
 //Put the various types I need here
 const goals = { calories: 2500, protein: 180, carbs: 250, fat: 75 };
 
-// Hardcoded macro colors
-const MACRO_COLORS = {
-	protein: "#4ADE80",
-	carbs: "#3B82F6",
-	fat: "#F97316",
-};
-
 type MealType = "breakfast" | "lunch" | "dinner" | "snacks";
 const MEAL_TYPES: MealType[] = ["breakfast", "lunch", "dinner", "snacks"];
 
@@ -104,7 +97,21 @@ function formatDisplayDate(dateStr: string) {
 	return date.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" }).toUpperCase();
 }
 
-function MacroBar({ label, current, goal, color, textColor }: { label: string; current: number; goal: number; color: string; textColor: string }) {
+function MacroBar({
+	label,
+	current,
+	goal,
+	color,
+	textColor,
+	trackColor,
+}: {
+	label: string;
+	current: number;
+	goal: number;
+	color: string;
+	textColor: string;
+	trackColor: string;
+}) {
 	const pct = Math.min((current / goal) * 100, 100);
 	return (
 		<View style={{ flex: 1, gap: 4 }}>
@@ -114,7 +121,7 @@ function MacroBar({ label, current, goal, color, textColor }: { label: string; c
 					{Math.round(current)}/{goal}g
 				</Text>
 			</View>
-			<View style={{ height: 3, backgroundColor: "rgba(255,255,255,0.1)", borderRadius: 2 }}>
+			<View style={{ height: 3, backgroundColor: trackColor, borderRadius: 2 }}>
 				<View style={{ height: 3, width: `${pct}%`, backgroundColor: color, borderRadius: 2 }} />
 			</View>
 		</View>
@@ -403,9 +410,9 @@ export default function Nutrition() {
 							{entry.unit}
 						</Text>
 						<Text style={styles.entryMetaDivider}>|</Text>
-						<Text style={[styles.entryMacro, { color: MACRO_COLORS.protein }]}>{Math.round(protein)}g P</Text>
-						<Text style={[styles.entryMacro, { color: MACRO_COLORS.carbs }]}>{Math.round(carbs)}g C</Text>
-						<Text style={[styles.entryMacro, { color: MACRO_COLORS.fat }]}>{Math.round(fat)}g F</Text>
+						<Text style={[styles.entryMacro, { color: theme.macroProtein }]}>{Math.round(protein)}g P</Text>
+						<Text style={[styles.entryMacro, { color: theme.macroCarbs }]}>{Math.round(carbs)}g C</Text>
+						<Text style={[styles.entryMacro, { color: theme.macroFat }]}>{Math.round(fat)}g F</Text>
 					</View>
 				</View>
 				<Text style={styles.entryCalories}>{Math.round(calories)}</Text>
@@ -502,9 +509,9 @@ export default function Nutrition() {
 						</View>
 
 						<View style={styles.macroRow}>
-							<MacroBar label="Protein" current={totals.protein} goal={goals.protein} color={MACRO_COLORS.protein} textColor={theme.textMuted} />
-							<MacroBar label="Carbs" current={totals.carbs} goal={goals.carbs} color={MACRO_COLORS.carbs} textColor={theme.textMuted} />
-							<MacroBar label="Fat" current={totals.fat} goal={goals.fat} color={MACRO_COLORS.fat} textColor={theme.textMuted} />
+							<MacroBar label="Protein" current={totals.protein} goal={goals.protein} color={theme.macroProtein} textColor={theme.textMuted} trackColor={theme.border} />
+							<MacroBar label="Carbs" current={totals.carbs} goal={goals.carbs} color={theme.macroCarbs} textColor={theme.textMuted} trackColor={theme.border} />
+							<MacroBar label="Fat" current={totals.fat} goal={goals.fat} color={theme.macroFat} textColor={theme.textMuted} trackColor={theme.border} />
 						</View>
 					</View>
 				</View>

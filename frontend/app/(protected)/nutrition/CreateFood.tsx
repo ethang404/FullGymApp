@@ -139,7 +139,7 @@ export default function CreateFood() {
 			StyleSheet.create({
 				safeArea: {
 					flex: 1,
-					backgroundColor: "#000",
+					backgroundColor: theme.background,
 				},
 				header: {
 					flexDirection: "row",
@@ -148,7 +148,7 @@ export default function CreateFood() {
 					paddingHorizontal: 20,
 					paddingVertical: 16,
 					borderBottomWidth: StyleSheet.hairlineWidth,
-					borderBottomColor: "#2a2a2a",
+					borderBottomColor: theme.border,
 				},
 				headerArea: {
 					flexDirection: "row",
@@ -162,14 +162,14 @@ export default function CreateFood() {
 					paddingBottom: 40,
 				},
 				eyebrow: {
-					color: "#777",
+					color: theme.textMuted,
 					fontSize: 11,
 					letterSpacing: 1,
 					marginTop: 24,
 					fontWeight: "600",
 				},
 				pageTitle: {
-					color: "#fff",
+					color: theme.text,
 					fontSize: 34,
 					fontWeight: "800",
 					letterSpacing: 1,
@@ -178,10 +178,10 @@ export default function CreateFood() {
 				},
 
 				card: {
-					backgroundColor: CARD_BG,
+					backgroundColor: theme.cardBg,
 					borderRadius: 16,
 					borderWidth: StyleSheet.hairlineWidth,
-					borderColor: CARD_BORDER,
+					borderColor: theme.border,
 					paddingHorizontal: 16,
 					paddingTop: 14,
 					paddingBottom: 4,
@@ -193,7 +193,7 @@ export default function CreateFood() {
 					alignItems: "center",
 					paddingBottom: 10,
 					borderBottomWidth: StyleSheet.hairlineWidth,
-					borderBottomColor: CARD_BORDER,
+					borderBottomColor: theme.border,
 				},
 				cardHeaderLabel: {
 					color: theme.primary,
@@ -202,7 +202,7 @@ export default function CreateFood() {
 					fontWeight: "600",
 				},
 				addSize: {
-					color: "#fff",
+					color: theme.primary,
 					fontSize: 11,
 					letterSpacing: 0.5,
 					fontWeight: "700",
@@ -215,13 +215,13 @@ export default function CreateFood() {
 					marginTop: 16,
 					paddingBottom: 12,
 					borderBottomWidth: StyleSheet.hairlineWidth,
-					borderBottomColor: DIVIDER,
+					borderBottomColor: theme.borderLight,
 				},
 				fieldLast: {
 					borderBottomWidth: 0,
 				},
 				fieldLabel: {
-					color: "#777",
+					color: theme.textMuted,
 					fontSize: 11,
 					letterSpacing: 0.5,
 					fontWeight: "600",
@@ -233,7 +233,7 @@ export default function CreateFood() {
 					justifyContent: "space-between",
 				},
 				fieldInput: {
-					color: "#fff",
+					color: theme.text,
 					fontSize: 16,
 					padding: 0,
 					flex: 1,
@@ -247,7 +247,7 @@ export default function CreateFood() {
 					marginTop: 14,
 				},
 				servingHeaderText: {
-					color: "#777",
+					color: theme.textMuted,
 					fontSize: 10,
 					letterSpacing: 0.5,
 					fontWeight: "600",
@@ -258,15 +258,15 @@ export default function CreateFood() {
 					marginTop: 10,
 					paddingBottom: 10,
 					borderBottomWidth: StyleSheet.hairlineWidth,
-					borderBottomColor: DIVIDER,
+					borderBottomColor: theme.borderLight,
 				},
 				servingInput: {
-					color: "#fff",
+					color: theme.text,
 					fontSize: 16,
 					padding: 0,
 				},
 				unitSuffix: {
-					color: "#777",
+					color: theme.textMuted,
 					fontSize: 12,
 					marginLeft: 4,
 				},
@@ -277,32 +277,32 @@ export default function CreateFood() {
 					paddingRight: 8,
 				},
 				unitSelectText: {
-					color: "#fff",
+					color: theme.text,
 					fontSize: 16,
 				},
 				unitSelectPlaceholder: {
-					color: "#555",
+					color: theme.inputPlaceholder,
 					fontSize: 16,
 				},
 
 				modalBackdrop: {
 					flex: 1,
 					justifyContent: "flex-end",
-					backgroundColor: "rgba(0,0,0,0.6)",
+					backgroundColor: theme.overlay,
 				},
 				modalSheet: {
-					backgroundColor: "#0e0e0e",
+					backgroundColor: theme.cardBg,
 					borderTopLeftRadius: 20,
 					borderTopRightRadius: 20,
 					borderWidth: StyleSheet.hairlineWidth,
-					borderColor: CARD_BORDER,
+					borderColor: theme.border,
 					paddingHorizontal: 20,
 					paddingTop: 16,
 					paddingBottom: 32,
 					maxHeight: "60%",
 				},
 				modalTitle: {
-					color: "#777",
+					color: theme.textMuted,
 					fontSize: 11,
 					letterSpacing: 0.5,
 					fontWeight: "600",
@@ -312,13 +312,13 @@ export default function CreateFood() {
 					paddingVertical: 16,
 				},
 				modalOptionText: {
-					color: "#fff",
+					color: theme.text,
 					fontSize: 16,
 					fontWeight: "500",
 				},
 				modalDivider: {
 					height: StyleSheet.hairlineWidth,
-					backgroundColor: DIVIDER,
+					backgroundColor: theme.borderLight,
 				},
 				customUnitRow: {
 					flexDirection: "row",
@@ -328,7 +328,7 @@ export default function CreateFood() {
 				},
 				customUnitInput: {
 					flex: 1,
-					color: "#fff",
+					color: theme.text,
 					fontSize: 16,
 					paddingVertical: 4,
 				},
@@ -341,7 +341,7 @@ export default function CreateFood() {
 					alignItems: "center",
 					paddingVertical: 16,
 					borderBottomWidth: StyleSheet.hairlineWidth,
-					borderBottomColor: DIVIDER,
+					borderBottomColor: theme.borderLight,
 				},
 				macroBar: {
 					width: 3,
@@ -354,7 +354,7 @@ export default function CreateFood() {
 					marginRight: 14,
 				},
 				macroLabel: {
-					color: "#fff",
+					color: theme.text,
 					fontSize: 15,
 					fontWeight: "600",
 					flex: 1,
@@ -364,14 +364,14 @@ export default function CreateFood() {
 					alignItems: "baseline",
 				},
 				macroInput: {
-					color: "#fff",
+					color: theme.text,
 					fontSize: 20,
 					fontWeight: "700",
 					minWidth: 50,
 					padding: 0,
 				},
 				macroUnit: {
-					color: "#777",
+					color: theme.textMuted,
 					fontSize: 13,
 					marginLeft: 6,
 				},
@@ -382,10 +382,10 @@ export default function CreateFood() {
 					alignItems: "center",
 					paddingVertical: 14,
 					borderBottomWidth: StyleSheet.hairlineWidth,
-					borderBottomColor: DIVIDER,
+					borderBottomColor: theme.borderLight,
 				},
 				microLabel: {
-					color: "#999",
+					color: theme.textMuted,
 					fontSize: 12,
 					letterSpacing: 0.3,
 					fontWeight: "600",
@@ -395,20 +395,20 @@ export default function CreateFood() {
 					alignItems: "baseline",
 				},
 				microInput: {
-					color: "#fff",
+					color: theme.text,
 					fontSize: 15,
 					fontWeight: "600",
 					minWidth: 36,
 					padding: 0,
 				},
 				microUnit: {
-					color: "#777",
+					color: theme.textMuted,
 					fontSize: 12,
 					marginLeft: 4,
 				},
 
 				createButton: {
-					backgroundColor: "#e0524f",
+					backgroundColor: theme.primary,
 					borderRadius: 30,
 					paddingVertical: 18,
 					alignItems: "center",
@@ -416,7 +416,7 @@ export default function CreateFood() {
 					marginTop: 28,
 				},
 				createButtonText: {
-					color: "#fff",
+					color: theme.textInverse,
 					fontSize: 14,
 					fontWeight: "700",
 					letterSpacing: 1,
@@ -425,7 +425,7 @@ export default function CreateFood() {
 				// Camera scanner styles
 				cameraContainer: {
 					flex: 1,
-					backgroundColor: "#000",
+					backgroundColor: theme.background,
 				},
 				cameraOverlay: {
 					flex: 1,
@@ -442,7 +442,7 @@ export default function CreateFood() {
 					width: 260,
 					height: 180,
 					borderWidth: 2,
-					borderColor: "#e0524f",
+					borderColor: theme.primary,
 					borderRadius: 12,
 					backgroundColor: "transparent",
 				},
@@ -450,15 +450,15 @@ export default function CreateFood() {
 					width: 280,
 					height: 380,
 					borderWidth: 2,
-					borderColor: "#e0524f",
+					borderColor: theme.primary,
 					borderRadius: 12,
 				},
 				scannerGuideText: {
-					color: "#fff",
+					color: theme.text,
 					fontSize: 14,
 					fontWeight: "600",
 					marginBottom: 30,
-					backgroundColor: "rgba(0,0,0,0.6)",
+					backgroundColor: theme.overlay,
 					paddingHorizontal: 16,
 					paddingVertical: 8,
 					borderRadius: 20,
@@ -490,7 +490,7 @@ export default function CreateFood() {
 			<View style={[styles.field, isLast && styles.fieldLast]}>
 				<Text style={styles.fieldLabel}>{label}</Text>
 				<View style={styles.fieldInputRow}>
-					<TextInput style={styles.fieldInput} placeholder={placeholder} placeholderTextColor="#555" value={value} onChangeText={onChangeText} />
+					<TextInput style={styles.fieldInput} placeholder={placeholder} placeholderTextColor={theme.inputPlaceholder} value={value} onChangeText={onChangeText} />
 					{rightElement}
 				</View>
 			</View>
@@ -524,7 +524,7 @@ export default function CreateFood() {
 						onChangeText={onChangeText}
 						keyboardType="decimal-pad"
 						placeholder="0"
-						placeholderTextColor="#555"
+						placeholderTextColor={theme.inputPlaceholder}
 						textAlign="right"
 					/>
 					<Text style={styles.macroUnit}>{unit}</Text>
@@ -854,7 +854,7 @@ export default function CreateFood() {
 		<SafeAreaView style={styles.safeArea}>
 			<View style={styles.header}>
 				<TouchableOpacity onPress={() => router.back()} hitSlop={12}>
-					<Ionicons name="close" size={26} color="#fff" />
+					<Ionicons name="close" size={26} color={theme.text} />
 				</TouchableOpacity>
 			</View>
 
@@ -863,7 +863,7 @@ export default function CreateFood() {
 				<View style={styles.headerArea}>
 					<Text style={styles.pageTitle}>NEW FOOD</Text>
 					<TouchableOpacity style={styles.scanButton} onPress={handleOpenCamera} hitSlop={8}>
-						<FontAwesome5 name="nutritionix" size={24} color="#e0524f" />
+						<FontAwesome5 name="nutritionix" size={24} color={theme.primary} />
 					</TouchableOpacity>
 				</View>
 
@@ -884,7 +884,7 @@ export default function CreateFood() {
 						isLast
 						rightElement={
 							<TouchableOpacity style={styles.scanButton} onPress={handleOpenScanner} hitSlop={8}>
-								<Ionicons name="barcode-outline" size={22} color="#e0524f" />
+								<Ionicons name="barcode-outline" size={22} color={theme.primary} />
 							</TouchableOpacity>
 						}
 					/>
@@ -910,7 +910,7 @@ export default function CreateFood() {
 								<Text style={row.name ? styles.unitSelectText : styles.unitSelectPlaceholder} numberOfLines={1}>
 									{row.name || "Select"}
 								</Text>
-								<Ionicons name="chevron-down" size={14} color="#777" />
+								<Ionicons name="chevron-down" size={14} color={theme.textMuted} />
 							</TouchableOpacity>
 							<TextInput
 								style={[styles.servingInput, { flex: 1, textAlign: "right" }]}
@@ -918,7 +918,7 @@ export default function CreateFood() {
 								onChangeText={(v) => updateServingSize(index, "qty", v)}
 								keyboardType="decimal-pad"
 								placeholder="Qty"
-								placeholderTextColor="#555"
+								placeholderTextColor={theme.inputPlaceholder}
 							/>
 							<View style={{ flex: 1.5, flexDirection: "row", justifyContent: "flex-end", alignItems: "center" }}>
 								<TextInput
@@ -927,7 +927,7 @@ export default function CreateFood() {
 									onChangeText={(v) => updateServingSize(index, "weight_g", v)}
 									keyboardType="decimal-pad"
 									placeholder="0"
-									placeholderTextColor="#555"
+									placeholderTextColor={theme.inputPlaceholder}
 								/>
 								<Text style={styles.unitSuffix}>G</Text>
 							</View>
@@ -941,9 +941,9 @@ export default function CreateFood() {
 					</View>
 
 					<MacroRow label="CALORIES" value={calories} onChangeText={setCalories} unit="kcal" />
-					<MacroRow label="PROTEIN" value={protein} onChangeText={setProtein} unit="g" barColor="#3ddc84" />
-					<MacroRow label="CARBOHYDRATES" value={carbs} onChangeText={setCarbs} unit="g" barColor="#888" />
-					<MacroRow label="FATS" value={fats} onChangeText={setFats} unit="g" barColor="#e0524f" isLast />
+					<MacroRow label="PROTEIN" value={protein} onChangeText={setProtein} unit="g" barColor={theme.macroProtein} />
+					<MacroRow label="CARBOHYDRATES" value={carbs} onChangeText={setCarbs} unit="g" barColor={theme.macroCarbs} />
+					<MacroRow label="FATS" value={fats} onChangeText={setFats} unit="g" barColor={theme.macroFat} isLast />
 				</View>
 
 				<View style={styles.card}>
@@ -972,7 +972,7 @@ export default function CreateFood() {
 				</View>
 
 				<TouchableOpacity style={styles.createButton} onPress={handleCreateItem} disabled={isCreating} activeOpacity={0.85}>
-					{isCreating ? <ActivityIndicator color="#fff" /> : <Text style={styles.createButtonText}>CREATE ITEM</Text>}
+					{isCreating ? <ActivityIndicator color={theme.textInverse} /> : <Text style={styles.createButtonText}>CREATE ITEM</Text>}
 				</TouchableOpacity>
 			</ScrollView>
 
@@ -998,7 +998,7 @@ export default function CreateFood() {
 										<TextInput
 											style={styles.customUnitInput}
 											placeholder="Custom unit (e.g. scoop)"
-											placeholderTextColor="#555"
+											placeholderTextColor={theme.inputPlaceholder}
 											value={customUnitText}
 											onChangeText={setCustomUnitText}
 											onSubmitEditing={() => customUnitText.trim() && selectServingUnit(customUnitText.trim())}
@@ -1010,7 +1010,7 @@ export default function CreateFood() {
 											disabled={!customUnitText.trim()}
 											hitSlop={8}
 										>
-											<Ionicons name="checkmark-circle" size={26} color={customUnitText.trim() ? "#e0524f" : "#444"} />
+											<Ionicons name="checkmark-circle" size={26} color={customUnitText.trim() ? theme.primary : theme.textQuaternary} />
 										</TouchableOpacity>
 									</View>
 								</>
@@ -1033,7 +1033,7 @@ export default function CreateFood() {
 					/>
 					<SafeAreaView style={styles.cameraOverlay}>
 						<TouchableOpacity style={styles.closeCameraButton} onPress={() => setIsCameraOpen(false)}>
-							<Ionicons name="close-circle" size={40} color="#fff" />
+							<Ionicons name="close-circle" size={40} color={theme.text} />
 						</TouchableOpacity>
 						<View style={styles.scannerTargetBox} />
 						<Text style={styles.scannerGuideText}>Align barcode within the box</Text>
@@ -1047,7 +1047,7 @@ export default function CreateFood() {
 					<CameraView ref={ocrCameraRef} style={StyleSheet.absoluteFill} facing="back" onCameraReady={() => setIsOcrCameraReady(true)} />
 					<SafeAreaView style={styles.cameraOverlay}>
 						<TouchableOpacity style={styles.closeCameraButton} onPress={() => setIsOcrCameraOpen(false)}>
-							<Ionicons name="close-circle" size={40} color="#fff" />
+							<Ionicons name="close-circle" size={40} color={theme.text} />
 						</TouchableOpacity>
 						<View style={styles.nutritionTargetBox} />
 						<TouchableOpacity
@@ -1063,7 +1063,3 @@ export default function CreateFood() {
 		</SafeAreaView>
 	);
 }
-
-const CARD_BG = "#0e0e0e";
-const CARD_BORDER = "#232323";
-const DIVIDER = "#1e1e1e";
