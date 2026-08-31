@@ -26,6 +26,8 @@ let createdEntryId;
 let createdRecipeId;
 let createdRecipeDiaryEntryId;
 
+// sync({force:true}) rebuilds every table against the real remote DB - Jest's default 5s hook timeout
+// is too tight for that round-trip and flakes under normal network latency, so it's extended here.
 beforeAll(async () => {
 	await sequelize.sync({ force: true });
 	await sequelize.query("CREATE EXTENSION IF NOT EXISTS pg_trgm;");
@@ -33,7 +35,7 @@ beforeAll(async () => {
 	const resp = await request(app).post("/auth/register").set("Content-Type", "application/json").send(addUserPayload);
 
 	token = resp.body.accessToken;
-});
+}, 30000);
 
 afterAll(async () => {
 	await sequelize.close();
@@ -177,15 +179,17 @@ describe("Diary Entry Endpoints", () => {
 		expect(entry.type).toBe("food");
 		expect(entry.food.id).toBe(createdFoodId);
 
-		// Nutrients are keyed by nutrient_id (number) from calcNutrients
+		// Nutrients come back from mapNutrients() keyed by the display name (see NUTRIENT_MAP/ID_TO_DISPLAY
+		// in Nutrition/service.js), not the raw numeric nutrient_id - this is also what the frontend
+		// (Nutrition.tsx) actually reads (entry.nutrients.protein/.calories/etc).
 		expect(entry.nutrients).not.toBeNull();
-		expect(entry.nutrients[1003]).toBeDefined(); // Protein
-		expect(entry.nutrients[1008]).toBeDefined(); // Energy
+		expect(entry.nutrients.protein).toBeDefined();
+		expect(entry.nutrients.calories).toBeDefined();
 
 		// 200g chicken, 31g protein per 100g → 62g
-		expect(parseFloat(entry.nutrients[1003])).toBeCloseTo(62, 1);
+		expect(entry.nutrients.protein).toBeCloseTo(62, 1);
 		// 200g chicken, 165 kcal per 100g → 330 kcal
-		expect(parseFloat(entry.nutrients[1008])).toBeCloseTo(330, 1);
+		expect(entry.nutrients.calories).toBeCloseTo(330, 1);
 	});
 
 	test("Get Diary Entries - meal_type filter works", async () => {
@@ -223,13 +227,13 @@ describe("Diary Entry Endpoints", () => {
 		expect(entry.quantity).toBe(editDiaryEntryPayload.quantity);
 		expect(entry.unit).toBe(editDiaryEntryPayload.unit);
 
-		// Edit path refetches with joins so nutrients are populated, keyed by nutrient_id
+		// Edit path refetches with joins so nutrients are populated, keyed by display name (see comment above)
 		expect(entry.nutrients).not.toBeNull();
 
 		// 150g chicken, 31g protein per 100g → 46.5g
-		expect(parseFloat(entry.nutrients[1003])).toBeCloseTo(46.5, 1);
+		expect(entry.nutrients.protein).toBeCloseTo(46.5, 1);
 		// 150g chicken, 165 kcal per 100g → 247.5 kcal
-		expect(parseFloat(entry.nutrients[1008])).toBeCloseTo(247.5, 1);
+		expect(entry.nutrients.calories).toBeCloseTo(247.5, 1);
 
 		// DB
 		const dbEntry = await DiaryEntryModel.findByPk(createdEntryId);

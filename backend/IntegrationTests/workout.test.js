@@ -8,19 +8,46 @@ const WorkoutsModel = require("../models/modelInits").workouts;
 const ExercisesModel = require("../models/modelInits").exercises;
 const SetsModel = require("../models/modelInits").sets;
 const UsersModel = require("../models/modelInits").users;
+const ExerciseCatalogModel = require("../models/modelInits").exercise_catalog;
 
 const { addUserPayload, editWorkoutPayloads, addWorkoutPayload } = require("./WorkoutPayloads");
 
 var token;
 
+// exercise_catalog include, reused by every query below so assertions can check exercise_catalog.name -
+// exercises no longer carry a free-text exercise_name column, just a catalog_id foreign key.
+const catalogInclude = { model: ExerciseCatalogModel };
+
 //Create a mock user with JWT token for passing to workout endpoints
+//sync({force:true}) rebuilds every table against the real remote DB - Jest's default 5s hook timeout is
+//too tight for that round-trip and flakes under normal network latency, so it's extended here (see the
+//identical fix/comment in nutrition.test.js).
 beforeAll(async () => {
 	//Drop all data and then make a user to use for workout endpoint testing
 	await sequelize.sync({ force: true });
 
 	let resp = await request(app).post("/auth/register").set("Content-Type", "application/json").send(addUserPayload);
 	token = resp.body.accessToken;
-});
+
+	// The exercises table stores a catalog_id foreign key (not a free-text exercise name), so the fixture
+	// payloads need real exercise_catalog rows to reference. Seed one per distinct exercise_name used across
+	// WorkoutPayloads.js, then patch that catalog_id onto every payload exercise, matched by name.
+	const catalogByName = {};
+	const catalogSeeds = { "Bench Press": "chest", "Incline Dumbbell Press": "chest", "Tricep Pushdown": "triceps" };
+	for (const [name, muscle_group] of Object.entries(catalogSeeds)) {
+		const row = await ExerciseCatalogModel.create({ name, muscle_group });
+		catalogByName[name] = row.catalog_id;
+	}
+
+	for (const exercise of addWorkoutPayload.exercises) {
+		exercise.catalog_id = catalogByName[exercise.exercise_name];
+	}
+	for (const payload of editWorkoutPayloads) {
+		for (const exercise of payload.exercises) {
+			exercise.catalog_id = catalogByName[exercise.exercise_name];
+		}
+	}
+}, 30000);
 
 afterAll(async () => {
 	await sequelize.close();
@@ -41,6 +68,7 @@ describe("Add/Edit/Delete Workout Endpoints", function () {
 						{
 							model: SetsModel, //join with set model
 						},
+						catalogInclude,
 					],
 				},
 			],
@@ -57,10 +85,10 @@ describe("Add/Edit/Delete Workout Endpoints", function () {
 		expect(workout.workout_date).toEqual(addWorkoutPayload.workout_date);
 
 		//exercises
-		expect(workout.exercises[0].exercise_name).toEqual(addWorkoutPayload.exercises[0].exercise_name);
+		expect(workout.exercises[0].exercise_catalog.name).toEqual(addWorkoutPayload.exercises[0].exercise_name);
 		expect(workout.exercises[0].order_number).toEqual(addWorkoutPayload.exercises[0].order_number);
 
-		expect(workout.exercises[1].exercise_name).toEqual(addWorkoutPayload.exercises[1].exercise_name);
+		expect(workout.exercises[1].exercise_catalog.name).toEqual(addWorkoutPayload.exercises[1].exercise_name);
 		expect(workout.exercises[1].order_number).toEqual(addWorkoutPayload.exercises[1].order_number);
 
 		//sets
@@ -89,6 +117,7 @@ describe("Add/Edit/Delete Workout Endpoints", function () {
 							{
 								model: SetsModel, //join with set model
 							},
+							catalogInclude,
 						],
 					},
 				],
@@ -103,7 +132,7 @@ describe("Add/Edit/Delete Workout Endpoints", function () {
 			expect(workout.exercises.length).toEqual(ewPayload.exercises.length);
 
 			for (let i = 0; i < workout.exercises.length; i++) {
-				expect(workout.exercises[i].exercise_name).toEqual(ewPayload.exercises[i].exercise_name);
+				expect(workout.exercises[i].exercise_catalog.name).toEqual(ewPayload.exercises[i].exercise_name);
 				expect(workout.exercises[i].order_number).toEqual(ewPayload.exercises[i].order_number);
 				expect(workout.exercises[i].notes).toEqual(ewPayload.exercises[i].notes);
 
