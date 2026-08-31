@@ -40,6 +40,11 @@ const sets = sequelize.define(
 			allowNull: false,
 		},
 
+		reps_in_reserve: {
+			type: DataTypes.INTEGER, //estimated level of effort based on reps left in reserve before failure
+			allowNull: true,
+		},
+
 		duration_seconds: {
 			//for cardio/timed things (planks, rows, runs, etc). Store raw seconds, format to mins/secs on the frontend.
 			type: DataTypes.INTEGER,

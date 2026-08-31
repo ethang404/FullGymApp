@@ -18,6 +18,16 @@ const verifyToken = require("../Middlewear/token");
 // have to put before "/:id" or it will think "catalog" is "":id"
 router.get("/catalog", verifyToken, controller.searchCatalog); //search/list catalog exercises, e.g. /workouts/catalog?search=press&muscle_group=chest
 router.post("/catalog", verifyToken, controller.createCatalogExercise); //add a new exercise to the catalog
+router.get("/catalog/:id/history", verifyToken, controller.getExerciseHistory); //weight/reps or Epley 1RM over time for one catalog exercise
+
+router.get("/progress/biggest-changes", verifyToken, controller.getBiggestChanges); //top 5 biggest % lift changes in a date range
+router.get("/progress/volume-by-muscle-group", verifyToken, controller.getVolumeByMuscleGroup); //volume split by muscle group, for a pie chart
+router.get("/progress/fatigue-curves", verifyToken, controller.getFatigueCurves); //avg e1RM/weight by order_number position, per exercise
+router.get("/progress/weekly-volume-landmarks", verifyToken, controller.getWeeklyVolumeLandmarks); //high/moderate/low sets per muscle group per week
+router.get("/progress/personal-records", verifyToken, controller.getPersonalRecordTimeline); //feed of all-time PR events
+router.get("/progress/training-frequency", verifyToken, controller.getTrainingFrequency); //sessions logged per week
+router.get("/progress/session-trends", verifyToken, controller.getSessionTrends); //avg session volume/duration per week
+router.get("/progress/rep-range-distribution", verifyToken, controller.getRepRangeDistribution); //% of working sets by rep range
 
 router.get("/", verifyToken, controller.getWorkoutsList); //get list of workouts for some date range/filter perhaps
 router.get("/:id", verifyToken, controller.getWorkout); //get one workout
