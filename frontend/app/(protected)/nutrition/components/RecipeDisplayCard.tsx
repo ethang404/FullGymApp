@@ -13,12 +13,6 @@ export interface Recipe {
 	fat_per_serving: number;
 }
 
-const MACRO_COLORS = {
-	protein: "#4ADE80",
-	carbs: "#3B82F6",
-	fat: "#F97316",
-};
-
 type RecipeCardProps = {
 	recipe: Recipe;
 	onPress: (recipe: Recipe) => void;
@@ -76,15 +70,15 @@ export default function RecipeDisplayCard({ recipe, onPress }: RecipeCardProps) 
 
 			<View style={styles.macrosRow}>
 				<View style={styles.macroChip}>
-					<View style={[styles.macroDot, { backgroundColor: MACRO_COLORS.protein }]} />
+					<View style={[styles.macroDot, { backgroundColor: theme.macroProtein }]} />
 					<Text style={styles.macroChipText}>{Math.round(recipe.protein_per_serving)}g P</Text>
 				</View>
 				<View style={styles.macroChip}>
-					<View style={[styles.macroDot, { backgroundColor: MACRO_COLORS.carbs }]} />
+					<View style={[styles.macroDot, { backgroundColor: theme.macroCarbs }]} />
 					<Text style={styles.macroChipText}>{Math.round(recipe.carbs_per_serving)}g C</Text>
 				</View>
 				<View style={styles.macroChip}>
-					<View style={[styles.macroDot, { backgroundColor: MACRO_COLORS.fat }]} />
+					<View style={[styles.macroDot, { backgroundColor: theme.macroFat }]} />
 					<Text style={styles.macroChipText}>{Math.round(recipe.fat_per_serving)}g F</Text>
 				</View>
 			</View>

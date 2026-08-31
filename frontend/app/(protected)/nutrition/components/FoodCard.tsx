@@ -127,7 +127,7 @@ export default function FoodCard({ food, displayLogButton, mealType, loggedAt, o
 					color: theme.text,
 				},
 				servingPillTextSelected: {
-					color: theme.cardBg,
+					color: theme.textInverse,
 				},
 				logButton: {
 					backgroundColor: theme.primary,
@@ -135,7 +135,7 @@ export default function FoodCard({ food, displayLogButton, mealType, loggedAt, o
 					paddingVertical: 8,
 					paddingHorizontal: 16,
 					marginLeft: 8,
-					shadowColor: "#000",
+					shadowColor: theme.shadowColor,
 					shadowOffset: { width: 0, height: 2 },
 					shadowOpacity: 0.2,
 					shadowRadius: 4,
@@ -144,7 +144,7 @@ export default function FoodCard({ food, displayLogButton, mealType, loggedAt, o
 				logButtonText: {
 					fontSize: 14,
 					fontWeight: "600",
-					color: theme.text,
+					color: theme.textInverse,
 				},
 			}),
 		[theme],
@@ -197,17 +197,17 @@ export default function FoodCard({ food, displayLogButton, mealType, loggedAt, o
 					<View style={styles.macrosRow}>
 						{protein != null && (
 							<Text style={styles.macroText}>
-								<Text style={{ fontWeight: "700", color: "#4ADE80" }}>P {protein.toFixed(1)}</Text>
+								<Text style={{ fontWeight: "700", color: theme.macroProtein }}>P {protein.toFixed(1)}</Text>
 							</Text>
 						)}
 						{carbs != null && (
 							<Text style={styles.macroText}>
-								<Text style={{ fontWeight: "700", color: "#38BDF8" }}>C {carbs.toFixed(1)}</Text>
+								<Text style={{ fontWeight: "700", color: theme.macroCarbs }}>C {carbs.toFixed(1)}</Text>
 							</Text>
 						)}
 						{fat != null && (
 							<Text style={styles.macroText}>
-								<Text style={{ fontWeight: "700", color: "#FB923C" }}>F {fat.toFixed(1)}</Text>
+								<Text style={{ fontWeight: "700", color: theme.macroFat }}>F {fat.toFixed(1)}</Text>
 							</Text>
 						)}
 					</View>

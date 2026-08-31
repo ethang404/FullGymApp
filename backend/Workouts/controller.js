@@ -151,6 +151,139 @@ async function searchCatalog(req, res) {
 	}
 }
 
+//shared by every /progress endpoint: decode the JWT for user_id, and turn the ?filter= query param
+//into a concrete {startDate, now} range ("all" goes back 100 years - effectively "everything")
+function getUserIdAndRangeFromRequest(req) {
+	const { filter = "month" } = req.query;
+
+	const accessToken = req.headers.authorization.split(" ")[1];
+	const user = jwt.verify(accessToken, process.env.JWT_SECRET, {
+		audience: "my-gym-app",
+		issuer: "gym-auth-server",
+	});
+	const user_id = user.user_id;
+
+	const now = new Date();
+	const startDate = new Date();
+	if (filter === "week") startDate.setDate(startDate.getDate() - 7);
+	else if (filter === "month") startDate.setDate(startDate.getDate() - 30);
+	else if (filter === "year") startDate.setDate(startDate.getDate() - 365);
+	else startDate.setFullYear(startDate.getFullYear() - 100); //"all"
+
+	return { user_id, startDate, now };
+}
+
+async function getBiggestChanges(req, res) {
+	const { user_id, startDate, now } = getUserIdAndRangeFromRequest(req);
+
+	try {
+		const changes = await service.getBiggest5Changes(user_id, startDate, now);
+		return res.status(200).json({ changes });
+	} catch (error) {
+		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
+		return res.status(500).json({ message: error.message });
+	}
+}
+
+async function getExerciseHistory(req, res) {
+	const catalog_id = req.params.id;
+	const { epley } = req.query;
+	const { user_id, startDate, now } = getUserIdAndRangeFromRequest(req);
+
+	try {
+		const history = await service.exerciseOverTime(user_id, startDate, now, catalog_id, epley === "true");
+		return res.status(200).json(history);
+	} catch (error) {
+		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
+		return res.status(500).json({ message: error.message });
+	}
+}
+
+async function getVolumeByMuscleGroup(req, res) {
+	const { user_id, startDate, now } = getUserIdAndRangeFromRequest(req);
+
+	try {
+		const volume = await service.getVolumeByMuscleGroup(user_id, startDate, now);
+		return res.status(200).json(volume);
+	} catch (error) {
+		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
+		return res.status(500).json({ message: error.message });
+	}
+}
+
+async function getFatigueCurves(req, res) {
+	const { epley } = req.query;
+	const { user_id, startDate, now } = getUserIdAndRangeFromRequest(req);
+
+	try {
+		const curves = await service.getFatigueCurves(user_id, startDate, now, epley === "true");
+		return res.status(200).json({ curves });
+	} catch (error) {
+		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
+		return res.status(500).json({ message: error.message });
+	}
+}
+
+async function getWeeklyVolumeLandmarks(req, res) {
+	const { user_id, startDate, now } = getUserIdAndRangeFromRequest(req);
+
+	try {
+		const weeks = await service.getWeeklyVolumeLandmarks(user_id, startDate, now);
+		return res.status(200).json({ weeks });
+	} catch (error) {
+		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
+		return res.status(500).json({ message: error.message });
+	}
+}
+
+async function getPersonalRecordTimeline(req, res) {
+	const { user_id, startDate, now } = getUserIdAndRangeFromRequest(req);
+
+	try {
+		const records = await service.getPersonalRecordTimeline(user_id, startDate, now);
+		return res.status(200).json({ records });
+	} catch (error) {
+		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
+		return res.status(500).json({ message: error.message });
+	}
+}
+
+async function getTrainingFrequency(req, res) {
+	const { user_id, startDate, now } = getUserIdAndRangeFromRequest(req);
+
+	try {
+		const weeks = await service.getTrainingFrequency(user_id, startDate, now);
+		return res.status(200).json({ weeks });
+	} catch (error) {
+		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
+		return res.status(500).json({ message: error.message });
+	}
+}
+
+async function getSessionTrends(req, res) {
+	const { user_id, startDate, now } = getUserIdAndRangeFromRequest(req);
+
+	try {
+		const weeks = await service.getSessionTrends(user_id, startDate, now);
+		return res.status(200).json({ weeks });
+	} catch (error) {
+		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
+		return res.status(500).json({ message: error.message });
+	}
+}
+
+async function getRepRangeDistribution(req, res) {
+	const { user_id, startDate, now } = getUserIdAndRangeFromRequest(req);
+
+	try {
+		const distribution = await service.getRepRangeDistribution(user_id, startDate, now);
+		return res.status(200).json({ distribution });
+	} catch (error) {
+		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
+		return res.status(500).json({ message: error.message });
+	}
+}
+
 async function createCatalogExercise(req, res) {
 	/*
 	{
@@ -167,4 +300,21 @@ async function createCatalogExercise(req, res) {
 	}
 }
 
-module.exports = { getWorkoutsList, getWorkout, createWorkout, editWorkout, deleteWorkout, searchCatalog, createCatalogExercise };
+module.exports = {
+	getWorkoutsList,
+	getWorkout,
+	createWorkout,
+	editWorkout,
+	deleteWorkout,
+	searchCatalog,
+	createCatalogExercise,
+	getBiggestChanges,
+	getExerciseHistory,
+	getVolumeByMuscleGroup,
+	getFatigueCurves,
+	getWeeklyVolumeLandmarks,
+	getPersonalRecordTimeline,
+	getTrainingFrequency,
+	getSessionTrends,
+	getRepRangeDistribution,
+};

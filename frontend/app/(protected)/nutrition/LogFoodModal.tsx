@@ -65,7 +65,7 @@ export default function LogFoodModal({ visible, mealType, selectedDate, onClose,
 				overlay: {
 					flex: 1,
 					justifyContent: "flex-end",
-					backgroundColor: "rgba(0,0,0,0.4)",
+					backgroundColor: theme.overlay,
 				},
 				card: {
 					backgroundColor: theme.cardBg,

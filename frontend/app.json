@@ -7,7 +7,6 @@
 		"icon": "./assets/images/NewIcon.png",
 		"scheme": "frontend",
 		"userInterfaceStyle": "automatic",
-		"newArchEnabled": true,
 		"ios": {
 			"supportsTablet": true,
 			"infoPlist": {
@@ -20,7 +19,6 @@
 				"backgroundColor": "#ffffff"
 			},
 			"permissions": ["android.permission.CAMERA", "android.permission.RECORD_AUDIO"],
-			"edgeToEdgeEnabled": true,
 			"package": "com.anonymous.frontend"
 		},
 		"web": {

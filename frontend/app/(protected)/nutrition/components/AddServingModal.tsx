@@ -101,7 +101,7 @@ export function AddServingModal({ visible, foodId, foodName, availableUnits, exi
 				overlay: {
 					flex: 1,
 					justifyContent: "flex-end",
-					backgroundColor: "rgba(0,0,0,0.5)",
+					backgroundColor: theme.overlay,
 				},
 				sheet: {
 					backgroundColor: theme.cardBg,
@@ -157,7 +157,7 @@ export function AddServingModal({ visible, foodId, foodName, availableUnits, exi
 					color: theme.text,
 				},
 				unitPillTextSelected: {
-					color: theme.cardBg,
+					color: theme.textInverse,
 				},
 				weightInput: {
 					borderWidth: StyleSheet.hairlineWidth,
@@ -176,7 +176,7 @@ export function AddServingModal({ visible, foodId, foodName, availableUnits, exi
 					marginBottom: 20,
 				},
 				errorText: {
-					color: "#F87171",
+					color: theme.error,
 					fontSize: 12,
 					marginBottom: 12,
 				},
@@ -189,7 +189,7 @@ export function AddServingModal({ visible, foodId, foodName, availableUnits, exi
 					opacity: saving ? 0.6 : 1,
 				},
 				saveButtonText: {
-					color: theme.cardBg,
+					color: theme.textInverse,
 					fontSize: 15,
 					fontWeight: "700",
 				},

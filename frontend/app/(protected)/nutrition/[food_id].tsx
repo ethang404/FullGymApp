@@ -218,7 +218,7 @@ export default function FoodDetailScreen() {
 					</Text>
 				</View>
 				<TouchableOpacity style={styles.iconButton} onPress={() => setIsFavorited((v) => !v)} hitSlop={10}>
-					<FontAwesome5 name="heart" size={18} color={isFavorited ? "#F87171" : theme.textMuted} solid={isFavorited} />
+					<FontAwesome5 name="heart" size={18} color={isFavorited ? theme.error : theme.textMuted} solid={isFavorited} />
 				</TouchableOpacity>
 			</View>
 
@@ -247,9 +247,9 @@ export default function FoodDetailScreen() {
 					</View>
 
 					<View style={styles.macroBar}>
-						<View style={{ width: `${((protein ?? 0) * 4 * 100) / macroKcalTotal}%`, backgroundColor: "#4ADE80" }} />
-						<View style={{ width: `${((carbs ?? 0) * 4 * 100) / macroKcalTotal}%`, backgroundColor: "#38BDF8" }} />
-						<View style={{ width: `${((fat ?? 0) * 9 * 100) / macroKcalTotal}%`, backgroundColor: "#FB923C" }} />
+						<View style={{ width: `${((protein ?? 0) * 4 * 100) / macroKcalTotal}%`, backgroundColor: theme.macroProtein }} />
+						<View style={{ width: `${((carbs ?? 0) * 4 * 100) / macroKcalTotal}%`, backgroundColor: theme.macroCarbs }} />
+						<View style={{ width: `${((fat ?? 0) * 9 * 100) / macroKcalTotal}%`, backgroundColor: theme.macroFat }} />
 					</View>
 				</View>
 

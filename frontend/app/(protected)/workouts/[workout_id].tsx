@@ -281,7 +281,7 @@ export default function Workout() {
 				</Pressable>
 
 				<Pressable style={[styles.saveButton, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving}>
-					{saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveButtonText}>Save Workout</Text>}
+					{saving ? <ActivityIndicator color={theme.textInverse} /> : <Text style={styles.saveButtonText}>Save Workout</Text>}
 				</Pressable>
 			</>
 		),
@@ -543,10 +543,10 @@ function ExerciseSelectorModal({
 						showsHorizontalScrollIndicator={false}
 						renderItem={({ item }) => (
 							<TouchableOpacity
-								style={[styles.filterChip, selectedGroup === item && { backgroundColor: theme.primary || "#2563eb" }]}
+								style={[styles.filterChip, selectedGroup === item && { backgroundColor: theme.primary }]}
 								onPress={() => setSelectedGroup(item)}
 							>
-								<Text style={[styles.filterChipText, selectedGroup === item && { color: "#fff" }]}>{item}</Text>
+								<Text style={[styles.filterChipText, selectedGroup === item && { color: theme.textInverse }]}>{item}</Text>
 							</TouchableOpacity>
 						)}
 					/>
@@ -608,9 +608,9 @@ function createStyles(theme: Theme) {
 			marginHorizontal: 16,
 			marginBottom: 12,
 			padding: 12,
-			backgroundColor: theme.cardBg || "#fff",
+			backgroundColor: theme.cardBg,
 			borderRadius: 8,
-			shadowColor: "#000",
+			shadowColor: theme.shadowColor,
 			shadowOffset: { width: 0, height: 1 },
 			shadowOpacity: 0.2,
 			shadowRadius: 1.41,
@@ -663,10 +663,10 @@ function createStyles(theme: Theme) {
 			marginHorizontal: 16,
 			padding: 14,
 			borderRadius: 8,
-			backgroundColor: theme.primary || "#2563eb",
+			backgroundColor: theme.primary,
 			alignItems: "center",
 		},
-		saveButtonText: { color: "#fff", fontWeight: "600", fontSize: 16 },
+		saveButtonText: { color: theme.textInverse, fontWeight: "600", fontSize: 16 },
 
 		modalContainer: { flex: 1, backgroundColor: theme.background, padding: 16 },
 		modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },

@@ -386,9 +386,9 @@ export default function Home() {
 					{/* Macro rings */}
 					{summary && (
 						<View style={styles.macroRow}>
-							<RingProgress percent={(summary.protein / 160) * 100} color="#4ADE80" trackColor={theme.border} label="PROTEIN" size={64} strokeWidth={6} />
-							<RingProgress percent={(summary.carbs / 250) * 100} color="#38BDF8" trackColor={theme.border} label="CARBS" size={64} strokeWidth={6} />
-							<RingProgress percent={(summary.fat / 75) * 100} color="#FB923C" trackColor={theme.border} label="FAT" size={64} strokeWidth={6} />
+							<RingProgress percent={(summary.protein / 160) * 100} color={theme.macroProtein} trackColor={theme.border} label="PROTEIN" size={64} strokeWidth={6} />
+							<RingProgress percent={(summary.carbs / 250) * 100} color={theme.macroCarbs} trackColor={theme.border} label="CARBS" size={64} strokeWidth={6} />
+							<RingProgress percent={(summary.fat / 75) * 100} color={theme.macroFat} trackColor={theme.border} label="FAT" size={64} strokeWidth={6} />
 						</View>
 					)}
 				</View>

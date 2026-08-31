@@ -40,6 +40,14 @@ export const kratosRedTheme = {
 	accent: "#D72638",
 	dotActive: "#D72638",
 
+	// Macros (nutrition rings/bars)
+	macroProtein: "#4ADE80",
+	macroCarbs: "#38BDF8",
+	macroFat: "#FB923C",
+
+	// Overlays
+	overlay: "rgba(0,0,0,0.5)",
+
 	// Shadows
 	shadowColor: "#000000",
 };
@@ -86,6 +94,14 @@ export const midnightTheme = {
 	accent: "#FFFFFF",
 	dotActive: "#FFFFFF",
 
+	// Macros (nutrition rings/bars)
+	macroProtein: "#4ADE80",
+	macroCarbs: "#38BDF8",
+	macroFat: "#FB923C",
+
+	// Overlays
+	overlay: "rgba(0,0,0,0.5)",
+
 	// Shadows
 	shadowColor: "#000000",
 };
@@ -107,16 +123,16 @@ export const crimsonLightTheme = {
 	textInverse: "#FFFFFF",
 
 	// Auth
-	authBackground: "#0f172a",
-	authCardBg: "#111827",
-	authCardBorder: "#1f2937",
-	authText: "#f9fafb",
-	authTextMuted: "#9ca3af",
-	authTextHint: "#6b7280",
-	authInputBg: "#020617",
-	authInputBorder: "#1f2937",
-	authInputText: "#e5e7eb",
-	authLabel: "#d1d5db",
+	authBackground: "#FBFBF9",
+	authCardBg: "#FFFFFF",
+	authCardBorder: "#E0DDDA",
+	authText: "#111111",
+	authTextMuted: "#666666",
+	authTextHint: "#999999",
+	authInputBg: "#FFFFFF",
+	authInputBorder: "#DDDDDD",
+	authInputText: "#111111",
+	authLabel: "#444444",
 
 	// Inputs
 	inputBg: "#FFFFFF",
@@ -131,6 +147,14 @@ export const crimsonLightTheme = {
 	error: "#D72638",
 	accent: "#D72638",
 	dotActive: "#D72638",
+
+	// Macros (nutrition rings/bars) — deeper shades for contrast on light backgrounds
+	macroProtein: "#15803D",
+	macroCarbs: "#0369A1",
+	macroFat: "#C2410C",
+
+	// Overlays
+	overlay: "rgba(0,0,0,0.5)",
 
 	// Shadows
 	shadowColor: "#000000",
@@ -178,6 +202,14 @@ export const carbonTheme = {
 	accent: "#F97316",
 	dotActive: "#F97316",
 
+	// Macros (nutrition rings/bars)
+	macroProtein: "#4ADE80",
+	macroCarbs: "#38BDF8",
+	macroFat: "#FB923C",
+
+	// Overlays
+	overlay: "rgba(0,0,0,0.5)",
+
 	// Shadows
 	shadowColor: "#000000",
 };
@@ -224,6 +256,176 @@ export const slateTheme = {
 	accent: "#3B82F6",
 	dotActive: "#3B82F6",
 
+	// Macros (nutrition rings/bars)
+	macroProtein: "#4ADE80",
+	macroCarbs: "#38BDF8",
+	macroFat: "#FB923C",
+
+	// Overlays
+	overlay: "rgba(0,0,0,0.5)",
+
+	// Shadows
+	shadowColor: "#000000",
+};
+
+//Pink/white
+export const blossomTheme = {
+	// Core
+	primary: "#D6336C",
+	background: "#FFF3F6",
+	cardBg: "#FFFFFF",
+	cardBgAlt: "#FBE4EC",
+
+	// Text
+	text: "#3A2430",
+	textMuted: "#8A6572",
+	textSecondary: "#6B4655",
+	textTertiary: "#B08C99",
+	textQuaternary: "#D9BFC9",
+	textInverse: "#FFFFFF",
+
+	// Auth
+	authBackground: "#FFEAF1",
+	authCardBg: "#FFFFFF",
+	authCardBorder: "#F5CEDC",
+	authText: "#3A2430",
+	authTextMuted: "#8A6572",
+	authTextHint: "#B08C99",
+	authInputBg: "#FFF8FA",
+	authInputBorder: "#F0C0D2",
+	authInputText: "#3A2430",
+	authLabel: "#6B4655",
+
+	// Inputs
+	inputBg: "#FFFFFF",
+	inputBorder: "#F0C0D2",
+	inputPlaceholder: "#B08C99",
+
+	// Borders
+	border: "#F5CEDC",
+	borderLight: "#FBE4EC",
+
+	// Semantic
+	error: "#D64550",
+	accent: "#D6336C",
+	dotActive: "#D6336C",
+
+	// Macros (nutrition rings/bars) — deeper shades for contrast on light backgrounds
+	macroProtein: "#15803D",
+	macroCarbs: "#0369A1",
+	macroFat: "#C2410C",
+
+	// Overlays
+	overlay: "rgba(0,0,0,0.5)",
+
+	// Shadows
+	shadowColor: "#000000",
+};
+
+//Green/white
+export const sageTheme = {
+	// Core
+	primary: "#3F7D58",
+	background: "#F3F8F1",
+	cardBg: "#FFFFFF",
+	cardBgAlt: "#E7F1E3",
+
+	// Text
+	text: "#223328",
+	textMuted: "#6F8A76",
+	textSecondary: "#4E6B55",
+	textTertiary: "#93AA97",
+	textQuaternary: "#C4D6C6",
+	textInverse: "#FFFFFF",
+
+	// Auth
+	authBackground: "#EEF6EC",
+	authCardBg: "#FFFFFF",
+	authCardBorder: "#D6E8D2",
+	authText: "#223328",
+	authTextMuted: "#6F8A76",
+	authTextHint: "#93AA97",
+	authInputBg: "#FFFFFF",
+	authInputBorder: "#CBE0C7",
+	authInputText: "#223328",
+	authLabel: "#4E6B55",
+
+	// Inputs
+	inputBg: "#FFFFFF",
+	inputBorder: "#CBE0C7",
+	inputPlaceholder: "#93AA97",
+
+	// Borders
+	border: "#D6E8D2",
+	borderLight: "#E7F1E3",
+
+	// Semantic
+	error: "#D64545",
+	accent: "#3F7D58",
+	dotActive: "#3F7D58",
+
+	// Macros (nutrition rings/bars) — deeper shades for contrast on light backgrounds
+	macroProtein: "#15803D",
+	macroCarbs: "#0369A1",
+	macroFat: "#C2410C",
+
+	// Overlays
+	overlay: "rgba(0,0,0,0.5)",
+
+	// Shadows
+	shadowColor: "#000000",
+};
+
+//Lavender/white
+export const lavenderTheme = {
+	// Core
+	primary: "#7C5CBF",
+	background: "#F6F3FC",
+	cardBg: "#FFFFFF",
+	cardBgAlt: "#EDE6F8",
+
+	// Text
+	text: "#2C2438",
+	textMuted: "#83758F",
+	textSecondary: "#5C4E6B",
+	textTertiary: "#A297AF",
+	textQuaternary: "#D1C7DC",
+	textInverse: "#FFFFFF",
+
+	// Auth
+	authBackground: "#F1EBFA",
+	authCardBg: "#FFFFFF",
+	authCardBorder: "#DCCEF0",
+	authText: "#2C2438",
+	authTextMuted: "#83758F",
+	authTextHint: "#A297AF",
+	authInputBg: "#FFFFFF",
+	authInputBorder: "#D6C6EC",
+	authInputText: "#2C2438",
+	authLabel: "#5C4E6B",
+
+	// Inputs
+	inputBg: "#FFFFFF",
+	inputBorder: "#D6C6EC",
+	inputPlaceholder: "#A297AF",
+
+	// Borders
+	border: "#DCCEF0",
+	borderLight: "#EDE6F8",
+
+	// Semantic
+	error: "#D6455A",
+	accent: "#7C5CBF",
+	dotActive: "#7C5CBF",
+
+	// Macros (nutrition rings/bars) — deeper shades for contrast on light backgrounds
+	macroProtein: "#15803D",
+	macroCarbs: "#0369A1",
+	macroFat: "#C2410C",
+
+	// Overlays
+	overlay: "rgba(0,0,0,0.5)",
+
 	// Shadows
 	shadowColor: "#000000",
 };
@@ -231,7 +433,7 @@ export const slateTheme = {
 export type Theme = typeof kratosRedTheme; //creates a type of Theme, must contain primary/backgreound etc.
 
 //so this is a string type, but where it's only allowed to be these strings here
-export type ThemeName = "kratosRed" | "midnight" | "crimsonLight" | "carbon" | "slate";
+export type ThemeName = "kratosRed" | "midnight" | "crimsonLight" | "carbon" | "slate" | "blossom" | "sage" | "lavender";
 
 //Combine theme name w/ theme
 //Think of zip in python
@@ -241,4 +443,19 @@ export const themes: Record<ThemeName, Theme> = {
 	crimsonLight: crimsonLightTheme,
 	carbon: carbonTheme,
 	slate: slateTheme,
+	blossom: blossomTheme,
+	sage: sageTheme,
+	lavender: lavenderTheme,
+};
+
+// Display label for each theme
+export const themeLabels: Record<ThemeName, string> = {
+	kratosRed: "Kratos",
+	midnight: "Midnight",
+	crimsonLight: "Crimson",
+	carbon: "Carbon",
+	slate: "Slate",
+	blossom: "Blossom",
+	sage: "Sage",
+	lavender: "Lavender",
 };
