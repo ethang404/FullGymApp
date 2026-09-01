@@ -1,9 +1,24 @@
-import { Tabs } from "expo-router";
+import { Tabs, Redirect, type Href } from "expo-router";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
+import { useProfile } from "@/utils/ProfileProvider";
+import LoadingScreen from "@/components/LoadingScreen";
 
 export default function ProtectedLayout() {
 	const { theme } = useTheme();
+	const { profile, loading } = useProfile();
+
+	// Wait for the profile before deciding whether to send a first-time user
+	// through onboarding — otherwise the tabs flash before the redirect.
+	if (loading) {
+		return <LoadingScreen />;
+	}
+
+	if (profile && !profile.onboarding_completed) {
+		// cast: expo-router's typed-routes table is regenerated on `expo start`;
+		// the /onboarding route exists at app/onboarding.tsx.
+		return <Redirect href={"/onboarding" as Href} />;
+	}
 
 	return (
 		<Tabs
