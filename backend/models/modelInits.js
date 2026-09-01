@@ -15,11 +15,21 @@ const foodServingSize = require("./foodServingSize.model");
 
 const sequelize = require("./db");
 
+//for database seeding
+const exercisesSeededList = require("../SeedDatabaseScripts/tempExercises");
+async function seedExerciseCatalog() {
+	await exercise_catalog.bulkCreate(exercisesSeededList, {
+		ignoreDuplicates: true, // skips rows that violate a unique constraint instead of throwing
+	});
+	console.log(`Seeded ${exercisesSeededList.length} exercises (duplicates skipped).`);
+}
+
 async function testDB() {
 	try {
 		await sequelize.authenticate();
 		console.log("Connection has been established successfully.");
-		//await sequelize.sync({ force: true }); //this forces remote db to sync to what we have here (wipes data)
+		//await sequelize.sync({ force: true });
+		//await seedExerciseCatalog(); //seed exercises
 	} catch (error) {
 		console.error("Unable to connect to the database:", error);
 	}
