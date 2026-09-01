@@ -1,10 +1,11 @@
-import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
-import { useMemo, useState, useEffect } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, TextInput } from "react-native";
+import { useMemo, useState } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { router } from "expo-router";
 
 import { instance } from "@/utils/AxiosInterceptorHandler";
+import { log } from "@/utils/log";
 
 import { COMMON_UNITS } from "../../types/nutrition";
 import { AddServingModal } from "./AddServingModal";
@@ -64,7 +65,7 @@ export default function FoodCard({ food, displayLogButton, mealType, loggedAt, o
 			});
 			onLogged?.(); //tell our modal that we logged food so we can re-fetch entires
 		} catch (e) {
-			console.error("Failed to log food:", e);
+			log.error("Failed to log food:", e);
 		}
 	}
 

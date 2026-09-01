@@ -195,7 +195,7 @@ export default function Login() {
 
 				<Text style={styles.label}>Username</Text>
 				<TextInput style={styles.input} placeholder="Choose a username" value={userName} onChangeText={setUserName} autoCapitalize="none" autoCorrect={false} />
-				{mode === "register" ? <Text style={styles.fieldHint}>This is what you will use to log in.</Text> : <></>}
+				{mode === "register" ? <Text style={styles.fieldHint}>This is what you will use to log in.</Text> : null}
 
 				<Text style={styles.label}>Password</Text>
 				<TextInput
