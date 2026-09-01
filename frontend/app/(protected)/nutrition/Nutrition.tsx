@@ -21,14 +21,13 @@ import { useFocusEffect } from "expo-router";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
+import { useProfile } from "@/utils/ProfileProvider";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { Float, Int32 } from "react-native/Libraries/Types/CodegenTypes";
 
 import LogFoodModal from "./LogFoodModal";
 
 //Put the various types I need here
-const goals = { calories: 2500, protein: 180, carbs: 250, fat: 75 };
-
 type MealType = "breakfast" | "lunch" | "dinner" | "snacks";
 const MEAL_TYPES: MealType[] = ["breakfast", "lunch", "dinner", "snacks"];
 
@@ -130,6 +129,7 @@ function MacroBar({
 
 export default function Nutrition() {
 	const { theme } = useTheme();
+	const { goals } = useProfile();
 	const insets = useSafeAreaInsets();
 
 	const [loading, setLoading] = useState(true);
@@ -512,6 +512,7 @@ export default function Nutrition() {
 							<MacroBar label="Protein" current={totals.protein} goal={goals.protein} color={theme.macroProtein} textColor={theme.textMuted} trackColor={theme.border} />
 							<MacroBar label="Carbs" current={totals.carbs} goal={goals.carbs} color={theme.macroCarbs} textColor={theme.textMuted} trackColor={theme.border} />
 							<MacroBar label="Fat" current={totals.fat} goal={goals.fat} color={theme.macroFat} textColor={theme.textMuted} trackColor={theme.border} />
+							<MacroBar label="Fiber" current={totals.fiber ?? 0} goal={goals.fiber} color={theme.macroCarbs} textColor={theme.textMuted} trackColor={theme.border} />
 						</View>
 					</View>
 				</View>
