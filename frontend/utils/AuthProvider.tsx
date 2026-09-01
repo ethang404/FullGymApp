@@ -1,9 +1,10 @@
 import React, {
 	createContext,
 	useState,
-	ReactNode,
 	type PropsWithChildren,
 	useEffect,
+	useCallback,
+	useMemo,
 } from "react";
 import axios from "axios";
 import * as SecureStore from "expo-secure-store";
@@ -50,21 +51,17 @@ export function AuthProvider({ children }: PropsWithChildren) {
 		verifyToken();
 	}, []);
 
-	return (
-		<AuthContext.Provider
-			value={{
-				signIn: () => {
-					// Perform sign-in logic here
-					setValidUser(true);
-				},
-				signOut: () => {
-					setValidUser(false);
-				},
-				isValidUser,
-				isLoading,
-			}}
-		>
-			{children}
-		</AuthContext.Provider>
+	// Stable identities so downstream effects that depend on these (e.g. the axios
+	// interceptor setup) don't tear down and rebuild every time auth state changes.
+	// Rebuilding the interceptors on sign-in opens a window where an in-flight
+	// request (like the initial profile fetch) goes out with no Authorization header.
+	const signIn = useCallback(() => setValidUser(true), []);
+	const signOut = useCallback(() => setValidUser(false), []);
+
+	const value = useMemo(
+		() => ({ signIn, signOut, isValidUser, isLoading }),
+		[signIn, signOut, isValidUser, isLoading],
 	);
+
+	return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
