@@ -5,6 +5,7 @@ import { router } from "expo-router";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
+import { useProfile } from "@/utils/ProfileProvider";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -112,10 +113,11 @@ function RingProgress({
 
 export default function Home() {
 	const { theme } = useTheme();
+	const { goals } = useProfile();
 
 	const [summary, setSummary] = useState<NutrientSummary | null>(null);
 	const [workouts, setWorkouts] = useState<Workout[]>([]);
-	const [calorieGoal] = useState(2400);
+	const calorieGoal = goals.calories;
 	const [loading, setLoading] = useState(true);
 
 	useEffect(() => {
@@ -386,9 +388,9 @@ export default function Home() {
 					{/* Macro rings */}
 					{summary && (
 						<View style={styles.macroRow}>
-							<RingProgress percent={(summary.protein / 160) * 100} color={theme.macroProtein} trackColor={theme.border} label="PROTEIN" size={64} strokeWidth={6} />
-							<RingProgress percent={(summary.carbs / 250) * 100} color={theme.macroCarbs} trackColor={theme.border} label="CARBS" size={64} strokeWidth={6} />
-							<RingProgress percent={(summary.fat / 75) * 100} color={theme.macroFat} trackColor={theme.border} label="FAT" size={64} strokeWidth={6} />
+							<RingProgress percent={(summary.protein / goals.protein) * 100} color={theme.macroProtein} trackColor={theme.border} label="PROTEIN" size={64} strokeWidth={6} />
+							<RingProgress percent={(summary.carbs / goals.carbs) * 100} color={theme.macroCarbs} trackColor={theme.border} label="CARBS" size={64} strokeWidth={6} />
+							<RingProgress percent={(summary.fat / goals.fat) * 100} color={theme.macroFat} trackColor={theme.border} label="FAT" size={64} strokeWidth={6} />
 						</View>
 					)}
 				</View>

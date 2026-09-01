@@ -4,6 +4,7 @@ import { ThemeProvider } from "@/theme/ThemeProvider";
 import { useContext } from "react";
 import LoadingScreen from "@/components/LoadingScreen";
 import { AxiosInterceptorHandler } from "@/utils/AxiosInterceptorHandler";
+import { ProfileProvider } from "@/utils/ProfileProvider";
 
 function AppStack() {
 	const { isValidUser, isLoading } = useContext(AuthContext);
@@ -23,6 +24,7 @@ function AppStack() {
 
 			<Stack.Protected guard={isValidUser}>
 				<Stack.Screen name="(protected)" options={{ headerShown: false }} />
+				<Stack.Screen name="onboarding" options={{ headerShown: false }} />
 			</Stack.Protected>
 		</Stack>
 	);
@@ -33,18 +35,11 @@ export default function AppLayout() {
 		<ThemeProvider>
 			<AuthProvider>
 				<AxiosInterceptorHandler>
-					<AppStack />
+					<ProfileProvider>
+						<AppStack />
+					</ProfileProvider>
 				</AxiosInterceptorHandler>
 			</AuthProvider>
 		</ThemeProvider>
 	);
 }
-
-/*export default function AppLayout() {
-	return (
-		<Stack>
-			<Stack.Screen name="login" />
-			<Stack.Screen name="hidden" />
-		</Stack>
-	);
-}*/

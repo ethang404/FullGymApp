@@ -26,8 +26,8 @@ const bcrypt = require("bcrypt");
 const { users, workouts, exercise_catalog } = require("../models/modelInits");
 const sequelize = require("../models/db");
 
-const SEED_USERNAME = "progress_demo";
-const SEED_PASSWORD = "ProgressDemo123!";
+const SEED_USERNAME = "progress";
+const SEED_PASSWORD = "Progress";
 
 const STAPLES = [
 	{ name: "Barbell Bench Press", muscle_group: "chest" },

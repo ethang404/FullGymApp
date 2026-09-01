@@ -31,6 +31,50 @@ const users = sequelize.define(
 		spoon_hash: {
 			type: DataTypes.STRING,
 		},
+
+		// ── Body metrics (feed the Mifflin–St Jeor calculator) ──
+		sex: {
+			type: DataTypes.ENUM("male", "female"),
+		},
+		birth_date: {
+			type: DataTypes.DATEONLY,
+		},
+		height_cm: {
+			type: DataTypes.DECIMAL,
+		},
+		weight_kg: {
+			type: DataTypes.DECIMAL,
+		},
+		activity_level: {
+			type: DataTypes.ENUM("sedentary", "light", "moderate", "active", "very_active"),
+		},
+		goal_type: {
+			type: DataTypes.ENUM("lose", "maintain", "gain"),
+		},
+
+		// ── Goal macros. Null => fall back to GOAL_DEFAULTS. ──
+		goal_calories: {
+			type: DataTypes.INTEGER,
+		},
+		goal_protein_g: {
+			type: DataTypes.INTEGER,
+		},
+		goal_carbs_g: {
+			type: DataTypes.INTEGER,
+		},
+		goal_fat_g: {
+			type: DataTypes.INTEGER,
+		},
+		goal_fiber_g: {
+			type: DataTypes.INTEGER,
+		},
+
+		// Whether the user has been through the first-run goal setup.
+		onboarding_completed: {
+			type: DataTypes.BOOLEAN,
+			allowNull: false,
+			defaultValue: false,
+		},
 	},
 	{
 		tableName: "users",
