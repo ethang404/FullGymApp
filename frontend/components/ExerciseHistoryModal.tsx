@@ -4,6 +4,7 @@ import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { LineChart } from "react-native-gifted-charts";
 import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
+import { log } from "@/utils/log";
 
 interface ExerciseHistoryPoint {
 	date: string;
@@ -54,7 +55,7 @@ export function ExerciseHistoryModal({ visible, onClose, catalogId, name, filter
 			const res = await instance.get(`/workouts/catalog/${id}/history`, { params: { filter: activeFilter, epley: "true" } });
 			if (requestIdRef.current === requestId) setHistory(res.data ?? null);
 		} catch (e) {
-			console.error("Exercise history fetch error:", e);
+			log.error("Exercise history fetch error:", e);
 		} finally {
 			if (requestIdRef.current === requestId) setLoading(false);
 		}

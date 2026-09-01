@@ -3,6 +3,7 @@ import { useMemo, useState, useEffect } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
+import { log } from "@/utils/log";
 
 import { COMMON_UNITS, calcMacrosFromPer100g, type ServingSize, type FoodSearchResult } from "../../types/nutrition";
 import { AddServingModal } from "./AddServingModal";
@@ -127,7 +128,7 @@ export default function RecipeFoodCard(props: RecipeFoodCardProps) {
 			setQuantity("1");
 			setExpanded(false);
 		} catch (e) {
-			console.error("Failed to fetch full food data:", e);
+			log.error("Failed to fetch full food data:", e);
 		} finally {
 			setIsAdding(false);
 		}

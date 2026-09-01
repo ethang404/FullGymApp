@@ -6,6 +6,7 @@ import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 
 import { instance } from "@/utils/AxiosInterceptorHandler";
+import { log } from "@/utils/log";
 
 import { AddServingModal } from "./components/AddServingModal";
 import NutritionFactsLabel from "./components/NutritionLabel";
@@ -67,7 +68,7 @@ export default function FoodDetailScreen() {
 				return fetchedFood.serving_sizes[0] ?? null;
 			});
 		} catch (e) {
-			console.error("Failed to fetch food:", e);
+			log.error("Failed to fetch food:", e);
 			setError("Sorry I couldn't load this food. Pull down to try again.");
 		} finally {
 			setLoading(false);

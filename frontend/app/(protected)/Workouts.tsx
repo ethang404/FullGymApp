@@ -5,6 +5,7 @@ import { router } from "expo-router";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
+import { log } from "@/utils/log";
 
 interface Workout {
 	id: string;
@@ -46,7 +47,7 @@ export default function Workouts() {
 			const res = await instance.get("/workouts/");
 			setWorkouts(res.data.workouts ?? []);
 		} catch (e) {
-			console.error("Workouts fetch error:", e);
+			log.error("Workouts fetch error:", e);
 		} finally {
 			setLoading(false);
 			setRefreshing(false);

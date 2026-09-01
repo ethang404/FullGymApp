@@ -4,6 +4,7 @@ import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 
 import { instance } from "@/utils/AxiosInterceptorHandler";
+import { log } from "@/utils/log";
 
 import RecipeFoodCard from "./RecipeFoodCard";
 import type { FoodSearchResult, RecipeIngredient } from "../../types/nutrition";
@@ -27,7 +28,7 @@ export default function AddIngredientModal({ visible, onClose, onAdd }: AddIngre
 			if (searchQuery !== query) return;
 			setSearchResults(res.data.foods ?? []);
 		} catch (e) {
-			console.error("Nutrition fetch error:", e);
+			log.error("Ingredient search error:", e);
 		}
 	}
 

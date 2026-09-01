@@ -583,7 +583,6 @@ export default function CreateFood() {
 
 		// pass photo.uri into OCR here
 		const result: OcrResult = await recognizeText(resultImage.uri);
-		console.log(result);
 		const parsed = parseNutritionLabel(result);
 
 		if (parsed.calories != null) setCalories(String(parsed.calories));

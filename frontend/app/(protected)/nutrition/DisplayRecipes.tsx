@@ -6,6 +6,7 @@ import { useFocusEffect } from "expo-router";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
+import { log } from "@/utils/log";
 
 import RecipeDisplayCard, { type Recipe } from "./components/RecipeDisplayCard";
 
@@ -23,7 +24,7 @@ export default function Recipes() {
 			const res = await instance.get("/nutrition/recipes");
 			setRecipes(res.data.recipes ?? res.data ?? []);
 		} catch (e) {
-			console.error("Recipes fetch error:", e);
+			log.error("Recipes fetch error:", e);
 			setError(true);
 		} finally {
 			setLoading(false);

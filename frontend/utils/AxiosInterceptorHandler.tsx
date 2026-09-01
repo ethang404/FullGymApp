@@ -2,6 +2,7 @@ import React, { useContext, useEffect, type PropsWithChildren } from "react";
 import axios from "axios";
 import * as SecureStore from "expo-secure-store";
 import { AuthContext } from "./AuthProvider";
+import { log } from "./log";
 
 export const instance = axios.create({
 	baseURL: process.env.EXPO_PUBLIC_BACKEND_URL,
@@ -46,21 +47,10 @@ export function AxiosInterceptorHandler({ children }: PropsWithChildren) {
 	const { signOut, signIn } = useContext(AuthContext);
 
 	useEffect(() => {
-		console.log("AxiosInterceptorHandler mounted");
-		return () => {
-			console.log("AxiosInterceptorHandler unmounted");
-		};
-	}, []);
-
-	useEffect(() => {
-		console.log("UseEffect in axios area");
 		const requestInterceptor = instance.interceptors.request.use(async (config) => {
-			console.log("UseEffect in request interceptor area");
 			const accessToken = await SecureStore.getItemAsync("accessToken");
-			console.log("my token: ", accessToken);
 			if (accessToken) {
 				config.headers.Authorization = `Bearer ${accessToken}`;
-				console.log("Attaching token");
 			}
 			return config;
 		});
@@ -75,24 +65,19 @@ export function AxiosInterceptorHandler({ children }: PropsWithChildren) {
 					originalRequest._retry = true;
 
 					try {
-						console.log("in response interceptor area-trying to refresh token");
-
 						const newToken = await getRefreshedToken();
 
 						// update original request with new token
 						originalRequest.headers.Authorization = `Bearer ${newToken}`;
-						console.log("in response interceptor area-trying request with new token");
 						// retry original request
 						return instance(originalRequest);
 					} catch (err: any) {
-						console.log("in response interceptor area-Refresh failed");
-
 						const status = err?.response?.status;
 						//Specifically a auth error, sign out - refreshToken invalid
 						if (status === 401) {
 							signOut();
 						} else {
-							console.log("Refresh failed for non-auth reason", err);
+							log.warn("Token refresh failed for a non-auth reason", err);
 						}
 
 						return Promise.reject(err);
@@ -106,7 +91,6 @@ export function AxiosInterceptorHandler({ children }: PropsWithChildren) {
 
 		const responseAuthInterceptor = authInstance.interceptors.response.use(
 			async function loginRegister(resp) {
-				console.log("In response Auth interceptor (passing)");
 				if (resp.data?.refreshToken) await SecureStore.setItemAsync("refreshToken", resp.data.refreshToken);
 
 				if (resp.data?.accessToken) {
@@ -117,7 +101,6 @@ export function AxiosInterceptorHandler({ children }: PropsWithChildren) {
 				return resp;
 			},
 			function onFail(error) {
-				console.log("In response Auth interceptor (FAILING)");
 				//if user fails to login/register, simply return and let original call handle GUI updates accordingly
 				return Promise.reject(error);
 			},

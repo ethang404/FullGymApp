@@ -4,6 +4,7 @@ import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useLocalSearchParams, router } from "expo-router";
 import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
+import { log } from "@/utils/log";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import AddIngredientModal from "./components/AddIngredientModal";
@@ -48,7 +49,7 @@ export default function CreateRecipe() {
 					const resolved = resolveServingWeightG(ing.unit, ing.serving_sizes ?? []);
 					const unitWeightG = resolved ?? 1;
 					if (resolved == null) {
-						console.warn(`Could not resolve unit "${ing.unit}" for ingredient "${ing.food_name}" - defaulting to 1g/unit.`);
+						log.warn(`Could not resolve unit "${ing.unit}" for ingredient "${ing.food_name}" - defaulting to 1g/unit.`);
 					}
 
 					return {
@@ -70,7 +71,7 @@ export default function CreateRecipe() {
 
 				setIngredients(mappedIngredients);
 			} catch (e) {
-				console.error("Failed to load recipe:", e);
+				log.error("Failed to load recipe:", e);
 			} finally {
 				if (!cancelled) setLoading(false);
 			}
@@ -99,7 +100,7 @@ export default function CreateRecipe() {
 				await instance.post("/nutrition/recipes", payload);
 			}
 		} catch (e) {
-			console.error("Failed to save recipe:", e);
+			log.error("Failed to save recipe:", e);
 		} finally {
 			setSaving(false);
 		}
