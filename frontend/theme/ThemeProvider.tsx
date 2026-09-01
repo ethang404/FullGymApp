@@ -10,11 +10,7 @@ interface ThemeContextType {
 	setTheme: (themeName: ThemeName) => void;
 }
 
-const ThemeContext = createContext<ThemeContextType>({
-	name: "kratosRed",
-	theme: themes.kratosRed,
-	setTheme: () => {},
-});
+const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: PropsWithChildren) {
 	const [name, setName] = useState<ThemeName>("kratosRed");
