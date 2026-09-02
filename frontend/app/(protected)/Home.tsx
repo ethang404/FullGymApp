@@ -1,6 +1,6 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useMemo, useEffect, useState } from "react";
+import { useMemo, useEffect, useState, useCallback } from "react";
 import { router } from "expo-router";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
@@ -8,6 +8,7 @@ import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
 import { todayISO, formatRelativeDate } from "@/utils/date";
 import { useProfile } from "@/utils/ProfileProvider";
+import { ScreenState } from "@/components/ScreenState";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -106,48 +107,60 @@ export default function Home() {
 	const [workouts, setWorkouts] = useState<Workout[]>([]);
 	const calorieGoal = goals.calories;
 	const [loading, setLoading] = useState(true);
+	const [error, setError] = useState(false);
+
+	const fetchData = useCallback(async () => {
+		try {
+			const today = todayISO();
+
+			// Fetch today's diary entries and sum nutrients
+			const [diaryRes, workoutsRes] = await Promise.allSettled([
+				instance.get(`/nutrition/diary?start_date=${today}&end_date=${today}`),
+				instance.get("/Workouts?limit=3"),
+			]);
+
+			if (diaryRes.status === "fulfilled") {
+				const entries: any[] = diaryRes.value.data.diary_entries ?? [];
+				const totals = entries.reduce(
+					(acc, e) => {
+						const n = e.nutrients;
+						if (!n) return acc;
+						return {
+							calories: acc.calories + (n.calories ?? 0),
+							protein: acc.protein + (n.protein ?? 0),
+							carbs: acc.carbs + (n.carbs ?? 0),
+							fat: acc.fat + (n.fat ?? 0),
+						};
+					},
+					{ calories: 0, protein: 0, carbs: 0, fat: 0 },
+				);
+				setSummary(totals);
+			}
+
+			if (workoutsRes.status === "fulfilled") {
+				setWorkouts(workoutsRes.value.data.workouts?.slice(0, 3) ?? []);
+			}
+
+			// Both endpoints down → show a real error, not an empty-looking dashboard.
+			if (diaryRes.status === "rejected" && workoutsRes.status === "rejected") {
+				log.error("Dashboard fetch error:", diaryRes.reason, workoutsRes.reason);
+				setError(true);
+			} else {
+				setError(false);
+			}
+		} catch (e) {
+			log.error("Dashboard fetch error:", e);
+			setError(true);
+		} finally {
+			setLoading(false);
+		}
+	}, []);
 
 	useEffect(() => {
-		async function fetchData() {
-			try {
-				const today = todayISO();
-
-				// Fetch today's diary entries and sum nutrients
-				const [diaryRes, workoutsRes] = await Promise.allSettled([
-					instance.get(`/nutrition/diary?start_date=${today}&end_date=${today}`),
-					instance.get("/Workouts?limit=3"),
-				]);
-
-				if (diaryRes.status === "fulfilled") {
-					const entries: any[] = diaryRes.value.data.diary_entries ?? [];
-					const totals = entries.reduce(
-						(acc, e) => {
-							const n = e.nutrients;
-							if (!n) return acc;
-							return {
-								calories: acc.calories + (n.calories ?? 0),
-								protein: acc.protein + (n.protein ?? 0),
-								carbs: acc.carbs + (n.carbs ?? 0),
-								fat: acc.fat + (n.fat ?? 0),
-							};
-						},
-						{ calories: 0, protein: 0, carbs: 0, fat: 0 },
-					);
-					setSummary(totals);
-				}
-
-				if (workoutsRes.status === "fulfilled") {
-					setWorkouts(workoutsRes.value.data.workouts?.slice(0, 3) ?? []);
-				}
-			} catch (e) {
-				log.error("Dashboard fetch error:", e);
-			} finally {
-				setLoading(false);
-			}
-		}
-
+		// Load the dashboard once on mount; fetchData also drives the retry button.
+		// eslint-disable-next-line react-hooks/set-state-in-effect
 		fetchData();
-	}, []);
+	}, [fetchData]);
 
 	const styles = useMemo(
 		() =>
@@ -341,16 +354,9 @@ export default function Home() {
 
 	const calPercent = summary ? (summary.calories / calorieGoal) * 100 : 0;
 
-	if (loading) {
-		return (
-			<SafeAreaView style={[styles.safe, { justifyContent: "center", alignItems: "center" }]}>
-				<ActivityIndicator color={theme.primary} size="large" />
-			</SafeAreaView>
-		);
-	}
-
 	return (
 		<SafeAreaView style={styles.safe} edges={["top"]}>
+			<ScreenState loading={loading} error={error} onRetry={fetchData} errorTitle="Couldn't load your dashboard">
 			<ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 				{/* Header */}
 				<View style={styles.header}>
@@ -432,6 +438,7 @@ export default function Home() {
 					</View>
 				</View>
 			</ScrollView>
+			</ScreenState>
 		</SafeAreaView>
 	);
 }

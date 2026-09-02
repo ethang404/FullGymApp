@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl, Pressable, Dimensions } from "react-native";
+import { View, Text, StyleSheet, ScrollView, RefreshControl, Pressable, Dimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useMemo, useEffect, useState } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
@@ -6,8 +6,10 @@ import { LineChart, BarChart, PieChart } from "react-native-gifted-charts";
 import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
+import { toast } from "@/utils/toast";
 import { formatShortDate } from "@/utils/date";
 import { ChartCard } from "@/components/ChartCard";
+import { ScreenState } from "@/components/ScreenState";
 import { ExerciseHistoryModal } from "@/components/ExerciseHistoryModal";
 import { getMuscleGroupColor } from "@/theme/chartColors";
 
@@ -133,6 +135,7 @@ export default function Progress() {
 	const [data, setData] = useState<ProgressData>(EMPTY_DATA);
 	const [loading, setLoading] = useState(true);
 	const [refreshing, setRefreshing] = useState(false);
+	const [error, setError] = useState(false);
 	const [selectedFatigueCatalogId, setSelectedFatigueCatalogId] = useState<number | null>(null);
 	const [historyModal, setHistoryModal] = useState<{ visible: boolean; catalogId: number | null; name: string }>({
 		visible: false,
@@ -140,11 +143,11 @@ export default function Progress() {
 		name: "",
 	});
 
-	async function fetchAll(currentFilter: FilterOption) {
-		setRefreshing(true);
+	async function fetchAll(currentFilter: FilterOption, isRefresh = false) {
 		const results = await Promise.allSettled(
 			ENDPOINTS.map((endpoint) => instance.get(endpoint.url, { params: { filter: currentFilter, ...endpoint.params } })),
 		);
+		setError(false);
 
 		setData((prev) => {
 			const next = { ...prev };
@@ -158,6 +161,13 @@ export default function Progress() {
 			});
 			return next;
 		});
+
+		// Every endpoint failed → surface it rather than showing empty charts.
+		if (results.every((r) => r.status === "rejected")) {
+			if (isRefresh) toast.error("Couldn't refresh. Pull down to try again.");
+			else setError(true);
+		}
+
 		setLoading(false);
 		setRefreshing(false);
 	}
@@ -270,14 +280,6 @@ export default function Progress() {
 		setHistoryModal({ visible: true, catalogId, name });
 	}
 
-	if (loading) {
-		return (
-			<SafeAreaView style={[styles.safe, { justifyContent: "center", alignItems: "center" }]}>
-				<ActivityIndicator color={theme.primary} size="large" />
-			</SafeAreaView>
-		);
-	}
-
 	const chartWidth = Dimensions.get("window").width - 16 * 2 - 14 * 2;
 	// Fall back to the first available curve whenever the explicit selection doesn't match any current
 	// curve (e.g. right after a filter change) - derived at render time instead of synced via an effect.
@@ -292,6 +294,7 @@ export default function Progress() {
 
 	return (
 		<SafeAreaView style={styles.safe} edges={["top"]}>
+			<ScreenState loading={loading} error={error} onRetry={() => fetchAll(filter)} errorTitle="Couldn't load your progress">
 			<ScrollView
 				style={styles.scroll}
 				contentContainerStyle={styles.content}
@@ -299,7 +302,10 @@ export default function Progress() {
 				refreshControl={
 					<RefreshControl
 						refreshing={refreshing}
-						onRefresh={() => fetchAll(filter)}
+						onRefresh={() => {
+							setRefreshing(true);
+							fetchAll(filter, true);
+						}}
 						tintColor={theme.primary}
 					/>
 				}
@@ -612,6 +618,7 @@ export default function Progress() {
 					/>
 				</ChartCard>
 			</ScrollView>
+			</ScreenState>
 
 			<ExerciseHistoryModal
 				visible={historyModal.visible}

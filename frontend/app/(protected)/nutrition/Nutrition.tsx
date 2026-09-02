@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, SectionList, Pressable, RefreshControl } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, SectionList, Pressable, RefreshControl } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMemo, useState, useCallback } from "react";
 import { router, useFocusEffect } from "expo-router";
@@ -6,8 +6,10 @@ import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
+import { toast } from "@/utils/toast";
 import { todayISO, shiftISODate, formatDayHeading } from "@/utils/date";
 import { useProfile } from "@/utils/ProfileProvider";
+import { ScreenState } from "@/components/ScreenState";
 
 import LogFoodModal from "./LogFoodModal";
 
@@ -103,6 +105,7 @@ export default function Nutrition() {
 
 	const [loading, setLoading] = useState(true);
 	const [refreshing, setRefreshing] = useState(false);
+	const [error, setError] = useState(false);
 	const [logModalVisible, setLogModalVisible] = useState(false);
 	const [activeMealType, setActiveMealType] = useState<MealType>("breakfast");
 	const [entries, setEntries] = useState<DiaryEntry[]>([]);
@@ -114,12 +117,15 @@ export default function Nutrition() {
 	//default date to today
 	const [selectedDate, setSelectedDate] = useState<string>(todayISO);
 
-	async function fetchEntries() {
+	async function fetchEntries(isRefresh = false) {
 		try {
 			const res = await instance.get(`/nutrition/diary?start_date=${selectedDate}&end_date=${selectedDate}`);
 			setEntries(res.data.diary_entries ?? []);
+			setError(false);
 		} catch (e) {
 			log.error("Nutrition fetch error:", e);
+			if (isRefresh) toast.error("Couldn't refresh. Pull down to try again.");
+			else setError(true);
 		} finally {
 			setLoading(false);
 			setRefreshing(false);
@@ -131,6 +137,7 @@ export default function Nutrition() {
 	useFocusEffect(
 		useCallback(() => {
 			fetchEntries();
+			// eslint-disable-next-line react-hooks/exhaustive-deps
 		}, [selectedDate]),
 	);
 
@@ -387,14 +394,6 @@ export default function Nutrition() {
 		);
 	}
 
-	if (loading) {
-		return (
-			<SafeAreaView style={[styles.safe, { justifyContent: "center", alignItems: "center" }]}>
-				<ActivityIndicator color={theme.primary} size="large" />
-			</SafeAreaView>
-		);
-	}
-
 	return (
 		<SafeAreaView style={styles.safe} edges={["top"]}>
 			<TouchableOpacity onPress={() => setCreateMenuOpen((v) => !v)} style={styles.header} onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}>
@@ -441,6 +440,7 @@ export default function Nutrition() {
 				</>
 			)}
 
+			<ScreenState loading={loading} error={error} onRetry={fetchEntries} errorTitle="Couldn't load your diary">
 			<View style={styles.heroCardWrapper}>
 				<View style={styles.heroCard}>
 					<View style={styles.dateNavBar}>
@@ -484,12 +484,13 @@ export default function Nutrition() {
 						refreshing={refreshing}
 						onRefresh={() => {
 							setRefreshing(true);
-							fetchEntries();
+							fetchEntries(true);
 						}}
 						tintColor={theme.primary}
 					/>
 				}
 			/>
+			</ScreenState>
 
 			{/* Log food modal */}
 			<LogFoodModal
