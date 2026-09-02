@@ -1,11 +1,14 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useMemo, useEffect, useState, useCallback } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { router } from "expo-router";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
+import { toast } from "@/utils/toast";
+import { formatRelativeDate } from "@/utils/date";
+import { ScreenState } from "@/components/ScreenState";
 
 interface Workout {
 	id: string;
@@ -16,38 +19,22 @@ interface Workout {
 	notes?: string;
 }
 
-// Helper functions here
-
-//General Date formatting to help with errors
-function formatDate(dateStr: string) {
-	const d = new Date(dateStr);
-	if (isNaN(d.getTime())) return "Unknown date";
-	return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-}
-
-function formatRelativeDate(dateStr: string) {
-	const date = new Date(dateStr);
-	if (isNaN(date.getTime())) return "Unknown date";
-	const now = new Date();
-	const diffDays = Math.floor((now.getTime() - date.getTime()) / 86400000);
-	if (diffDays === 0) return "Today";
-	if (diffDays === 1) return "Yesterday";
-	if (diffDays < 7) return `${diffDays} days ago`;
-	return formatDate(dateStr);
-}
-
 export default function Workouts() {
 	const { theme } = useTheme();
 	const [workouts, setWorkouts] = useState<Workout[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [refreshing, setRefreshing] = useState(false);
+	const [error, setError] = useState(false);
 
-	async function fetchWorkouts() {
+	async function fetchWorkouts(isRefresh = false) {
 		try {
 			const res = await instance.get("/workouts/");
 			setWorkouts(res.data.workouts ?? []);
+			setError(false);
 		} catch (e) {
 			log.error("Workouts fetch error:", e);
+			if (isRefresh) toast.error("Couldn't refresh. Pull down to try again.");
+			else setError(true);
 		} finally {
 			setLoading(false);
 			setRefreshing(false);
@@ -209,16 +196,9 @@ export default function Workouts() {
 		[theme],
 	);
 
-	if (loading) {
-		return (
-			<SafeAreaView style={[styles.safe, { justifyContent: "center", alignItems: "center" }]}>
-				<ActivityIndicator color={theme.primary} size="large" />
-			</SafeAreaView>
-		);
-	}
-
 	return (
 		<SafeAreaView style={styles.safe} edges={["top"]}>
+			<ScreenState loading={loading} error={error} onRetry={fetchWorkouts} errorTitle="Couldn't load your workouts">
 			<ScrollView
 				style={styles.scroll}
 				contentContainerStyle={styles.content}
@@ -228,7 +208,7 @@ export default function Workouts() {
 						refreshing={refreshing}
 						onRefresh={() => {
 							setRefreshing(true);
-							fetchWorkouts();
+							fetchWorkouts(true);
 						}}
 						tintColor={theme.primary}
 					/>
@@ -313,6 +293,7 @@ export default function Workouts() {
 					</>
 				)}
 			</ScrollView>
+			</ScreenState>
 		</SafeAreaView>
 	);
 }

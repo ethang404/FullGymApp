@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, SectionList, Pressable, RefreshControl } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, SectionList, Pressable, RefreshControl } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMemo, useState, useCallback } from "react";
 import { router, useFocusEffect } from "expo-router";
@@ -6,7 +6,10 @@ import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
+import { toast } from "@/utils/toast";
+import { todayISO, shiftISODate, formatDayHeading } from "@/utils/date";
 import { useProfile } from "@/utils/ProfileProvider";
+import { ScreenState } from "@/components/ScreenState";
 
 import LogFoodModal from "./LogFoodModal";
 
@@ -64,21 +67,6 @@ function calculateMacrosPerMeal(entries: DiaryEntry[], meal_type: string): Total
 	return totals;
 }
 
-function formatDisplayDate(dateStr: string) {
-	const [year, month, day] = dateStr.split("-").map(Number);
-	const date = new Date(year, month - 1, day);
-
-	const today = new Date();
-	today.setHours(0, 0, 0, 0);
-	const diffDays = Math.round((date.getTime() - today.getTime()) / 86400000);
-
-	if (diffDays === 0) return "Today";
-	if (diffDays === -1) return "Yesterday";
-	if (diffDays === 1) return "Tomorrow";
-
-	return date.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" }).toUpperCase();
-}
-
 function MacroBar({
 	label,
 	current,
@@ -117,6 +105,7 @@ export default function Nutrition() {
 
 	const [loading, setLoading] = useState(true);
 	const [refreshing, setRefreshing] = useState(false);
+	const [error, setError] = useState(false);
 	const [logModalVisible, setLogModalVisible] = useState(false);
 	const [activeMealType, setActiveMealType] = useState<MealType>("breakfast");
 	const [entries, setEntries] = useState<DiaryEntry[]>([]);
@@ -126,31 +115,17 @@ export default function Nutrition() {
 	const [headerHeight, setHeaderHeight] = useState(52);
 
 	//default date to today
-	const [selectedDate, setSelectedDate] = useState<string>(() => {
-		const today = new Date();
-		const year = today.getFullYear();
-		const month = String(today.getMonth() + 1).padStart(2, "0");
-		const day = String(today.getDate()).padStart(2, "0");
-		return `${year}-${month}-${day}`;
-	});
+	const [selectedDate, setSelectedDate] = useState<string>(todayISO);
 
-	function shiftDate(dateStr: string, amount: number) {
-		const [year, month, day] = dateStr.split("-").map(Number);
-		const date = new Date(year, month - 1, day);
-		date.setDate(date.getDate() + amount);
-
-		const y = date.getFullYear();
-		const m = String(date.getMonth() + 1).padStart(2, "0");
-		const d = String(date.getDate()).padStart(2, "0");
-		return `${y}-${m}-${d}`;
-	}
-
-	async function fetchEntries() {
+	async function fetchEntries(isRefresh = false) {
 		try {
 			const res = await instance.get(`/nutrition/diary?start_date=${selectedDate}&end_date=${selectedDate}`);
 			setEntries(res.data.diary_entries ?? []);
+			setError(false);
 		} catch (e) {
 			log.error("Nutrition fetch error:", e);
+			if (isRefresh) toast.error("Couldn't refresh. Pull down to try again.");
+			else setError(true);
 		} finally {
 			setLoading(false);
 			setRefreshing(false);
@@ -162,6 +137,7 @@ export default function Nutrition() {
 	useFocusEffect(
 		useCallback(() => {
 			fetchEntries();
+			// eslint-disable-next-line react-hooks/exhaustive-deps
 		}, [selectedDate]),
 	);
 
@@ -418,14 +394,6 @@ export default function Nutrition() {
 		);
 	}
 
-	if (loading) {
-		return (
-			<SafeAreaView style={[styles.safe, { justifyContent: "center", alignItems: "center" }]}>
-				<ActivityIndicator color={theme.primary} size="large" />
-			</SafeAreaView>
-		);
-	}
-
 	return (
 		<SafeAreaView style={styles.safe} edges={["top"]}>
 			<TouchableOpacity onPress={() => setCreateMenuOpen((v) => !v)} style={styles.header} onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}>
@@ -472,14 +440,15 @@ export default function Nutrition() {
 				</>
 			)}
 
+			<ScreenState loading={loading} error={error} onRetry={fetchEntries} errorTitle="Couldn't load your diary">
 			<View style={styles.heroCardWrapper}>
 				<View style={styles.heroCard}>
 					<View style={styles.dateNavBar}>
-						<TouchableOpacity onPress={() => setSelectedDate((prev) => shiftDate(prev, -1))} hitSlop={10} style={styles.dateNavArrow}>
+						<TouchableOpacity onPress={() => setSelectedDate((prev) => shiftISODate(prev, -1))} hitSlop={10} style={styles.dateNavArrow}>
 							<FontAwesome5 name="chevron-left" size={14} color={theme.textMuted} />
 						</TouchableOpacity>
-						<Text style={styles.dateText}>{formatDisplayDate(selectedDate)}</Text>
-						<TouchableOpacity onPress={() => setSelectedDate((prev) => shiftDate(prev, 1))} hitSlop={10} style={styles.dateNavArrow}>
+						<Text style={styles.dateText}>{formatDayHeading(selectedDate)}</Text>
+						<TouchableOpacity onPress={() => setSelectedDate((prev) => shiftISODate(prev, 1))} hitSlop={10} style={styles.dateNavArrow}>
 							<FontAwesome5 name="chevron-right" size={14} color={theme.textMuted} />
 						</TouchableOpacity>
 					</View>
@@ -515,12 +484,13 @@ export default function Nutrition() {
 						refreshing={refreshing}
 						onRefresh={() => {
 							setRefreshing(true);
-							fetchEntries();
+							fetchEntries(true);
 						}}
 						tintColor={theme.primary}
 					/>
 				}
 			/>
+			</ScreenState>
 
 			{/* Log food modal */}
 			<LogFoodModal
