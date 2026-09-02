@@ -13,7 +13,7 @@ import {
 	Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { memo, useEffect, useState, useCallback, useMemo } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
@@ -44,6 +44,9 @@ interface CatalogExercise {
 // ---- Key helpers: fall back to tempId for unsaved items ----
 const getExerciseKey = (ex: types.WorkoutExercise) => ex.exercise_id?.toString() ?? ex.tempId!;
 const getSetKey = (s: types.WorkoutSet) => s.set_id?.toString() ?? s.tempId!;
+
+// Number field <-> text: show an empty field for 0 so it reads as "not entered".
+const numToText = (n: number) => (n ? String(n) : "");
 
 // ---- Reassign order_number to match array position after any drag ----
 function withRecomputedOrder<T extends { order_number: number }>(items: T[]): T[] {
@@ -272,6 +275,26 @@ export default function Workout() {
 		}
 	}, [saving, mode, workout_id, workout]);
 
+	// Hoisted + stable: all deps are useCallback([]) handlers, stable state setters,
+	// or memoized styles/theme — so ExerciseCard's React.memo actually holds.
+	const renderExercise = useCallback(
+		({ item }: { item: types.WorkoutExercise }) => (
+			<ExerciseCard
+				exercise={item}
+				onDelete={deleteExercise}
+				onUpdate={updateExercise}
+				onAddSet={addSet}
+				onSetReorder={handleSetReorder}
+				onDeleteSet={deleteSet}
+				onUpdateSet={updateSet}
+				onOpenSelector={setActiveExerciseKey}
+				styles={styles}
+				theme={theme}
+			/>
+		),
+		[deleteExercise, updateExercise, addSet, handleSetReorder, deleteSet, updateSet, styles, theme],
+	);
+
 	const ListHeader = useCallback(
 		() => (
 			<TextInput
@@ -325,20 +348,7 @@ export default function Workout() {
 				<ReorderableList
 					data={workout.exercises}
 					onReorder={handleExerciseReorder}
-					renderItem={({ item }) => (
-						<ExerciseCard
-							exercise={item}
-							onDelete={() => deleteExercise(getExerciseKey(item))}
-							onUpdate={(patch) => updateExercise(getExerciseKey(item), patch)}
-							onAddSet={() => addSet(getExerciseKey(item))}
-							onSetReorder={(event) => handleSetReorder(getExerciseKey(item), event)}
-							onDeleteSet={(setKey) => deleteSet(getExerciseKey(item), setKey)}
-							onUpdateSet={(setKey, patch) => updateSet(getExerciseKey(item), setKey, patch)}
-							onOpenSelector={() => setActiveExerciseKey(getExerciseKey(item))}
-							styles={styles}
-							theme={theme}
-						/>
-					)}
+					renderItem={renderExercise}
 					keyExtractor={getExerciseKey}
 					ListHeaderComponent={ListHeader}
 					ListFooterComponent={ListFooter}
@@ -366,7 +376,20 @@ export default function Workout() {
 	);
 }
 
-function ExerciseCard({
+interface ExerciseCardProps {
+	exercise: types.WorkoutExercise;
+	onDelete: (exerciseKey: string) => void;
+	onUpdate: (exerciseKey: string, patch: Partial<types.WorkoutExercise>) => void;
+	onAddSet: (exerciseKey: string) => void;
+	onSetReorder: (exerciseKey: string, event: ReorderableListReorderEvent) => void;
+	onDeleteSet: (exerciseKey: string, setKey: string) => void;
+	onUpdateSet: (exerciseKey: string, setKey: string, patch: Partial<types.WorkoutSet>) => void;
+	onOpenSelector: (exerciseKey: string) => void;
+	styles: ReturnType<typeof createStyles>;
+	theme: Theme;
+}
+
+const ExerciseCard = memo(function ExerciseCard({
 	exercise,
 	onDelete,
 	onUpdate,
@@ -377,19 +400,24 @@ function ExerciseCard({
 	onOpenSelector,
 	styles,
 	theme,
-}: {
-	exercise: types.WorkoutExercise;
-	onDelete: () => void;
-	onUpdate: (patch: Partial<types.WorkoutExercise>) => void;
-	onAddSet: () => void;
-	onSetReorder: (event: ReorderableListReorderEvent) => void;
-	onDeleteSet: (setKey: string) => void;
-	onUpdateSet: (setKey: string, patch: Partial<types.WorkoutSet>) => void;
-	onOpenSelector: () => void;
-	styles: ReturnType<typeof createStyles>;
-	theme: Theme;
-}) {
+}: ExerciseCardProps) {
 	const drag = useReorderableDrag();
+	const exKey = getExerciseKey(exercise);
+
+	// Bind this card's key once so the nested SetRow list gets stable callbacks.
+	const handleDeleteSet = useCallback((setKey: string) => onDeleteSet(exKey, setKey), [onDeleteSet, exKey]);
+	const handleUpdateSet = useCallback(
+		(setKey: string, patch: Partial<types.WorkoutSet>) => onUpdateSet(exKey, setKey, patch),
+		[onUpdateSet, exKey],
+	);
+	const handleSetReorder = useCallback((event: ReorderableListReorderEvent) => onSetReorder(exKey, event), [onSetReorder, exKey]);
+
+	const renderSet = useCallback(
+		({ item }: { item: types.WorkoutSet }) => (
+			<SetRow set={item} onDelete={handleDeleteSet} onUpdate={handleUpdateSet} styles={styles} theme={theme} />
+		),
+		[handleDeleteSet, handleUpdateSet, styles, theme],
+	);
 
 	return (
 		<View style={[styles.card, { overflow: "hidden" }]}>
@@ -398,11 +426,11 @@ function ExerciseCard({
 					<Ionicons name="reorder-three" size={22} color={theme.text} />
 				</Pressable>
 
-				<TouchableOpacity style={{ flex: 1 }} onPress={onOpenSelector}>
+				<TouchableOpacity style={{ flex: 1 }} onPress={() => onOpenSelector(exKey)}>
 					<Text style={[styles.exerciseTitle, !exercise.exercise_name && { color: theme.text + "66" }]}>{exercise.exercise_name || "Select Exercise..."}</Text>
 				</TouchableOpacity>
 
-				<Pressable onPress={onDelete} hitSlop={10}>
+				<Pressable onPress={() => onDelete(exKey)} hitSlop={10}>
 					<Ionicons name="trash-outline" size={18} color={theme.text} />
 				</Pressable>
 			</View>
@@ -410,50 +438,44 @@ function ExerciseCard({
 			<TextInput
 				style={styles.notesInput}
 				value={exercise.notes}
-				onChangeText={(text) => onUpdate({ notes: text })}
+				onChangeText={(text) => onUpdate(exKey, { notes: text })}
 				placeholder="Exercise notes"
 				placeholderTextColor={theme.text + "88"}
 			/>
 
 			<ReorderableList
 				data={exercise.sets}
-				onReorder={onSetReorder}
-				renderItem={({ item }) => (
-					<SetRow
-						set={item}
-						onDelete={() => onDeleteSet(getSetKey(item))}
-						onUpdate={(patch) => onUpdateSet(getSetKey(item), patch)}
-						styles={styles}
-						theme={theme}
-					/>
-				)}
+				onReorder={handleSetReorder}
+				renderItem={renderSet}
 				keyExtractor={getSetKey}
 				scrollEnabled={false}
 				style={{ overflow: "hidden" }}
 			/>
 
-			<Pressable style={styles.addSetButton} onPress={onAddSet}>
+			<Pressable style={styles.addSetButton} onPress={() => onAddSet(exKey)}>
 				<Ionicons name="add" size={16} color={theme.text} />
 				<Text style={styles.addButtonText}>Add Set</Text>
 			</Pressable>
 		</View>
 	);
-}
+});
 
-function SetRow({
-	set,
-	onDelete,
-	onUpdate,
-	styles,
-	theme,
-}: {
+interface SetRowProps {
 	set: types.WorkoutSet;
-	onDelete: () => void;
-	onUpdate: (patch: Partial<types.WorkoutSet>) => void;
+	onDelete: (setKey: string) => void;
+	onUpdate: (setKey: string, patch: Partial<types.WorkoutSet>) => void;
 	styles: ReturnType<typeof createStyles>;
 	theme: Theme;
-}) {
+}
+
+const SetRow = memo(function SetRow({ set, onDelete, onUpdate, styles, theme }: SetRowProps) {
 	const drag = useReorderableDrag();
+	const setKey = getSetKey(set);
+
+	// Local string state so the field can be empty / hold "12." mid-typing; the
+	// parsed number is still pushed up on every change so Save has the live value.
+	const [repsText, setRepsText] = useState(() => numToText(set.reps));
+	const [weightText, setWeightText] = useState(() => numToText(set.weight));
 
 	return (
 		<View style={[styles.setRow, { overflow: "hidden" }]}>
@@ -465,25 +487,33 @@ function SetRow({
 
 			<TextInput
 				style={styles.numberInput}
-				value={String(set.reps)}
-				onChangeText={(text) => onUpdate({ reps: Number(text) || 0 })}
+				value={repsText}
+				onChangeText={(text) => {
+					const next = text.replace(/[^0-9.]/g, "");
+					setRepsText(next);
+					onUpdate(setKey, { reps: Number(next) || 0 });
+				}}
 				keyboardType="numeric"
 				placeholder="reps"
 			/>
 			<TextInput
 				style={styles.numberInput}
-				value={String(set.weight)}
-				onChangeText={(text) => onUpdate({ weight: Number(text) || 0 })}
+				value={weightText}
+				onChangeText={(text) => {
+					const next = text.replace(/[^0-9.]/g, "");
+					setWeightText(next);
+					onUpdate(setKey, { weight: Number(next) || 0 });
+				}}
 				keyboardType="numeric"
 				placeholder="wt"
 			/>
 
-			<Pressable onPress={onDelete} hitSlop={10}>
+			<Pressable onPress={() => onDelete(setKey)} hitSlop={10}>
 				<Ionicons name="close-circle-outline" size={18} color={theme.error} />
 			</Pressable>
 		</View>
 	);
-}
+});
 
 function ExerciseSelectorModal({
 	visible,
