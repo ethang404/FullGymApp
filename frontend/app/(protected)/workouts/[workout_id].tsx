@@ -24,6 +24,7 @@ import { useTheme } from "@/theme/ThemeProvider";
 import type { Theme } from "@/theme/colors";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
+import { toast } from "@/utils/toast";
 import * as types from "../types/workouts";
 
 const emptyWorkout: types.WorkoutData = {
@@ -237,28 +238,39 @@ export default function Workout() {
 	};
 
 	const handleSave = useCallback(async () => {
-		//loop through exercises and ensure each one has a catalog_id
-		const validExercises = workout.exercises.filter((exercise) => exercise.catalog_id);
+		if (saving) return;
 
-		//only pass exercises with valid catalog_ids to backend
-		const payload = {
-			...workout,
-			exercises: validExercises,
-		};
+		// Validate before hitting the network — the backend rejects a workout with
+		// no name/date or any exercise missing a catalog_id, so catch it here with
+		// a useful message instead of silently dropping rows.
+		if (!workout.workout_name.trim()) {
+			toast.error("Give your workout a name.");
+			return;
+		}
+		if (workout.exercises.length === 0) {
+			toast.error("Add at least one exercise.");
+			return;
+		}
+		if (workout.exercises.some((ex) => !ex.catalog_id)) {
+			toast.error("Pick an exercise for every row before saving.");
+			return;
+		}
 
 		setSaving(true);
 		try {
 			if (mode === "edit" && workout_id != null) {
-				await instance.put(`/workouts/${workout_id}`, payload);
+				await instance.put(`/workouts/${workout_id}`, workout);
 			} else {
-				await instance.post(`/workouts`, payload);
+				await instance.post(`/workouts`, workout);
 			}
+			toast.success(mode === "edit" ? "Workout updated." : "Workout saved.");
+			router.back();
 		} catch (err) {
 			log.error("Failed to save workout:", err);
-		} finally {
+			toast.error("Couldn't save. Try again.");
 			setSaving(false);
 		}
-	}, [mode, workout_id, workout]);
+	}, [saving, mode, workout_id, workout]);
 
 	const ListHeader = useCallback(
 		() => (

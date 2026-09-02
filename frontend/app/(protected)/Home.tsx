@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useMemo, useEffect, useState, useCallback } from "react";
-import { router } from "expo-router";
+import { useMemo, useState, useCallback } from "react";
+import { router, useFocusEffect } from "expo-router";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
@@ -156,11 +156,13 @@ export default function Home() {
 		}
 	}, []);
 
-	useEffect(() => {
-		// Load the dashboard once on mount; fetchData also drives the retry button.
-		// eslint-disable-next-line react-hooks/set-state-in-effect
-		fetchData();
-	}, [fetchData]);
+	// Reload on focus so logging food or finishing a workout is reflected when you
+	// land back on the dashboard. fetchData also drives the retry button.
+	useFocusEffect(
+		useCallback(() => {
+			fetchData();
+		}, [fetchData]),
+	);
 
 	const styles = useMemo(
 		() =>
@@ -361,7 +363,6 @@ export default function Home() {
 				{/* Header */}
 				<View style={styles.header}>
 					<Text style={styles.appName}>Kratos</Text>
-					<FontAwesome5 name="bell" size={18} color={theme.textMuted} />
 				</View>
 
 				{/* Calorie card */}

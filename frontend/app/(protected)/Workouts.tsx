@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useMemo, useEffect, useState } from "react";
-import { router } from "expo-router";
+import { useMemo, useState, useCallback } from "react";
+import { router, useFocusEffect } from "expo-router";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
@@ -41,9 +41,16 @@ export default function Workouts() {
 		}
 	}
 
-	useEffect(() => {
-		fetchWorkouts();
-	}, []);
+	// Refetch whenever the tab regains focus, so a workout saved on the editor
+	// screen shows up when you come back here.
+	useFocusEffect(
+		useCallback(() => {
+			fetchWorkouts();
+		}, []),
+	);
+
+	const goToNewWorkout = () =>
+		router.push({ pathname: "/(protected)/workouts/[workout_id]", params: { workout_id: "new", mode: "new" } });
 
 	const styles = useMemo(
 		() =>
@@ -217,7 +224,7 @@ export default function Workouts() {
 				{/* Header */}
 				<View style={styles.header}>
 					<Text style={styles.pageTitle}>Workouts</Text>
-					<TouchableOpacity style={styles.newBtn} activeOpacity={0.8}>
+					<TouchableOpacity style={styles.newBtn} activeOpacity={0.8} onPress={goToNewWorkout}>
 						<FontAwesome5 name="plus" size={11} color={theme.textInverse} />
 						<Text style={styles.newBtnText}>New</Text>
 					</TouchableOpacity>
@@ -227,16 +234,7 @@ export default function Workouts() {
 				<View style={styles.ctaBanner}>
 					<Text style={styles.ctaTitle}>Ready to train?</Text>
 					<Text style={styles.ctaSub}>Log your sets, track your progress, beat your records.</Text>
-					<TouchableOpacity
-						style={styles.ctaButton}
-						activeOpacity={0.8}
-						onPress={() => {
-							router.push({
-								pathname: "/(protected)/workouts/[workout_id]",
-								params: { workout_id: "new", mode: "new" },
-							});
-						}}
-					>
+					<TouchableOpacity style={styles.ctaButton} activeOpacity={0.8} onPress={goToNewWorkout}>
 						<FontAwesome5 name="play" size={12} color={theme.textInverse} />
 						<Text style={styles.ctaButtonText}>Start New Session</Text>
 					</TouchableOpacity>
