@@ -5,6 +5,7 @@ import { useContext } from "react";
 import LoadingScreen from "@/components/LoadingScreen";
 import { AxiosInterceptorHandler } from "@/utils/AxiosInterceptorHandler";
 import { ProfileProvider } from "@/utils/ProfileProvider";
+import { ToastProvider } from "@/utils/ToastProvider";
 
 function AppStack() {
 	const { isValidUser, isLoading } = useContext(AuthContext);
@@ -33,13 +34,15 @@ function AppStack() {
 export default function AppLayout() {
 	return (
 		<ThemeProvider>
-			<AuthProvider>
-				<AxiosInterceptorHandler>
-					<ProfileProvider>
-						<AppStack />
-					</ProfileProvider>
-				</AxiosInterceptorHandler>
-			</AuthProvider>
+			<ToastProvider>
+				<AuthProvider>
+					<AxiosInterceptorHandler>
+						<ProfileProvider>
+							<AppStack />
+						</ProfileProvider>
+					</AxiosInterceptorHandler>
+				</AuthProvider>
+			</ToastProvider>
 		</ThemeProvider>
 	);
 }

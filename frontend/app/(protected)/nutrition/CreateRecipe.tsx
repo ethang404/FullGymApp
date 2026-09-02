@@ -5,6 +5,7 @@ import { useLocalSearchParams, router } from "expo-router";
 import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
+import { toast } from "@/utils/toast";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import AddIngredientModal from "./components/AddIngredientModal";
@@ -72,6 +73,7 @@ export default function CreateRecipe() {
 				setIngredients(mappedIngredients);
 			} catch (e) {
 				log.error("Failed to load recipe:", e);
+				if (!cancelled) toast.error("Couldn't load this recipe.");
 			} finally {
 				if (!cancelled) setLoading(false);
 			}
@@ -99,8 +101,10 @@ export default function CreateRecipe() {
 			} else {
 				await instance.post("/nutrition/recipes", payload);
 			}
+			toast.success(recipe_id ? "Recipe updated." : "Recipe saved.");
 		} catch (e) {
 			log.error("Failed to save recipe:", e);
+			toast.error("Couldn't save the recipe. Try again.");
 		} finally {
 			setSaving(false);
 		}

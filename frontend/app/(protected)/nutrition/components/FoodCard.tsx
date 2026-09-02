@@ -6,6 +6,7 @@ import { router } from "expo-router";
 
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
+import { toast } from "@/utils/toast";
 
 import { COMMON_UNITS } from "../../types/nutrition";
 import { AddServingModal } from "./AddServingModal";
@@ -66,6 +67,7 @@ export default function FoodCard({ food, displayLogButton, mealType, loggedAt, o
 			onLogged?.(); //tell our modal that we logged food so we can re-fetch entires
 		} catch (e) {
 			log.error("Failed to log food:", e);
+			toast.error("Couldn't log that food. Try again.");
 		}
 	}
 
