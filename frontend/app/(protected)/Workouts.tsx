@@ -9,6 +9,7 @@ import { log } from "@/utils/log";
 import { toast } from "@/utils/toast";
 import { formatRelativeDate } from "@/utils/date";
 import { ScreenState } from "@/components/ScreenState";
+import { PressableScale } from "@/components/PressableScale";
 
 interface Workout {
 	id: string;
@@ -252,10 +253,10 @@ export default function Workouts() {
 			<View style={styles.ctaBanner}>
 				<Text style={styles.ctaTitle}>Ready to train?</Text>
 				<Text style={styles.ctaSub}>Log your sets, track your progress, beat your records.</Text>
-				<TouchableOpacity style={styles.ctaButton} activeOpacity={0.8} onPress={goToNewWorkout}>
+				<PressableScale style={styles.ctaButton} onPress={goToNewWorkout}>
 					<FontAwesome5 name="play" size={12} color={theme.textInverse} />
 					<Text style={styles.ctaButtonText}>Start New Session</Text>
-				</TouchableOpacity>
+				</PressableScale>
 			</View>
 
 			{workouts.length > 0 && <Text style={styles.sectionLabel}>History</Text>}

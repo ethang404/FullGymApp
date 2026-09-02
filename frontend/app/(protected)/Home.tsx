@@ -10,6 +10,7 @@ import { log } from "@/utils/log";
 import { todayISO, formatRelativeDate } from "@/utils/date";
 import { useProfile } from "@/utils/ProfileProvider";
 import { ScreenState } from "@/components/ScreenState";
+import { PressableScale } from "@/components/PressableScale";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -373,14 +374,14 @@ export default function Home() {
 
 				{/* CTA buttons */}
 				<View style={styles.ctaRow}>
-					<TouchableOpacity style={styles.ctaPrimary} onPress={() => router.push("/(protected)/nutrition/Nutrition")} activeOpacity={0.8}>
+					<PressableScale style={styles.ctaPrimary} onPress={() => router.push("/(protected)/nutrition/Nutrition")}>
 						<FontAwesome5 name="utensils" size={14} color={theme.textInverse} />
 						<Text style={styles.ctaPrimaryText}>Log Food</Text>
-					</TouchableOpacity>
-					<TouchableOpacity style={styles.ctaSecondary} onPress={() => router.push("/(protected)/Workouts")} activeOpacity={0.8}>
+					</PressableScale>
+					<PressableScale style={styles.ctaSecondary} onPress={() => router.push("/(protected)/Workouts")}>
 						<FontAwesome5 name="dumbbell" size={14} color={theme.text} />
 						<Text style={styles.ctaSecondaryText}>Workout</Text>
-					</TouchableOpacity>
+					</PressableScale>
 				</View>
 
 				{/* Recent workouts */}
