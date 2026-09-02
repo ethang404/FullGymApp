@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, type PropsWithChildren } from "react";
+import React, { createContext, useCallback, useContext, useMemo, useState, useEffect, type PropsWithChildren } from "react";
 import * as SecureStore from "expo-secure-store";
 import { themes, type Theme, type ThemeName } from "./colors";
 
@@ -24,16 +24,14 @@ export function ThemeProvider({ children }: PropsWithChildren) {
 		});
 	}, []);
 
-	async function setTheme(themeName: ThemeName) {
+	const setTheme = useCallback(async (themeName: ThemeName) => {
 		setName(themeName);
 		await SecureStore.setItemAsync(THEME_KEY, themeName);
-	}
+	}, []);
 
-	return (
-		<ThemeContext value={{ name, theme: themes[name], setTheme }}>
-			{children}
-		</ThemeContext>
-	);
+	const value = useMemo(() => ({ name, theme: themes[name], setTheme }), [name, setTheme]);
+
+	return <ThemeContext value={value}>{children}</ThemeContext>;
 }
 
 export function useTheme() {
