@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "react-native-design": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "skillPath": "plugins/ui-design/skills/react-native-design/SKILL.md",
+      "computedHash": "45544b3512ae23ff2482d33b16339499f45cb5a79440705f66254a69621bffcc"
+    },
+    "thermo-nuclear-code-quality-review": {
+      "source": "cursor/plugins",
+      "sourceType": "github",
+      "skillPath": "cursor-team-kit/skills/thermo-nuclear-code-quality-review/SKILL.md",
+      "computedHash": "1be9e8126d5b4bd3000f1e654622faf1493c7df204f9460ba0c1e41e7227497f"
+    }
+  }
+}
