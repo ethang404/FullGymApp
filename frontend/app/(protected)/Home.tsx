@@ -3,6 +3,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useMemo, useState, useCallback } from "react";
 import { router, useFocusEffect } from "expo-router";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
+import Svg, { Circle } from "react-native-svg";
 import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
@@ -47,53 +48,31 @@ function RingProgress({
 	trackColor: string;
 	label: string;
 }) {
+	const clamped = Math.max(0, Math.min(percent, 100));
 	const radius = (size - strokeWidth) / 2;
 	const circumference = 2 * Math.PI * radius;
-	const filled = circumference * Math.min(percent / 100, 1);
+	const dashOffset = circumference * (1 - clamped / 100);
+	const center = size / 2;
 
 	return (
 		<View style={{ alignItems: "center", gap: 4 }}>
-			<View style={{ width: size, height: size }}>
-				{/* Track */}
-				<View
-					style={{
-						position: "absolute",
-						width: size,
-						height: size,
-						borderRadius: size / 2,
-						borderWidth: strokeWidth,
-						borderColor: trackColor,
-					}}
-				/>
-				{/* We use a simple arc approximation with border trick */}
-				<View
-					style={{
-						position: "absolute",
-						width: size,
-						height: size,
-						borderRadius: size / 2,
-						borderWidth: strokeWidth,
-						borderColor: "transparent",
-						borderTopColor: color,
-						borderRightColor: percent > 25 ? color : "transparent",
-						borderBottomColor: percent > 50 ? color : "transparent",
-						borderLeftColor: percent > 75 ? color : "transparent",
-						transform: [{ rotate: "-90deg" }],
-					}}
-				/>
-				<View
-					style={{
-						position: "absolute",
-						top: 0,
-						left: 0,
-						right: 0,
-						bottom: 0,
-						alignItems: "center",
-						justifyContent: "center",
-					}}
-				>
-					<Text style={{ fontSize: 13, fontWeight: "700", color }}>{Math.round(percent)}%</Text>
-				</View>
+			<View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+				<Svg width={size} height={size} style={{ position: "absolute" }}>
+					<Circle cx={center} cy={center} r={radius} stroke={trackColor} strokeWidth={strokeWidth} fill="none" />
+					<Circle
+						cx={center}
+						cy={center}
+						r={radius}
+						stroke={color}
+						strokeWidth={strokeWidth}
+						fill="none"
+						strokeDasharray={circumference}
+						strokeDashoffset={dashOffset}
+						strokeLinecap="round"
+						transform={`rotate(-90 ${center} ${center})`}
+					/>
+				</Svg>
+				<Text style={{ fontSize: 13, fontWeight: "700", color }}>{Math.round(clamped)}%</Text>
 			</View>
 			<Text style={{ fontSize: 11, color, fontWeight: "600", letterSpacing: 0.5 }}>{label}</Text>
 		</View>
