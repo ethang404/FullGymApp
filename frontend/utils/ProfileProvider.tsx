@@ -1,8 +1,12 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, type PropsWithChildren } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useState, useCallback, type PropsWithChildren } from "react";
 import { instance } from "./AxiosInterceptorHandler";
 import { AuthContext } from "./AuthProvider";
 import { GOAL_DEFAULTS, type MacroGoals, type Sex, type ActivityLevel, type GoalType } from "./macroDefaults";
 import { log } from "./log";
+
+// Reference-stable fallback so the context value's identity doesn't churn when
+// there's no profile yet.
+const DEFAULT_GOALS: MacroGoals = { ...GOAL_DEFAULTS };
 
 export interface UserBody {
 	sex: Sex | null;
@@ -64,7 +68,7 @@ export type EstimateBody = {
 
 const ProfileContext = createContext<ProfileContextType>({
 	profile: null,
-	goals: { ...GOAL_DEFAULTS },
+	goals: DEFAULT_GOALS,
 	loading: true,
 	refresh: async () => {},
 	updateProfile: async () => {
@@ -122,13 +126,14 @@ export function ProfileProvider({ children }: PropsWithChildren) {
 		return res.data.estimate as EstimateResult;
 	}, []);
 
-	const goals: MacroGoals = profile?.effective_goals ?? { ...GOAL_DEFAULTS };
+	const goals: MacroGoals = profile?.effective_goals ?? DEFAULT_GOALS;
 
-	return (
-		<ProfileContext.Provider value={{ profile, goals, loading, refresh, updateProfile, estimateGoals }}>
-			{children}
-		</ProfileContext.Provider>
+	const value = useMemo(
+		() => ({ profile, goals, loading, refresh, updateProfile, estimateGoals }),
+		[profile, goals, loading, refresh, updateProfile, estimateGoals],
 	);
+
+	return <ProfileContext.Provider value={value}>{children}</ProfileContext.Provider>;
 }
 
 export function useProfile() {

@@ -15,7 +15,7 @@ import { useContext, useMemo, useState, useEffect } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import Pills from "@/components/Pills";
-import { themes, themeLabels, type ThemeName } from "@/theme/colors";
+import { themes, themeLabels, type Theme, type ThemeName } from "@/theme/colors";
 import { AuthContext } from "@/utils/AuthProvider";
 import { useProfile, type EstimateBody } from "@/utils/ProfileProvider";
 import {
@@ -342,7 +342,7 @@ function GoalsModal({
 		}
 	}
 
-	const s = modalStyles(theme, saving);
+	const s = useMemo(() => modalStyles(theme), [theme]);
 
 	return (
 		<Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -370,7 +370,7 @@ function GoalsModal({
 
 					{error && <Text style={s.errorText}>{error}</Text>}
 
-					<TouchableOpacity style={s.saveButton} onPress={handleSave} disabled={saving}>
+					<TouchableOpacity style={[s.saveButton, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving}>
 						{saving ? <ActivityIndicator color={theme.textInverse} /> : <Text style={s.saveButtonText}>Save</Text>}
 					</TouchableOpacity>
 					<TouchableOpacity style={s.cancelButton} onPress={onClose}>
@@ -479,7 +479,7 @@ function BodyModal({
 		}
 	}
 
-	const s = modalStyles(theme, busy);
+	const s = useMemo(() => modalStyles(theme), [theme]);
 
 	return (
 		<Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -544,7 +544,7 @@ function BodyModal({
 
 						{error && <Text style={s.errorText}>{error}</Text>}
 
-						<TouchableOpacity style={s.saveButton} onPress={handleSave} disabled={busy}>
+						<TouchableOpacity style={[s.saveButton, busy && { opacity: 0.6 }]} onPress={handleSave} disabled={busy}>
 							{busy ? <ActivityIndicator color={theme.textInverse} /> : <Text style={s.saveButtonText}>Save</Text>}
 						</TouchableOpacity>
 						<TouchableOpacity style={s.cancelButton} onPress={onClose}>
@@ -557,7 +557,7 @@ function BodyModal({
 	);
 }
 
-function modalStyles(theme: any, busy: boolean) {
+function modalStyles(theme: Theme) {
 	return StyleSheet.create({
 		overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: theme.overlay },
 		sheet: {
@@ -618,7 +618,6 @@ function modalStyles(theme: any, busy: boolean) {
 			alignItems: "center",
 			marginTop: 18,
 			marginBottom: 10,
-			opacity: busy ? 0.6 : 1,
 		},
 		saveButtonText: { color: theme.textInverse, fontSize: 15, fontWeight: "700" },
 		cancelButton: { alignItems: "center", paddingVertical: 10 },

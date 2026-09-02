@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, RefreshControl, Pressable, Dimensions } from "react-native";
+import { View, Text, StyleSheet, ScrollView, RefreshControl, Pressable, useWindowDimensions } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useMemo, useEffect, useState } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
@@ -131,6 +131,7 @@ function classificationColor(classification: string, theme: ReturnType<typeof us
 
 export default function Progress() {
 	const { theme } = useTheme();
+	const { width: windowWidth } = useWindowDimensions();
 	const [filter, setFilter] = useState<FilterOption>("month");
 	const [data, setData] = useState<ProgressData>(EMPTY_DATA);
 	const [loading, setLoading] = useState(true);
@@ -280,7 +281,7 @@ export default function Progress() {
 		setHistoryModal({ visible: true, catalogId, name });
 	}
 
-	const chartWidth = Dimensions.get("window").width - 16 * 2 - 14 * 2;
+	const chartWidth = windowWidth - 16 * 2 - 14 * 2;
 	// Fall back to the first available curve whenever the explicit selection doesn't match any current
 	// curve (e.g. right after a filter change) - derived at render time instead of synced via an effect.
 	const effectiveFatigueCatalogId = data.fatigueCurves.some((c) => c.catalog_id === selectedFatigueCatalogId)

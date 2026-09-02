@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from "react-native";
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useMemo, useState, useCallback } from "react";
 import { router, useFocusEffect } from "expo-router";
@@ -203,94 +203,94 @@ export default function Workouts() {
 		[theme],
 	);
 
+	const renderWorkout = useCallback(
+		({ item: w }: { item: Workout }) => (
+			<TouchableOpacity
+				style={styles.workoutCard}
+				onPress={() => router.push({ pathname: "/(protected)/workouts/[workout_id]", params: { workout_id: w.id, mode: "edit" } })}
+				activeOpacity={0.7}
+			>
+				<View style={styles.iconWrap}>
+					<FontAwesome5 name="dumbbell" size={16} color={theme.primary} />
+				</View>
+				<View style={{ flex: 1 }}>
+					<Text style={styles.workoutName}>{w.name}</Text>
+					<Text style={styles.workoutDate}>{formatRelativeDate(w.date)}</Text>
+					{(w.duration_minutes || w.total_volume_kg) && (
+						<View style={styles.workoutStats}>
+							{w.duration_minutes && (
+								<View style={styles.stat}>
+									<FontAwesome5 name="clock" size={10} color={theme.textTertiary} />
+									<Text style={styles.statText}>{w.duration_minutes}m</Text>
+								</View>
+							)}
+							{w.total_volume_kg && (
+								<View style={styles.stat}>
+									<FontAwesome5 name="weight-hanging" size={10} color={theme.textTertiary} />
+									<Text style={styles.statText}>{w.total_volume_kg.toLocaleString()}kg</Text>
+								</View>
+							)}
+						</View>
+					)}
+				</View>
+				<FontAwesome5 name="chevron-right" size={12} color={theme.textTertiary} style={styles.chevron} />
+			</TouchableOpacity>
+		),
+		[styles, theme],
+	);
+
+	const listHeader = (
+		<>
+			<View style={styles.header}>
+				<Text style={styles.pageTitle}>Workouts</Text>
+				<TouchableOpacity style={styles.newBtn} activeOpacity={0.8} onPress={goToNewWorkout}>
+					<FontAwesome5 name="plus" size={11} color={theme.textInverse} />
+					<Text style={styles.newBtnText}>New</Text>
+				</TouchableOpacity>
+			</View>
+
+			<View style={styles.ctaBanner}>
+				<Text style={styles.ctaTitle}>Ready to train?</Text>
+				<Text style={styles.ctaSub}>Log your sets, track your progress, beat your records.</Text>
+				<TouchableOpacity style={styles.ctaButton} activeOpacity={0.8} onPress={goToNewWorkout}>
+					<FontAwesome5 name="play" size={12} color={theme.textInverse} />
+					<Text style={styles.ctaButtonText}>Start New Session</Text>
+				</TouchableOpacity>
+			</View>
+
+			{workouts.length > 0 && <Text style={styles.sectionLabel}>History</Text>}
+		</>
+	);
+
 	return (
 		<SafeAreaView style={styles.safe} edges={["top"]}>
 			<ScreenState loading={loading} error={error} onRetry={fetchWorkouts} errorTitle="Couldn't load your workouts">
-			<ScrollView
-				style={styles.scroll}
-				contentContainerStyle={styles.content}
-				showsVerticalScrollIndicator={false}
-				refreshControl={
-					<RefreshControl
-						refreshing={refreshing}
-						onRefresh={() => {
-							setRefreshing(true);
-							fetchWorkouts(true);
-						}}
-						tintColor={theme.primary}
-					/>
-				}
-			>
-				{/* Header */}
-				<View style={styles.header}>
-					<Text style={styles.pageTitle}>Workouts</Text>
-					<TouchableOpacity style={styles.newBtn} activeOpacity={0.8} onPress={goToNewWorkout}>
-						<FontAwesome5 name="plus" size={11} color={theme.textInverse} />
-						<Text style={styles.newBtnText}>New</Text>
-					</TouchableOpacity>
-				</View>
-
-				{/* Start session */}
-				<View style={styles.ctaBanner}>
-					<Text style={styles.ctaTitle}>Ready to train?</Text>
-					<Text style={styles.ctaSub}>Log your sets, track your progress, beat your records.</Text>
-					<TouchableOpacity style={styles.ctaButton} activeOpacity={0.8} onPress={goToNewWorkout}>
-						<FontAwesome5 name="play" size={12} color={theme.textInverse} />
-						<Text style={styles.ctaButtonText}>Start New Session</Text>
-					</TouchableOpacity>
-				</View>
-
-				{/* Workout history list*/}
-				{workouts.length === 0 ? (
-					<View style={styles.emptyState}>
-						<FontAwesome5 name="dumbbell" size={32} color={theme.textTertiary} />
-						<Text style={styles.emptyTitle}>No workouts yet</Text>
-						<Text style={styles.emptySubtitle}>Start your first session to begin tracking</Text>
-					</View>
-				) : (
-					<>
-						<Text style={styles.sectionLabel}>History</Text>
-						{workouts.map((w) => (
-							<TouchableOpacity
-								key={w.id}
-								style={styles.workoutCard}
-								onPress={() => {
-									router.push({
-										pathname: "/(protected)/workouts/[workout_id]",
-										params: { workout_id: w.id, mode: "edit" },
-									});
-								}}
-								activeOpacity={0.7}
-							>
-								<View style={styles.iconWrap}>
-									<FontAwesome5 name="dumbbell" size={16} color={theme.primary} />
-								</View>
-								<View style={{ flex: 1 }}>
-									<Text style={styles.workoutName}>{w.name}</Text>
-									<Text style={styles.workoutDate}>{formatRelativeDate(w.date)}</Text>
-									{(w.duration_minutes || w.total_volume_kg) && (
-										<View style={styles.workoutStats}>
-											{w.duration_minutes && (
-												<View style={styles.stat}>
-													<FontAwesome5 name="clock" size={10} color={theme.textTertiary} />
-													<Text style={styles.statText}>{w.duration_minutes}m</Text>
-												</View>
-											)}
-											{w.total_volume_kg && (
-												<View style={styles.stat}>
-													<FontAwesome5 name="weight-hanging" size={10} color={theme.textTertiary} />
-													<Text style={styles.statText}>{w.total_volume_kg.toLocaleString()}kg</Text>
-												</View>
-											)}
-										</View>
-									)}
-								</View>
-								<FontAwesome5 name="chevron-right" size={12} color={theme.textTertiary} style={styles.chevron} />
-							</TouchableOpacity>
-						))}
-					</>
-				)}
-			</ScrollView>
+				<FlatList
+					data={workouts}
+					keyExtractor={(w) => w.id}
+					renderItem={renderWorkout}
+					ListHeaderComponent={listHeader}
+					ListEmptyComponent={
+						<View style={styles.emptyState}>
+							<FontAwesome5 name="dumbbell" size={32} color={theme.textTertiary} />
+							<Text style={styles.emptyTitle}>No workouts yet</Text>
+							<Text style={styles.emptySubtitle}>Start your first session to begin tracking</Text>
+						</View>
+					}
+					style={styles.scroll}
+					contentContainerStyle={styles.content}
+					showsVerticalScrollIndicator={false}
+					refreshControl={
+						<RefreshControl
+							refreshing={refreshing}
+							onRefresh={() => {
+								setRefreshing(true);
+								fetchWorkouts(true);
+							}}
+							tintColor={theme.primary}
+						/>
+					}
+				/>
 			</ScreenState>
 		</SafeAreaView>
 	);
