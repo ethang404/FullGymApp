@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useMemo, useEffect, useState } from "react";
-import { router } from "expo-router";
+import { useMemo, useState, useCallback } from "react";
+import { router, useFocusEffect } from "expo-router";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
@@ -41,9 +41,13 @@ export default function Workouts() {
 		}
 	}
 
-	useEffect(() => {
-		fetchWorkouts();
-	}, []);
+	// Refetch whenever the tab regains focus, so a workout saved on the editor
+	// screen shows up when you come back here.
+	useFocusEffect(
+		useCallback(() => {
+			fetchWorkouts();
+		}, []),
+	);
 
 	const styles = useMemo(
 		() =>
