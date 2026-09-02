@@ -6,6 +6,7 @@ import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
+import { formatRelativeDate } from "@/utils/date";
 
 interface Workout {
 	id: string;
@@ -14,26 +15,6 @@ interface Workout {
 	duration_minutes?: number;
 	total_volume_kg?: number;
 	notes?: string;
-}
-
-// Helper functions here
-
-//General Date formatting to help with errors
-function formatDate(dateStr: string) {
-	const d = new Date(dateStr);
-	if (isNaN(d.getTime())) return "Unknown date";
-	return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-}
-
-function formatRelativeDate(dateStr: string) {
-	const date = new Date(dateStr);
-	if (isNaN(date.getTime())) return "Unknown date";
-	const now = new Date();
-	const diffDays = Math.floor((now.getTime() - date.getTime()) / 86400000);
-	if (diffDays === 0) return "Today";
-	if (diffDays === 1) return "Yesterday";
-	if (diffDays < 7) return `${diffDays} days ago`;
-	return formatDate(dateStr);
 }
 
 export default function Workouts() {

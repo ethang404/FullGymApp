@@ -6,6 +6,7 @@ import { LineChart, BarChart, PieChart } from "react-native-gifted-charts";
 import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
+import { formatShortDate } from "@/utils/date";
 import { ChartCard } from "@/components/ChartCard";
 import { ExerciseHistoryModal } from "@/components/ExerciseHistoryModal";
 import { getMuscleGroupColor } from "@/theme/chartColors";
@@ -118,11 +119,7 @@ const ENDPOINTS: { url: string; key: keyof ProgressData; params?: Record<string,
 	{ url: "/workouts/progress/rep-range-distribution", key: "repRangeDistribution", extract: (b) => b.distribution ?? [] },
 ];
 
-function formatDate(dateStr: string) {
-	const d = new Date(dateStr);
-	if (isNaN(d.getTime())) return "Unknown date";
-	return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
+const formatDate = (dateStr: string) => formatShortDate(dateStr, "Unknown date");
 
 function classificationColor(classification: string, theme: ReturnType<typeof useTheme>["theme"]) {
 	if (classification === "high") return theme.macroProtein;

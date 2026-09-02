@@ -5,6 +5,7 @@ import { LineChart } from "react-native-gifted-charts";
 import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
+import { formatShortDate } from "@/utils/date";
 
 interface ExerciseHistoryPoint {
 	date: string;
@@ -26,12 +27,6 @@ interface ExerciseHistoryModalProps {
 	catalogId: number | null;
 	name: string;
 	filter: "week" | "month" | "year" | "all";
-}
-
-function formatShortDate(dateStr: string) {
-	const d = new Date(dateStr);
-	if (isNaN(d.getTime())) return "";
-	return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 // Drill-in view for a single exercise's estimated-1RM history over time,

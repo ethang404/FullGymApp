@@ -6,6 +6,7 @@ import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
+import { todayISO, shiftISODate, formatDayHeading } from "@/utils/date";
 import { useProfile } from "@/utils/ProfileProvider";
 
 import LogFoodModal from "./LogFoodModal";
@@ -64,21 +65,6 @@ function calculateMacrosPerMeal(entries: DiaryEntry[], meal_type: string): Total
 	return totals;
 }
 
-function formatDisplayDate(dateStr: string) {
-	const [year, month, day] = dateStr.split("-").map(Number);
-	const date = new Date(year, month - 1, day);
-
-	const today = new Date();
-	today.setHours(0, 0, 0, 0);
-	const diffDays = Math.round((date.getTime() - today.getTime()) / 86400000);
-
-	if (diffDays === 0) return "Today";
-	if (diffDays === -1) return "Yesterday";
-	if (diffDays === 1) return "Tomorrow";
-
-	return date.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" }).toUpperCase();
-}
-
 function MacroBar({
 	label,
 	current,
@@ -126,24 +112,7 @@ export default function Nutrition() {
 	const [headerHeight, setHeaderHeight] = useState(52);
 
 	//default date to today
-	const [selectedDate, setSelectedDate] = useState<string>(() => {
-		const today = new Date();
-		const year = today.getFullYear();
-		const month = String(today.getMonth() + 1).padStart(2, "0");
-		const day = String(today.getDate()).padStart(2, "0");
-		return `${year}-${month}-${day}`;
-	});
-
-	function shiftDate(dateStr: string, amount: number) {
-		const [year, month, day] = dateStr.split("-").map(Number);
-		const date = new Date(year, month - 1, day);
-		date.setDate(date.getDate() + amount);
-
-		const y = date.getFullYear();
-		const m = String(date.getMonth() + 1).padStart(2, "0");
-		const d = String(date.getDate()).padStart(2, "0");
-		return `${y}-${m}-${d}`;
-	}
+	const [selectedDate, setSelectedDate] = useState<string>(todayISO);
 
 	async function fetchEntries() {
 		try {
@@ -475,11 +444,11 @@ export default function Nutrition() {
 			<View style={styles.heroCardWrapper}>
 				<View style={styles.heroCard}>
 					<View style={styles.dateNavBar}>
-						<TouchableOpacity onPress={() => setSelectedDate((prev) => shiftDate(prev, -1))} hitSlop={10} style={styles.dateNavArrow}>
+						<TouchableOpacity onPress={() => setSelectedDate((prev) => shiftISODate(prev, -1))} hitSlop={10} style={styles.dateNavArrow}>
 							<FontAwesome5 name="chevron-left" size={14} color={theme.textMuted} />
 						</TouchableOpacity>
-						<Text style={styles.dateText}>{formatDisplayDate(selectedDate)}</Text>
-						<TouchableOpacity onPress={() => setSelectedDate((prev) => shiftDate(prev, 1))} hitSlop={10} style={styles.dateNavArrow}>
+						<Text style={styles.dateText}>{formatDayHeading(selectedDate)}</Text>
+						<TouchableOpacity onPress={() => setSelectedDate((prev) => shiftISODate(prev, 1))} hitSlop={10} style={styles.dateNavArrow}>
 							<FontAwesome5 name="chevron-right" size={14} color={theme.textMuted} />
 						</TouchableOpacity>
 					</View>

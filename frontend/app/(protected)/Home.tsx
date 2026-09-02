@@ -6,6 +6,7 @@ import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
+import { todayISO, formatRelativeDate } from "@/utils/date";
 import { useProfile } from "@/utils/ProfileProvider";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -23,21 +24,6 @@ interface Workout {
 	date: string;
 	duration_minutes: number;
 	total_volume_kg?: number;
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function todayISO() {
-	return new Date().toISOString().split("T")[0];
-}
-
-function formatRelativeDate(dateStr: string) {
-	const date = new Date(dateStr);
-	const now = new Date();
-	const diffDays = Math.floor((now.getTime() - date.getTime()) / 86400000);
-	if (diffDays === 0) return "Today";
-	if (diffDays === 1) return "Yesterday";
-	return `${diffDays} days ago`;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
