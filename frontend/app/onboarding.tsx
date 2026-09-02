@@ -4,6 +4,7 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view
 import { router } from "expo-router";
 import { useTheme } from "@/theme/ThemeProvider";
 import Pills from "@/components/Pills";
+import { DateField } from "@/components/DateField";
 import { useProfile, type EstimateBody } from "@/utils/ProfileProvider";
 import {
 	SEXES,
@@ -198,13 +199,12 @@ export default function Onboarding() {
 					<Pills options={SEXES} value={sex} onSelect={setSex} labels={{ male: "Male", female: "Female" }} />
 
 					<Text style={styles.label}>Date of birth</Text>
-					<TextInput
-						style={styles.input}
-						placeholder="YYYY-MM-DD"
-						placeholderTextColor={theme.authTextHint}
+					<DateField
 						value={birthDate}
-						onChangeText={setBirthDate}
-						autoCapitalize="none"
+						onChange={setBirthDate}
+						placeholder="Select your birth date"
+						fieldStyle={styles.input}
+						textStyle={{ color: theme.authInputText, fontSize: 15 }}
 					/>
 
 					<Text style={styles.label}>Height (cm)</Text>

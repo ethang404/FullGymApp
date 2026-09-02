@@ -35,6 +35,16 @@ export function todayISO(): string {
 	return toISO(new Date());
 }
 
+/** A `Date` → local `YYYY-MM-DD` string. */
+export function toISODate(d: Date): string {
+	return toISO(d);
+}
+
+/** A `YYYY-MM-DD` string → local `Date`, or `null` if unparseable. */
+export function parseISODate(dateStr: string): Date | null {
+	return parseLocalDate(dateStr);
+}
+
 /** A local `YYYY-MM-DD` string shifted by whole days (negative goes back). */
 export function shiftISODate(iso: string, days: number): string {
 	const d = parseLocalDate(iso) ?? new Date();

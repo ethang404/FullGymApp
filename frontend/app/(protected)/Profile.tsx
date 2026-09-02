@@ -15,6 +15,7 @@ import { useContext, useMemo, useState, useEffect } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import Pills from "@/components/Pills";
+import { DateField } from "@/components/DateField";
 import { themes, themeLabels, type Theme, type ThemeName } from "@/theme/colors";
 import { AuthContext } from "@/utils/AuthProvider";
 import { useProfile, type EstimateBody } from "@/utils/ProfileProvider";
@@ -497,13 +498,12 @@ function BodyModal({
 						<Pills options={SEXES} value={sex} onSelect={setSex} labels={{ male: "Male", female: "Female" }} />
 
 						<Text style={s.sectionLabel}>DATE OF BIRTH</Text>
-						<TextInput
-							style={s.textInput}
-							placeholder="YYYY-MM-DD"
-							placeholderTextColor={theme.inputPlaceholder}
+						<DateField
 							value={birthDate}
-							onChangeText={setBirthDate}
-							autoCapitalize="none"
+							onChange={setBirthDate}
+							placeholder="Select your birth date"
+							fieldStyle={s.textInput}
+							textStyle={{ color: theme.text, fontSize: 16 }}
 						/>
 
 						<View style={s.row}>
