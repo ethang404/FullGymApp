@@ -1,29 +1,12 @@
-import {
-	View,
-	Text,
-	StyleSheet,
-	TouchableOpacity,
-	ActivityIndicator,
-	SectionList,
-	Modal,
-	TextInput,
-	ScrollView,
-	KeyboardAvoidingView,
-	Platform,
-	Pressable,
-	Alert,
-	RefreshControl,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, SectionList, Pressable, RefreshControl } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { useMemo, useState, useRef, useCallback } from "react";
-import { router } from "expo-router";
-import { useFocusEffect } from "expo-router";
+import { useMemo, useState, useCallback } from "react";
+import { router, useFocusEffect } from "expo-router";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
+import { log } from "@/utils/log";
 import { useProfile } from "@/utils/ProfileProvider";
-import { CameraView, useCameraPermissions } from "expo-camera";
-import { Float, Int32 } from "react-native/Libraries/Types/CodegenTypes";
 
 import LogFoodModal from "./LogFoodModal";
 
@@ -151,7 +134,7 @@ export default function Nutrition() {
 		return `${year}-${month}-${day}`;
 	});
 
-	function shiftDate(dateStr: string, amount: Int32) {
+	function shiftDate(dateStr: string, amount: number) {
 		const [year, month, day] = dateStr.split("-").map(Number);
 		const date = new Date(year, month - 1, day);
 		date.setDate(date.getDate() + amount);
@@ -167,7 +150,7 @@ export default function Nutrition() {
 			const res = await instance.get(`/nutrition/diary?start_date=${selectedDate}&end_date=${selectedDate}`);
 			setEntries(res.data.diary_entries ?? []);
 		} catch (e) {
-			console.error("Nutrition fetch error:", e);
+			log.error("Nutrition fetch error:", e);
 		} finally {
 			setLoading(false);
 			setRefreshing(false);

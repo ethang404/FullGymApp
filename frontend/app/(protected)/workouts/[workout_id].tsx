@@ -23,6 +23,7 @@ import ReorderableList, { reorderItems, useReorderableDrag, ReorderableListReord
 import { useTheme } from "@/theme/ThemeProvider";
 import type { Theme } from "@/theme/colors";
 import { instance } from "@/utils/AxiosInterceptorHandler";
+import { log } from "@/utils/log";
 import * as types from "../types/workouts";
 
 const emptyWorkout: types.WorkoutData = {
@@ -33,8 +34,8 @@ const emptyWorkout: types.WorkoutData = {
 	exercises: [],
 };
 
-interface exercise {
-	catalog_id: Number;
+interface CatalogExercise {
+	catalog_id: number;
 	name: string;
 	muscle_group: string;
 }
@@ -61,7 +62,7 @@ export default function Workout() {
 	const [loading, setLoading] = useState(mode === "edit" || mode === "copy");
 	const [saving, setSaving] = useState(false);
 
-	const [availExercises, setAvailExercises] = useState<exercise[]>([]);
+	const [availExercises, setAvailExercises] = useState<CatalogExercise[]>([]);
 	const [activeExerciseKey, setActiveExerciseKey] = useState<string | null>(null);
 
 	useEffect(() => {
@@ -70,7 +71,7 @@ export default function Workout() {
 				const resp = await instance.get(`/workouts/catalog/`);
 				setAvailExercises(resp.data.exercises);
 			} catch (err) {
-				console.error(err);
+				log.error("Failed to load exercise catalog:", err);
 			} finally {
 				setLoading(false);
 			}
@@ -88,7 +89,7 @@ export default function Workout() {
 					const found = resp.data.workout;
 
 					if (!found) {
-						console.warn(`No workout found for id ${workout_id}`);
+						log.warn(`No workout found for id ${workout_id}`);
 						setWorkout(emptyWorkout);
 						return;
 					}
@@ -112,7 +113,7 @@ export default function Workout() {
 						exercises,
 					});
 				} catch (err) {
-					console.error(err);
+					log.error("Failed to load workout:", err);
 				} finally {
 					setLoading(false);
 				}
@@ -220,7 +221,7 @@ export default function Workout() {
 	const handleCreateNewCatalogExercise = async (name: string, muscleGroup: string) => {
 		try {
 			const resp = await instance.post(`/workouts/catalog/`, { name, muscle_group: muscleGroup });
-			const created: exercise = resp.data.exercise;
+			const created: CatalogExercise = resp.data.exercise;
 
 			setAvailExercises((prev) => [...prev, created]);
 
@@ -231,7 +232,7 @@ export default function Workout() {
 				});
 			}
 		} catch (err) {
-			console.error("Error creating exercise catalog entry:", err);
+			log.error("Error creating exercise catalog entry:", err);
 		}
 	};
 
@@ -253,7 +254,7 @@ export default function Workout() {
 				await instance.post(`/workouts`, payload);
 			}
 		} catch (err) {
-			console.error(err);
+			log.error("Failed to save workout:", err);
 		} finally {
 			setSaving(false);
 		}
@@ -483,8 +484,8 @@ function ExerciseSelectorModal({
 }: {
 	visible: boolean;
 	onClose: () => void;
-	availExercises: exercise[];
-	onSelect: (selected: exercise) => void;
+	availExercises: CatalogExercise[];
+	onSelect: (selected: CatalogExercise) => void;
 	onAddNew: (name: string, muscleGroup: string) => void;
 	theme: Theme;
 	styles: ReturnType<typeof createStyles>;

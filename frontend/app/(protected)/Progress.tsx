@@ -5,6 +5,7 @@ import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { LineChart, BarChart, PieChart } from "react-native-gifted-charts";
 import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
+import { log } from "@/utils/log";
 import { ChartCard } from "@/components/ChartCard";
 import { ExerciseHistoryModal } from "@/components/ExerciseHistoryModal";
 import { getMuscleGroupColor } from "@/theme/chartColors";
@@ -155,7 +156,7 @@ export default function Progress() {
 				if (res.status === "fulfilled") {
 					(next as any)[key] = extract(res.value.data);
 				} else {
-					console.error(`Progress fetch error (${key}):`, res.reason);
+					log.error(`Progress fetch error (${key}):`, res.reason);
 				}
 			});
 			return next;

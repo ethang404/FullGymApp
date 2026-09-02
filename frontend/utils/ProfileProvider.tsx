@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback, typ
 import { instance } from "./AxiosInterceptorHandler";
 import { AuthContext } from "./AuthProvider";
 import { GOAL_DEFAULTS, type MacroGoals, type Sex, type ActivityLevel, type GoalType } from "./macroDefaults";
+import { log } from "./log";
 
 export interface UserBody {
 	sex: Sex | null;
@@ -96,7 +97,7 @@ export function ProfileProvider({ children }: PropsWithChildren) {
 				return;
 			} catch (e) {
 				if (attempt === 1) {
-					console.error("Failed to load profile:", e);
+					log.error("Failed to load profile:", e);
 					setProfile(null);
 					setLoading(false);
 				} else {

@@ -5,6 +5,7 @@ import { router } from "expo-router";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
+import { log } from "@/utils/log";
 import { useProfile } from "@/utils/ProfileProvider";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -153,7 +154,7 @@ export default function Home() {
 					setWorkouts(workoutsRes.value.data.workouts?.slice(0, 3) ?? []);
 				}
 			} catch (e) {
-				console.error("Dashboard fetch error:", e);
+				log.error("Dashboard fetch error:", e);
 			} finally {
 				setLoading(false);
 			}

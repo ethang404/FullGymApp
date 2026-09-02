@@ -5,6 +5,7 @@ import { useTheme } from "@/theme/ThemeProvider";
 import type { Theme } from "@/theme/colors"; //for typing
 
 import { instance } from "@/utils/AxiosInterceptorHandler";
+import { log } from "@/utils/log";
 
 import FoodCard from "./components/FoodCard";
 import { type FoodSearchResult } from "../types/nutrition";
@@ -26,7 +27,7 @@ export default function LogFoodModal({ visible, mealType, selectedDate, onClose,
 	const [query, setQuery] = useState<string>("");
 	const [searchResults, setSearchResults] = useState<FoodSearchResult[]>([]);
 
-	const [loading, setLoading] = useState<Boolean>(true);
+	const [loading, setLoading] = useState<boolean>(true);
 
 	async function searchForFoods(searchQuery: string) {
 		try {
@@ -34,7 +35,7 @@ export default function LogFoodModal({ visible, mealType, selectedDate, onClose,
 			if (searchQuery !== query) return;
 			setSearchResults(res.data.foods ?? []);
 		} catch (e) {
-			console.error("Nutrition fetch error:", e);
+			log.error("Food search error:", e);
 		} finally {
 			setLoading(false);
 		}

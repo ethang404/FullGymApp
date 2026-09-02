@@ -4,6 +4,7 @@ import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import type { Theme } from "@/theme/colors"; //for typing
 
 import { instance } from "@/utils/AxiosInterceptorHandler";
+import { log } from "@/utils/log";
 
 import type { ServingSize } from "../../types/nutrition";
 
@@ -70,7 +71,7 @@ export function AddServingModal({ visible, foodId, foodName, availableUnits, exi
 
 			onServingAdded(created);
 		} catch (e) {
-			console.error("Failed to add serving size:", e);
+			log.error("Failed to add serving size:", e);
 			setError("Something went wrong saving that. Please try again.");
 		} finally {
 			setSaving(false);
