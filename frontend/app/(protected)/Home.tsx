@@ -363,7 +363,6 @@ export default function Home() {
 				{/* Header */}
 				<View style={styles.header}>
 					<Text style={styles.appName}>Kratos</Text>
-					<FontAwesome5 name="bell" size={18} color={theme.textMuted} />
 				</View>
 
 				{/* Calorie card */}

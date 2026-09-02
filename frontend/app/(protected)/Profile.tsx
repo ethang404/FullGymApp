@@ -45,6 +45,10 @@ const THEME_OPTIONS: { name: ThemeName; label: string; primary: string; bg: stri
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+// Rows with no backend yet (no notifications feature, no privacy-policy URL, and
+// no DELETE /users/me route). Hidden rather than shown as dead controls.
+const SHOW_UNBUILT = false;
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function Profile() {
@@ -239,20 +243,26 @@ export default function Profile() {
 				{/* Account */}
 				<Text style={styles.sectionLabel}>Account</Text>
 				<View style={styles.group}>
-					<View style={styles.row}>
-						<View style={styles.rowIcon}>
-							<FontAwesome5 name="bell" size={13} color={theme.textSecondary} />
-						</View>
-						<Text style={styles.rowLabel}>Notifications</Text>
-						<FontAwesome5 name="chevron-right" size={12} color={theme.textTertiary} />
-					</View>
-					<View style={styles.row}>
-						<View style={styles.rowIcon}>
-							<FontAwesome5 name="shield-alt" size={13} color={theme.textSecondary} />
-						</View>
-						<Text style={styles.rowLabel}>Privacy Policy</Text>
-						<FontAwesome5 name="external-link-alt" size={11} color={theme.textTertiary} />
-					</View>
+					{SHOW_UNBUILT && (
+						<>
+							{/* TODO: notifications feature + backend */}
+							<View style={styles.row}>
+								<View style={styles.rowIcon}>
+									<FontAwesome5 name="bell" size={13} color={theme.textSecondary} />
+								</View>
+								<Text style={styles.rowLabel}>Notifications</Text>
+								<FontAwesome5 name="chevron-right" size={12} color={theme.textTertiary} />
+							</View>
+							{/* TODO: link to a hosted privacy policy */}
+							<View style={styles.row}>
+								<View style={styles.rowIcon}>
+									<FontAwesome5 name="shield-alt" size={13} color={theme.textSecondary} />
+								</View>
+								<Text style={styles.rowLabel}>Privacy Policy</Text>
+								<FontAwesome5 name="external-link-alt" size={11} color={theme.textTertiary} />
+							</View>
+						</>
+					)}
 					<TouchableOpacity style={[styles.row, styles.rowLast]} onPress={signOut} activeOpacity={0.7}>
 						<View style={styles.rowIcon}>
 							<FontAwesome5 name="sign-out-alt" size={13} color={theme.textSecondary} />
@@ -261,13 +271,17 @@ export default function Profile() {
 					</TouchableOpacity>
 				</View>
 
-				{/* Danger */}
-				<Text style={styles.sectionLabel}>Danger Zone</Text>
-				<TouchableOpacity style={styles.dangerRow} activeOpacity={0.7}>
-					<FontAwesome5 name="trash-alt" size={15} color={theme.error} />
-					<Text style={styles.dangerText}>Delete Account</Text>
-					<FontAwesome5 name="chevron-right" size={12} color={theme.error} />
-				</TouchableOpacity>
+				{/* Danger Zone — TODO: needs DELETE /users/me (confirm dialog + signOut) */}
+				{SHOW_UNBUILT && (
+					<>
+						<Text style={styles.sectionLabel}>Danger Zone</Text>
+						<TouchableOpacity style={styles.dangerRow} activeOpacity={0.7}>
+							<FontAwesome5 name="trash-alt" size={15} color={theme.error} />
+							<Text style={styles.dangerText}>Delete Account</Text>
+							<FontAwesome5 name="chevron-right" size={12} color={theme.error} />
+						</TouchableOpacity>
+					</>
+				)}
 			</ScrollView>
 
 			<GoalsModal

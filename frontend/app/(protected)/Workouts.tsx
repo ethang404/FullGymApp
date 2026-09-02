@@ -49,6 +49,9 @@ export default function Workouts() {
 		}, []),
 	);
 
+	const goToNewWorkout = () =>
+		router.push({ pathname: "/(protected)/workouts/[workout_id]", params: { workout_id: "new", mode: "new" } });
+
 	const styles = useMemo(
 		() =>
 			StyleSheet.create({
@@ -221,7 +224,7 @@ export default function Workouts() {
 				{/* Header */}
 				<View style={styles.header}>
 					<Text style={styles.pageTitle}>Workouts</Text>
-					<TouchableOpacity style={styles.newBtn} activeOpacity={0.8}>
+					<TouchableOpacity style={styles.newBtn} activeOpacity={0.8} onPress={goToNewWorkout}>
 						<FontAwesome5 name="plus" size={11} color={theme.textInverse} />
 						<Text style={styles.newBtnText}>New</Text>
 					</TouchableOpacity>
@@ -231,16 +234,7 @@ export default function Workouts() {
 				<View style={styles.ctaBanner}>
 					<Text style={styles.ctaTitle}>Ready to train?</Text>
 					<Text style={styles.ctaSub}>Log your sets, track your progress, beat your records.</Text>
-					<TouchableOpacity
-						style={styles.ctaButton}
-						activeOpacity={0.8}
-						onPress={() => {
-							router.push({
-								pathname: "/(protected)/workouts/[workout_id]",
-								params: { workout_id: "new", mode: "new" },
-							});
-						}}
-					>
+					<TouchableOpacity style={styles.ctaButton} activeOpacity={0.8} onPress={goToNewWorkout}>
 						<FontAwesome5 name="play" size={12} color={theme.textInverse} />
 						<Text style={styles.ctaButtonText}>Start New Session</Text>
 					</TouchableOpacity>
