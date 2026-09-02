@@ -365,13 +365,13 @@ export default function Progress() {
 					})}
 				</ChartCard>
 
-				{/* Volume by Muscle Group */}
+				{/* Reps by Muscle Group (backend sums working-set reps) */}
 				<ChartCard
-					title="Volume by Muscle Group"
+					title="Reps by Muscle Group"
 					isEmpty={!data.volumeByMuscleGroup || data.volumeByMuscleGroup.total_volume === 0}
 					emptyIcon="chart-pie"
-					emptyTitle="No volume logged yet"
-					emptySubtitle="Log some working sets to see how your volume splits across muscle groups"
+					emptyTitle="No reps logged yet"
+					emptySubtitle="Log some working sets to see how your reps split across muscle groups"
 				>
 					{data.volumeByMuscleGroup && (
 						<>

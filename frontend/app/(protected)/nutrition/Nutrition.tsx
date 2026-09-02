@@ -82,7 +82,7 @@ function MacroBar({
 	textColor: string;
 	trackColor: string;
 }) {
-	const pct = Math.min((current / goal) * 100, 100);
+	const pct = goal > 0 ? Math.min((current / goal) * 100, 100) : 0;
 	return (
 		<View style={{ flex: 1, gap: 4 }}>
 			<View style={{ flexDirection: "row", justifyContent: "space-between" }}>

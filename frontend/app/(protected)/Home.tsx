@@ -27,6 +27,9 @@ interface Workout {
 	total_volume_kg?: number;
 }
 
+// % of goal, guarding against a 0 / missing goal.
+const pctOfGoal = (current: number, goal: number) => (goal > 0 ? (current / goal) * 100 : 0);
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function RingProgress({
@@ -116,7 +119,7 @@ export default function Home() {
 			// Fetch today's diary entries and sum nutrients
 			const [diaryRes, workoutsRes] = await Promise.allSettled([
 				instance.get(`/nutrition/diary?start_date=${today}&end_date=${today}`),
-				instance.get("/Workouts?limit=3"),
+				instance.get("/workouts"),
 			]);
 
 			if (diaryRes.status === "fulfilled") {
@@ -354,7 +357,7 @@ export default function Home() {
 		[theme],
 	);
 
-	const calPercent = summary ? (summary.calories / calorieGoal) * 100 : 0;
+	const calPercent = summary ? pctOfGoal(summary.calories, calorieGoal) : 0;
 
 	return (
 		<SafeAreaView style={styles.safe} edges={["top"]}>
@@ -382,9 +385,9 @@ export default function Home() {
 					{/* Macro rings */}
 					{summary && (
 						<View style={styles.macroRow}>
-							<RingProgress percent={(summary.protein / goals.protein) * 100} color={theme.macroProtein} trackColor={theme.border} label="PROTEIN" size={64} strokeWidth={6} />
-							<RingProgress percent={(summary.carbs / goals.carbs) * 100} color={theme.macroCarbs} trackColor={theme.border} label="CARBS" size={64} strokeWidth={6} />
-							<RingProgress percent={(summary.fat / goals.fat) * 100} color={theme.macroFat} trackColor={theme.border} label="FAT" size={64} strokeWidth={6} />
+							<RingProgress percent={pctOfGoal(summary.protein, goals.protein)} color={theme.macroProtein} trackColor={theme.border} label="PROTEIN" size={64} strokeWidth={6} />
+							<RingProgress percent={pctOfGoal(summary.carbs, goals.carbs)} color={theme.macroCarbs} trackColor={theme.border} label="CARBS" size={64} strokeWidth={6} />
+							<RingProgress percent={pctOfGoal(summary.fat, goals.fat)} color={theme.macroFat} trackColor={theme.border} label="FAT" size={64} strokeWidth={6} />
 						</View>
 					)}
 				</View>
