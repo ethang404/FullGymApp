@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, TouchableOpacity, SectionList, Pressable, RefreshControl } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMemo, useState, useCallback } from "react";
 import { router, useFocusEffect } from "expo-router";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
@@ -10,6 +10,7 @@ import { toast } from "@/utils/toast";
 import { todayISO, shiftISODate, formatDayHeading } from "@/utils/date";
 import { useProfile } from "@/utils/ProfileProvider";
 import { ScreenState } from "@/components/ScreenState";
+import Screen from "@/components/Screen";
 
 import LogFoodModal from "./LogFoodModal";
 
@@ -156,7 +157,6 @@ export default function Nutrition() {
 	const styles = useMemo(
 		() =>
 			StyleSheet.create({
-				safe: { flex: 1, backgroundColor: theme.background },
 				header: {
 					flexDirection: "row",
 					justifyContent: "flex-end",
@@ -395,7 +395,7 @@ export default function Nutrition() {
 	}
 
 	return (
-		<SafeAreaView style={styles.safe} edges={["top"]}>
+		<Screen edges={["top"]}>
 			<TouchableOpacity onPress={() => setCreateMenuOpen((v) => !v)} style={styles.header} onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}>
 				<FontAwesome5 name={createMenuOpen ? "times" : "plus"} size={20} color={theme.primary} />
 			</TouchableOpacity>
@@ -500,6 +500,6 @@ export default function Nutrition() {
 				onClose={() => setLogModalVisible(false)}
 				onLogged={fetchEntries}
 			/>
-		</SafeAreaView>
+		</Screen>
 	);
 }

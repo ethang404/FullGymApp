@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMemo, useState, useEffect } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
@@ -23,6 +24,7 @@ interface LogFoodModalProps {
 
 export default function LogFoodModal({ visible, mealType, selectedDate, onClose, onLogged }: LogFoodModalProps) {
 	const { theme } = useTheme();
+	const insets = useSafeAreaInsets();
 
 	const [query, setQuery] = useState<string>("");
 	const [searchResults, setSearchResults] = useState<FoodSearchResult[]>([]);
@@ -73,6 +75,7 @@ export default function LogFoodModal({ visible, mealType, selectedDate, onClose,
 					borderTopLeftRadius: 20,
 					borderTopRightRadius: 20,
 					padding: 20,
+					paddingBottom: insets.bottom + 20,
 					height: "90%",
 				},
 				headerRow: {
@@ -109,7 +112,7 @@ export default function LogFoodModal({ visible, mealType, selectedDate, onClose,
 					fontSize: 15,
 				},
 			}),
-		[theme],
+		[theme, insets.bottom],
 	);
 
 	return (

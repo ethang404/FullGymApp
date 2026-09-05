@@ -25,6 +25,7 @@ import type { Theme } from "@/theme/colors";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
 import { toast } from "@/utils/toast";
+import Screen from "@/components/Screen";
 import * as types from "../types/workouts";
 
 const emptyWorkout: types.WorkoutData = {
@@ -326,20 +327,20 @@ export default function Workout() {
 
 	if (loading) {
 		return (
-			<SafeAreaView style={[styles.safeArea, styles.centered]}>
+			<Screen edges={["top"]} style={styles.centered}>
 				<View style={styles.headerRow}>
 					<TouchableOpacity style={styles.iconButton} onPress={() => router.back()} hitSlop={10}>
 						<FontAwesome5 name="chevron-left" size={18} color={theme.text} />
 					</TouchableOpacity>
 				</View>
 				<ActivityIndicator size="large" color={theme.primary} />
-			</SafeAreaView>
+			</Screen>
 		);
 	}
 
 	return (
 		<GestureHandlerRootView style={{ flex: 1 }}>
-			<SafeAreaView style={styles.safeArea}>
+			<Screen edges={["top"]}>
 				<View style={styles.headerRow}>
 					<TouchableOpacity style={styles.iconButton} onPress={() => router.back()} hitSlop={10}>
 						<FontAwesome5 name="chevron-left" size={18} color={theme.text} />
@@ -371,7 +372,7 @@ export default function Workout() {
 					theme={theme}
 					styles={styles}
 				/>
-			</SafeAreaView>
+			</Screen>
 		</GestureHandlerRootView>
 	);
 }
@@ -562,7 +563,8 @@ function ExerciseSelectorModal({
 
 	return (
 		<Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-			<KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.modalContainer}>
+			<SafeAreaView style={styles.modalContainer} edges={["top", "bottom"]}>
+				<KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
 				<View style={styles.modalHeader}>
 					<Text style={styles.modalTitle}>Select Exercise</Text>
 					<TouchableOpacity onPress={onClose} hitSlop={10}>
@@ -623,7 +625,8 @@ function ExerciseSelectorModal({
 						) : null
 					}
 				/>
-			</KeyboardAvoidingView>
+				</KeyboardAvoidingView>
+			</SafeAreaView>
 		</Modal>
 	);
 }

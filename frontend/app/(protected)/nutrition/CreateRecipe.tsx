@@ -6,7 +6,7 @@ import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
 import { toast } from "@/utils/toast";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import Screen from "@/components/Screen";
 
 import AddIngredientModal from "./components/AddIngredientModal";
 import RecipeFoodCard from "./components/RecipeFoodCard";
@@ -15,7 +15,6 @@ import { calcNutrientsFromPer100g, resolveServingWeightG, NUTRIENT_NAME_TO_IDS, 
 
 export default function CreateRecipe() {
 	const { theme } = useTheme();
-	const insets = useSafeAreaInsets();
 	const { recipe_id } = useLocalSearchParams<{ recipe_id?: string }>();
 
 	const [recipeName, setRecipeName] = useState("");
@@ -277,20 +276,20 @@ export default function CreateRecipe() {
 
 	if (loading) {
 		return (
-			<View style={[styles.screen, { alignItems: "center", justifyContent: "center" }]}>
+			<Screen edges={["top", "bottom"]} style={{ alignItems: "center", justifyContent: "center" }}>
 				<ActivityIndicator color={theme.primary} />
-			</View>
+			</Screen>
 		);
 	}
 
 	return (
-		<SafeAreaView style={styles.safe} edges={["top"]}>
+		<Screen edges={["top", "bottom"]}>
 			<View style={styles.headerRow}>
 				<TouchableOpacity style={styles.iconButton} onPress={() => router.back()} hitSlop={10}>
 					<FontAwesome5 name="chevron-left" size={18} color={theme.text} />
 				</TouchableOpacity>
 			</View>
-			<ScrollView style={styles.screen} contentContainerStyle={{ paddingBottom: 40 + insets.bottom }}>
+			<ScrollView style={styles.screen} contentContainerStyle={{ paddingBottom: 40 }}>
 				<Text style={styles.sectionLabel}>RECIPE IDENTITY</Text>
 				<TextInput
 					style={styles.nameInput}
@@ -375,6 +374,6 @@ export default function CreateRecipe() {
 					{saving ? <ActivityIndicator color={theme.cardBg} /> : <Text style={styles.saveButtonText}>{recipe_id ? "Save Changes" : "Save Recipe"}</Text>}
 				</TouchableOpacity>
 			</ScrollView>
-		</SafeAreaView>
+		</Screen>
 	);
 }

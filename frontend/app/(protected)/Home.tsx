@@ -1,5 +1,4 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useMemo, useState, useCallback } from "react";
 import { router, useFocusEffect } from "expo-router";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
@@ -11,6 +10,7 @@ import { todayISO, formatRelativeDate } from "@/utils/date";
 import { useProfile } from "@/utils/ProfileProvider";
 import { ScreenState } from "@/components/ScreenState";
 import { PressableScale } from "@/components/PressableScale";
+import Screen from "@/components/Screen";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -150,7 +150,6 @@ export default function Home() {
 	const styles = useMemo(
 		() =>
 			StyleSheet.create({
-				safe: { flex: 1, backgroundColor: theme.background },
 				scroll: { flex: 1 },
 				content: { padding: 20, paddingBottom: 32, gap: 20 },
 
@@ -340,7 +339,7 @@ export default function Home() {
 	const calPercent = summary ? pctOfGoal(summary.calories, calorieGoal) : 0;
 
 	return (
-		<SafeAreaView style={styles.safe} edges={["top"]}>
+		<Screen edges={["top"]}>
 			<ScreenState loading={loading} error={error} onRetry={fetchData} errorTitle="Couldn't load your dashboard">
 			<ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 				{/* Header */}
@@ -423,6 +422,6 @@ export default function Home() {
 				</View>
 			</ScrollView>
 			</ScreenState>
-		</SafeAreaView>
+		</Screen>
 	);
 }

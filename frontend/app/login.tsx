@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { useTheme } from "@/theme/ThemeProvider";
+import Screen from "@/components/Screen";
 import { authInstance } from "../utils/AxiosInterceptorHandler";
 
 export default function Login() {
@@ -169,7 +170,8 @@ export default function Login() {
 	);
 
 	return (
-		<KeyboardAwareScrollView contentContainerStyle={styles.container} enableOnAndroid extraScrollHeight={40} keyboardShouldPersistTaps="handled">
+		<Screen edges={["top", "bottom"]} background={theme.authBackground}>
+			<KeyboardAwareScrollView style={{ flex: 1 }} contentContainerStyle={styles.container} enableOnAndroid extraScrollHeight={40} keyboardShouldPersistTaps="handled">
 			<View style={styles.card}>
 				<Text style={styles.title}>Kratos</Text>
 				<Text style={styles.subtitle}>{mode === "login" ? "Sign in to your account" : "Create a new account"}</Text>
@@ -212,6 +214,7 @@ export default function Login() {
 					{loading ? <ActivityIndicator color={theme.textInverse} /> : <Text style={styles.primaryButtonText}>{mode === "login" ? "Sign In" : "Sign Up"}</Text>}
 				</TouchableOpacity>
 			</View>
-		</KeyboardAwareScrollView>
+			</KeyboardAwareScrollView>
+		</Screen>
 	);
 }

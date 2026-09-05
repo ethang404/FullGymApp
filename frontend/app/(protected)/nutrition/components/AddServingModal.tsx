@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMemo, useState, useEffect } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import type { Theme } from "@/theme/colors"; //for typing
@@ -27,6 +28,7 @@ export function AddServingModal({ visible, foodId, foodName, availableUnits, exi
 	const [newQty, setNewQty] = useState("1");
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const insets = useSafeAreaInsets();
 
 	// Reset the modal form each time opened
 	useEffect(() => {
@@ -109,7 +111,7 @@ export function AddServingModal({ visible, foodId, foodName, availableUnits, exi
 					borderTopLeftRadius: 20,
 					borderTopRightRadius: 20,
 					padding: 20,
-					paddingBottom: 32,
+					paddingBottom: insets.bottom + 24,
 				},
 				headerRow: {
 					flexDirection: "row",
@@ -204,7 +206,7 @@ export function AddServingModal({ visible, foodId, foodName, availableUnits, exi
 					fontWeight: "600",
 				},
 			}),
-		[theme, saving],
+		[theme, saving, insets.bottom],
 	);
 
 	return (

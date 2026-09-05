@@ -1,12 +1,12 @@
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, ActivityIndicator } from "react-native";
 import { useMemo, useState, useEffect, useCallback } from "react";
 import { useLocalSearchParams, router } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
+import Screen from "@/components/Screen";
 
 import { AddServingModal } from "./components/AddServingModal";
 import NutritionFactsLabel from "./components/NutritionLabel";
@@ -190,22 +190,22 @@ export default function FoodDetailScreen() {
 
 	if (loading) {
 		return (
-			<View style={[styles.screen, styles.center]}>
+			<Screen edges={["top", "bottom"]} style={styles.center}>
 				<ActivityIndicator color={theme.primary} />
-			</View>
+			</Screen>
 		);
 	}
 
 	if (error || !food) {
 		return (
-			<View style={[styles.screen, styles.center]}>
+			<Screen edges={["top", "bottom"]} style={styles.center}>
 				<Text style={styles.errorText}>{error ?? "This food couldn't be found."}</Text>
-			</View>
+			</Screen>
 		);
 	}
 
 	return (
-		<SafeAreaView style={styles.screen} edges={["top"]}>
+		<Screen edges={["top", "bottom"]}>
 			<View style={styles.headerRow}>
 				<TouchableOpacity style={styles.iconButton} onPress={() => router.back()} hitSlop={10}>
 					<FontAwesome5 name="chevron-left" size={18} color={theme.text} />
@@ -300,6 +300,6 @@ export default function FoodDetailScreen() {
 				onClose={() => setAddServingModalVisible(false)}
 				onServingAdded={handleServingAdded}
 			/>
-		</SafeAreaView>
+		</Screen>
 	);
 }

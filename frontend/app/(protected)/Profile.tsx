@@ -10,7 +10,7 @@ import {
 	Platform,
 	ActivityIndicator,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useContext, useMemo, useState, useEffect } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
@@ -19,6 +19,7 @@ import { DateField } from "@/components/DateField";
 import { themes, themeLabels, type Theme, type ThemeName } from "@/theme/colors";
 import { AuthContext } from "@/utils/AuthProvider";
 import { useProfile, type EstimateBody } from "@/utils/ProfileProvider";
+import Screen from "@/components/Screen";
 import {
 	MACRO_KEYS,
 	MACRO_META,
@@ -63,7 +64,6 @@ export default function Profile() {
 	const styles = useMemo(
 		() =>
 			StyleSheet.create({
-				safe: { flex: 1, backgroundColor: theme.background },
 				scroll: { flex: 1 },
 				content: { paddingBottom: 40 },
 
@@ -157,7 +157,7 @@ export default function Profile() {
 	);
 
 	return (
-		<SafeAreaView style={styles.safe} edges={["top"]}>
+		<Screen edges={["top"]}>
 			<ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 				<View style={styles.pageHeader}>
 					<Text style={styles.pageTitle}>Profile</Text>
@@ -292,7 +292,7 @@ export default function Profile() {
 					setBodyModalOpen(false);
 				}}
 			/>
-		</SafeAreaView>
+		</Screen>
 	);
 }
 
@@ -344,11 +344,12 @@ function GoalsModal({
 	}
 
 	const s = useMemo(() => modalStyles(theme), [theme]);
+	const insets = useSafeAreaInsets();
 
 	return (
 		<Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
 			<KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={s.overlay}>
-				<View style={s.sheet}>
+				<View style={[s.sheet, { paddingBottom: insets.bottom + 24 }]}>
 					<View style={s.headerRow}>
 						<Text style={s.title}>Edit nutrition goals</Text>
 						<TouchableOpacity onPress={onClose} hitSlop={10}>
@@ -481,12 +482,13 @@ function BodyModal({
 	}
 
 	const s = useMemo(() => modalStyles(theme), [theme]);
+	const insets = useSafeAreaInsets();
 
 	return (
 		<Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
 			<KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={s.overlay}>
 				<ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "flex-end" }} keyboardShouldPersistTaps="handled">
-					<View style={s.sheet}>
+					<View style={[s.sheet, { paddingBottom: insets.bottom + 24 }]}>
 						<View style={s.headerRow}>
 							<Text style={s.title}>Body metrics &amp; calculator</Text>
 							<TouchableOpacity onPress={onClose} hitSlop={10}>

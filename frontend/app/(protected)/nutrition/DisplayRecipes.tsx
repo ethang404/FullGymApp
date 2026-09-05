@@ -1,5 +1,4 @@
 import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, RefreshControl } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useCallback, useMemo, useState } from "react";
 import { router } from "expo-router";
 import { useFocusEffect } from "expo-router";
@@ -7,6 +6,7 @@ import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
+import Screen from "@/components/Screen";
 
 import RecipeDisplayCard, { type Recipe } from "./components/RecipeDisplayCard";
 
@@ -41,7 +41,6 @@ export default function Recipes() {
 	const styles = useMemo(
 		() =>
 			StyleSheet.create({
-				safe: { flex: 1, backgroundColor: theme.background },
 				header: {
 					flexDirection: "row",
 					alignItems: "center",
@@ -70,16 +69,16 @@ export default function Recipes() {
 
 	if (loading) {
 		return (
-			<SafeAreaView style={styles.safe} edges={["top"]}>
+			<Screen edges={["top", "bottom"]}>
 				<View style={styles.center}>
 					<ActivityIndicator color={theme.primary} size="large" />
 				</View>
-			</SafeAreaView>
+			</Screen>
 		);
 	}
 
 	return (
-		<SafeAreaView style={styles.safe} edges={["top"]}>
+		<Screen edges={["top", "bottom"]}>
 			<View style={styles.header}>
 				<TouchableOpacity style={styles.backBtn} onPress={() => router.back()} hitSlop={10}>
 					<FontAwesome5 name="arrow-left" size={18} color={theme.text} />
@@ -120,6 +119,6 @@ export default function Recipes() {
 					}
 				/>
 			)}
-		</SafeAreaView>
+		</Screen>
 	);
 }
