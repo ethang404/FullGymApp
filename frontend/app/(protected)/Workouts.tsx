@@ -1,5 +1,4 @@
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useMemo, useState, useCallback } from "react";
 import { router, useFocusEffect } from "expo-router";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
@@ -9,6 +8,8 @@ import { log } from "@/utils/log";
 import { toast } from "@/utils/toast";
 import { formatRelativeDate } from "@/utils/date";
 import { ScreenState } from "@/components/ScreenState";
+import { PressableScale } from "@/components/PressableScale";
+import Screen from "@/components/Screen";
 
 interface Workout {
 	id: string;
@@ -55,7 +56,6 @@ export default function Workouts() {
 	const styles = useMemo(
 		() =>
 			StyleSheet.create({
-				safe: { flex: 1, backgroundColor: theme.background },
 				scroll: { flex: 1 },
 				content: { padding: 16, paddingBottom: 32, gap: 12 },
 
@@ -252,10 +252,10 @@ export default function Workouts() {
 			<View style={styles.ctaBanner}>
 				<Text style={styles.ctaTitle}>Ready to train?</Text>
 				<Text style={styles.ctaSub}>Log your sets, track your progress, beat your records.</Text>
-				<TouchableOpacity style={styles.ctaButton} activeOpacity={0.8} onPress={goToNewWorkout}>
+				<PressableScale style={styles.ctaButton} onPress={goToNewWorkout}>
 					<FontAwesome5 name="play" size={12} color={theme.textInverse} />
 					<Text style={styles.ctaButtonText}>Start New Session</Text>
-				</TouchableOpacity>
+				</PressableScale>
 			</View>
 
 			{workouts.length > 0 && <Text style={styles.sectionLabel}>History</Text>}
@@ -263,7 +263,7 @@ export default function Workouts() {
 	);
 
 	return (
-		<SafeAreaView style={styles.safe} edges={["top"]}>
+		<Screen edges={["top"]}>
 			<ScreenState loading={loading} error={error} onRetry={fetchWorkouts} errorTitle="Couldn't load your workouts">
 				<FlatList
 					data={workouts}
@@ -292,6 +292,6 @@ export default function Workouts() {
 					}
 				/>
 			</ScreenState>
-		</SafeAreaView>
+		</Screen>
 	);
 }

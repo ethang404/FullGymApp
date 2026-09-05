@@ -4,6 +4,8 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view
 import { router } from "expo-router";
 import { useTheme } from "@/theme/ThemeProvider";
 import Pills from "@/components/Pills";
+import Screen from "@/components/Screen";
+import { DateField } from "@/components/DateField";
 import { useProfile, type EstimateBody } from "@/utils/ProfileProvider";
 import {
 	SEXES,
@@ -133,7 +135,7 @@ export default function Onboarding() {
 	const styles = useMemo(
 		() =>
 			StyleSheet.create({
-				container: { flexGrow: 1, backgroundColor: theme.authBackground, padding: 20, paddingTop: 60 },
+				container: { flexGrow: 1, backgroundColor: theme.authBackground, padding: 20 },
 				title: { fontSize: 26, fontWeight: "800", color: theme.authText, marginBottom: 4 },
 				subtitle: { fontSize: 14, color: theme.authTextMuted, marginBottom: 24 },
 				label: { fontSize: 13, color: theme.authLabel, marginBottom: 6, marginTop: 14, fontWeight: "600" },
@@ -179,14 +181,15 @@ export default function Onboarding() {
 
 	if (loading) {
 		return (
-			<View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.authBackground }}>
+			<Screen edges={["top", "bottom"]} background={theme.authBackground} style={{ alignItems: "center", justifyContent: "center" }}>
 				<ActivityIndicator color={theme.primary} size="large" />
-			</View>
+			</Screen>
 		);
 	}
 
 	return (
-		<KeyboardAwareScrollView contentContainerStyle={styles.container} enableOnAndroid extraScrollHeight={40} keyboardShouldPersistTaps="handled">
+		<Screen edges={["top", "bottom"]} background={theme.authBackground}>
+			<KeyboardAwareScrollView style={{ flex: 1 }} contentContainerStyle={styles.container} enableOnAndroid extraScrollHeight={40} keyboardShouldPersistTaps="handled">
 			{step === 1 ? (
 				<>
 					<Text style={styles.title}>Set your targets</Text>
@@ -198,13 +201,12 @@ export default function Onboarding() {
 					<Pills options={SEXES} value={sex} onSelect={setSex} labels={{ male: "Male", female: "Female" }} />
 
 					<Text style={styles.label}>Date of birth</Text>
-					<TextInput
-						style={styles.input}
-						placeholder="YYYY-MM-DD"
-						placeholderTextColor={theme.authTextHint}
+					<DateField
 						value={birthDate}
-						onChangeText={setBirthDate}
-						autoCapitalize="none"
+						onChange={setBirthDate}
+						placeholder="Select your birth date"
+						fieldStyle={styles.input}
+						textStyle={{ color: theme.authInputText, fontSize: 15 }}
 					/>
 
 					<Text style={styles.label}>Height (cm)</Text>
@@ -273,6 +275,7 @@ export default function Onboarding() {
 					</TouchableOpacity>
 				</>
 			)}
-		</KeyboardAwareScrollView>
+			</KeyboardAwareScrollView>
+		</Screen>
 	);
 }

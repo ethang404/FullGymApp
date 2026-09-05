@@ -1,14 +1,16 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useMemo, useState, useCallback } from "react";
 import { router, useFocusEffect } from "expo-router";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
+import Svg, { Circle } from "react-native-svg";
 import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
 import { todayISO, formatRelativeDate } from "@/utils/date";
 import { useProfile } from "@/utils/ProfileProvider";
 import { ScreenState } from "@/components/ScreenState";
+import { PressableScale } from "@/components/PressableScale";
+import Screen from "@/components/Screen";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -27,6 +29,9 @@ interface Workout {
 	total_volume_kg?: number;
 }
 
+// % of goal, guarding against a 0 / missing goal.
+const pctOfGoal = (current: number, goal: number) => (goal > 0 ? (current / goal) * 100 : 0);
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function RingProgress({
@@ -44,53 +49,31 @@ function RingProgress({
 	trackColor: string;
 	label: string;
 }) {
+	const clamped = Math.max(0, Math.min(percent, 100));
 	const radius = (size - strokeWidth) / 2;
 	const circumference = 2 * Math.PI * radius;
-	const filled = circumference * Math.min(percent / 100, 1);
+	const dashOffset = circumference * (1 - clamped / 100);
+	const center = size / 2;
 
 	return (
 		<View style={{ alignItems: "center", gap: 4 }}>
-			<View style={{ width: size, height: size }}>
-				{/* Track */}
-				<View
-					style={{
-						position: "absolute",
-						width: size,
-						height: size,
-						borderRadius: size / 2,
-						borderWidth: strokeWidth,
-						borderColor: trackColor,
-					}}
-				/>
-				{/* We use a simple arc approximation with border trick */}
-				<View
-					style={{
-						position: "absolute",
-						width: size,
-						height: size,
-						borderRadius: size / 2,
-						borderWidth: strokeWidth,
-						borderColor: "transparent",
-						borderTopColor: color,
-						borderRightColor: percent > 25 ? color : "transparent",
-						borderBottomColor: percent > 50 ? color : "transparent",
-						borderLeftColor: percent > 75 ? color : "transparent",
-						transform: [{ rotate: "-90deg" }],
-					}}
-				/>
-				<View
-					style={{
-						position: "absolute",
-						top: 0,
-						left: 0,
-						right: 0,
-						bottom: 0,
-						alignItems: "center",
-						justifyContent: "center",
-					}}
-				>
-					<Text style={{ fontSize: 13, fontWeight: "700", color }}>{Math.round(percent)}%</Text>
-				</View>
+			<View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+				<Svg width={size} height={size} style={{ position: "absolute" }}>
+					<Circle cx={center} cy={center} r={radius} stroke={trackColor} strokeWidth={strokeWidth} fill="none" />
+					<Circle
+						cx={center}
+						cy={center}
+						r={radius}
+						stroke={color}
+						strokeWidth={strokeWidth}
+						fill="none"
+						strokeDasharray={circumference}
+						strokeDashoffset={dashOffset}
+						strokeLinecap="round"
+						transform={`rotate(-90 ${center} ${center})`}
+					/>
+				</Svg>
+				<Text style={{ fontSize: 13, fontWeight: "700", color }}>{Math.round(clamped)}%</Text>
 			</View>
 			<Text style={{ fontSize: 11, color, fontWeight: "600", letterSpacing: 0.5 }}>{label}</Text>
 		</View>
@@ -116,7 +99,7 @@ export default function Home() {
 			// Fetch today's diary entries and sum nutrients
 			const [diaryRes, workoutsRes] = await Promise.allSettled([
 				instance.get(`/nutrition/diary?start_date=${today}&end_date=${today}`),
-				instance.get("/Workouts?limit=3"),
+				instance.get("/workouts"),
 			]);
 
 			if (diaryRes.status === "fulfilled") {
@@ -167,7 +150,6 @@ export default function Home() {
 	const styles = useMemo(
 		() =>
 			StyleSheet.create({
-				safe: { flex: 1, backgroundColor: theme.background },
 				scroll: { flex: 1 },
 				content: { padding: 20, paddingBottom: 32, gap: 20 },
 
@@ -354,10 +336,10 @@ export default function Home() {
 		[theme],
 	);
 
-	const calPercent = summary ? (summary.calories / calorieGoal) * 100 : 0;
+	const calPercent = summary ? pctOfGoal(summary.calories, calorieGoal) : 0;
 
 	return (
-		<SafeAreaView style={styles.safe} edges={["top"]}>
+		<Screen edges={["top"]}>
 			<ScreenState loading={loading} error={error} onRetry={fetchData} errorTitle="Couldn't load your dashboard">
 			<ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 				{/* Header */}
@@ -382,23 +364,23 @@ export default function Home() {
 					{/* Macro rings */}
 					{summary && (
 						<View style={styles.macroRow}>
-							<RingProgress percent={(summary.protein / goals.protein) * 100} color={theme.macroProtein} trackColor={theme.border} label="PROTEIN" size={64} strokeWidth={6} />
-							<RingProgress percent={(summary.carbs / goals.carbs) * 100} color={theme.macroCarbs} trackColor={theme.border} label="CARBS" size={64} strokeWidth={6} />
-							<RingProgress percent={(summary.fat / goals.fat) * 100} color={theme.macroFat} trackColor={theme.border} label="FAT" size={64} strokeWidth={6} />
+							<RingProgress percent={pctOfGoal(summary.protein, goals.protein)} color={theme.macroProtein} trackColor={theme.border} label="PROTEIN" size={64} strokeWidth={6} />
+							<RingProgress percent={pctOfGoal(summary.carbs, goals.carbs)} color={theme.macroCarbs} trackColor={theme.border} label="CARBS" size={64} strokeWidth={6} />
+							<RingProgress percent={pctOfGoal(summary.fat, goals.fat)} color={theme.macroFat} trackColor={theme.border} label="FAT" size={64} strokeWidth={6} />
 						</View>
 					)}
 				</View>
 
 				{/* CTA buttons */}
 				<View style={styles.ctaRow}>
-					<TouchableOpacity style={styles.ctaPrimary} onPress={() => router.push("/(protected)/nutrition/Nutrition")} activeOpacity={0.8}>
+					<PressableScale style={styles.ctaPrimary} onPress={() => router.push("/(protected)/nutrition/Nutrition")}>
 						<FontAwesome5 name="utensils" size={14} color={theme.textInverse} />
 						<Text style={styles.ctaPrimaryText}>Log Food</Text>
-					</TouchableOpacity>
-					<TouchableOpacity style={styles.ctaSecondary} onPress={() => router.push("/(protected)/Workouts")} activeOpacity={0.8}>
+					</PressableScale>
+					<PressableScale style={styles.ctaSecondary} onPress={() => router.push("/(protected)/Workouts")}>
 						<FontAwesome5 name="dumbbell" size={14} color={theme.text} />
 						<Text style={styles.ctaSecondaryText}>Workout</Text>
-					</TouchableOpacity>
+					</PressableScale>
 				</View>
 
 				{/* Recent workouts */}
@@ -440,6 +422,6 @@ export default function Home() {
 				</View>
 			</ScrollView>
 			</ScreenState>
-		</SafeAreaView>
+		</Screen>
 	);
 }

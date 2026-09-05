@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMemo, useState, useEffect } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
@@ -18,6 +19,7 @@ interface AddIngredientModalProps {
 // Same search-debounce pattern as LogFoodModal
 export default function AddIngredientModal({ visible, onClose, onAdd }: AddIngredientModalProps) {
 	const { theme } = useTheme();
+	const insets = useSafeAreaInsets();
 
 	const [query, setQuery] = useState<string>("");
 	const [searchResults, setSearchResults] = useState<FoodSearchResult[]>([]);
@@ -45,7 +47,7 @@ export default function AddIngredientModal({ visible, onClose, onAdd }: AddIngre
 		() =>
 			StyleSheet.create({
 				overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: theme.overlay },
-				card: { backgroundColor: theme.cardBg, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, height: "90%" },
+				card: { backgroundColor: theme.cardBg, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: insets.bottom + 20, height: "90%" },
 				headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
 				title: { color: theme.text, fontSize: 18, fontWeight: "700" },
 				searchBar: {
@@ -62,7 +64,7 @@ export default function AddIngredientModal({ visible, onClose, onAdd }: AddIngre
 				},
 				searchInput: { flex: 1, color: theme.text, fontSize: 15 },
 			}),
-		[theme],
+		[theme, insets.bottom],
 	);
 
 	return (

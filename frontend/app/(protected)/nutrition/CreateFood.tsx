@@ -20,6 +20,7 @@ import { useTheme } from "@/theme/ThemeProvider";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { recognizeText, type OcrResult } from "expo-ocr-kit"; //Need to do proper build for this, so delay
 import { parseNutritionLabel } from "@/utils/parseNutritionLabel";
+import Screen from "@/components/Screen";
 
 //used for manipulating the image to ignore background, maybe it helps
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
@@ -850,7 +851,7 @@ export default function CreateFood() {
 	};
 
 	return (
-		<SafeAreaView style={styles.safeArea}>
+		<Screen edges={["top", "bottom"]}>
 			<View style={styles.header}>
 				<TouchableOpacity onPress={() => router.back()} hitSlop={12}>
 					<Ionicons name="close" size={26} color={theme.text} />
@@ -1059,6 +1060,6 @@ export default function CreateFood() {
 					</SafeAreaView>
 				</View>
 			</Modal>
-		</SafeAreaView>
+		</Screen>
 	);
 }

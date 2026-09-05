@@ -1,5 +1,4 @@
 import { View, Text, StyleSheet, ScrollView, RefreshControl, Pressable, useWindowDimensions } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useMemo, useEffect, useState } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { LineChart, BarChart, PieChart } from "react-native-gifted-charts";
@@ -11,6 +10,7 @@ import { formatShortDate } from "@/utils/date";
 import { ChartCard } from "@/components/ChartCard";
 import { ScreenState } from "@/components/ScreenState";
 import { ExerciseHistoryModal } from "@/components/ExerciseHistoryModal";
+import Screen from "@/components/Screen";
 import { getMuscleGroupColor } from "@/theme/chartColors";
 
 type FilterOption = "week" | "month" | "year" | "all";
@@ -183,7 +183,6 @@ export default function Progress() {
 	const styles = useMemo(
 		() =>
 			StyleSheet.create({
-				safe: { flex: 1, backgroundColor: theme.background },
 				scroll: { flex: 1 },
 				content: { padding: 16, paddingBottom: 32, gap: 20 },
 
@@ -294,7 +293,7 @@ export default function Progress() {
 	);
 
 	return (
-		<SafeAreaView style={styles.safe} edges={["top"]}>
+		<Screen edges={["top"]}>
 			<ScreenState loading={loading} error={error} onRetry={() => fetchAll(filter)} errorTitle="Couldn't load your progress">
 			<ScrollView
 				style={styles.scroll}
@@ -365,13 +364,13 @@ export default function Progress() {
 					})}
 				</ChartCard>
 
-				{/* Volume by Muscle Group */}
+				{/* Reps by Muscle Group (backend sums working-set reps) */}
 				<ChartCard
-					title="Volume by Muscle Group"
+					title="Reps by Muscle Group"
 					isEmpty={!data.volumeByMuscleGroup || data.volumeByMuscleGroup.total_volume === 0}
 					emptyIcon="chart-pie"
-					emptyTitle="No volume logged yet"
-					emptySubtitle="Log some working sets to see how your volume splits across muscle groups"
+					emptyTitle="No reps logged yet"
+					emptySubtitle="Log some working sets to see how your reps split across muscle groups"
 				>
 					{data.volumeByMuscleGroup && (
 						<>
@@ -628,6 +627,6 @@ export default function Progress() {
 				name={historyModal.name}
 				filter={filter}
 			/>
-		</SafeAreaView>
+		</Screen>
 	);
 }

@@ -1,4 +1,5 @@
 import { Modal, View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView, Dimensions } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useEffect, useMemo, useRef, useState } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { LineChart } from "react-native-gifted-charts";
@@ -35,6 +36,7 @@ interface ExerciseHistoryModalProps {
 // whenever it's opened for a (possibly different) catalog_id.
 export function ExerciseHistoryModal({ visible, onClose, catalogId, name, filter }: ExerciseHistoryModalProps) {
 	const { theme } = useTheme();
+	const insets = useSafeAreaInsets();
 	const [loading, setLoading] = useState(true);
 	const [history, setHistory] = useState<ExerciseHistoryResponse | null>(null);
 	// Tracks the most recently-issued request so a slow, now-stale response (e.g. the user reopened the
@@ -74,7 +76,7 @@ export function ExerciseHistoryModal({ visible, onClose, catalogId, name, filter
 					borderTopLeftRadius: 20,
 					borderTopRightRadius: 20,
 					paddingTop: 16,
-					paddingBottom: 32,
+					paddingBottom: insets.bottom + 24,
 					maxHeight: "75%",
 				},
 				header: {
@@ -102,7 +104,7 @@ export function ExerciseHistoryModal({ visible, onClose, catalogId, name, filter
 				emptyState: { alignItems: "center", paddingVertical: 40, gap: 8 },
 				emptyText: { fontSize: 13, color: theme.textTertiary, textAlign: "center" },
 			}),
-		[theme],
+		[theme, insets.bottom],
 	);
 
 	const chartData = useMemo(() => {
