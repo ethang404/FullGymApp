@@ -115,6 +115,17 @@ async function deleteDiaryEntry(req, res) {
 	}
 }
 
+// /recent — recently logged distinct foods + recipes, newest first
+async function getRecentLogged(req, res) {
+	const user_id = getUserId(req);
+	try {
+		const recent = await service.getRecentLogged(user_id);
+		return res.status(200).json({ recent });
+	} catch (error) {
+		return handleError(res, error);
+	}
+}
+
 // ---------------------------------------------
 // recipes
 // ---------------------------------------------
@@ -185,6 +196,7 @@ module.exports = {
 	addDiaryEntry,
 	editDiaryEntry,
 	deleteDiaryEntry,
+	getRecentLogged,
 
 	getRecipes,
 	getRecipe,

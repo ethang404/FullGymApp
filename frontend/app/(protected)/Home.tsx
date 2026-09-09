@@ -2,7 +2,6 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-nati
 import { useMemo, useState, useCallback } from "react";
 import { router, useFocusEffect } from "expo-router";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
-import Svg, { Circle } from "react-native-svg";
 import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
@@ -10,6 +9,7 @@ import { todayISO, formatRelativeDate } from "@/utils/date";
 import { useProfile } from "@/utils/ProfileProvider";
 import { ScreenState } from "@/components/ScreenState";
 import { PressableScale } from "@/components/PressableScale";
+import { RingProgress } from "@/components/RingProgress";
 import Screen from "@/components/Screen";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -31,54 +31,6 @@ interface Workout {
 
 // % of goal, guarding against a 0 / missing goal.
 const pctOfGoal = (current: number, goal: number) => (goal > 0 ? (current / goal) * 100 : 0);
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function RingProgress({
-	percent,
-	size = 72,
-	strokeWidth = 7,
-	color,
-	trackColor,
-	label,
-}: {
-	percent: number;
-	size?: number;
-	strokeWidth?: number;
-	color: string;
-	trackColor: string;
-	label: string;
-}) {
-	const clamped = Math.max(0, Math.min(percent, 100));
-	const radius = (size - strokeWidth) / 2;
-	const circumference = 2 * Math.PI * radius;
-	const dashOffset = circumference * (1 - clamped / 100);
-	const center = size / 2;
-
-	return (
-		<View style={{ alignItems: "center", gap: 4 }}>
-			<View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
-				<Svg width={size} height={size} style={{ position: "absolute" }}>
-					<Circle cx={center} cy={center} r={radius} stroke={trackColor} strokeWidth={strokeWidth} fill="none" />
-					<Circle
-						cx={center}
-						cy={center}
-						r={radius}
-						stroke={color}
-						strokeWidth={strokeWidth}
-						fill="none"
-						strokeDasharray={circumference}
-						strokeDashoffset={dashOffset}
-						strokeLinecap="round"
-						transform={`rotate(-90 ${center} ${center})`}
-					/>
-				</Svg>
-				<Text style={{ fontSize: 13, fontWeight: "700", color }}>{Math.round(clamped)}%</Text>
-			</View>
-			<Text style={{ fontSize: 11, color, fontWeight: "600", letterSpacing: 0.5 }}>{label}</Text>
-		</View>
-	);
-}
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 

@@ -600,3 +600,85 @@ describe("Liquid/Volume Unit Conversion", () => {
 		await request(app).delete(`/nutrition/recipes/${recipeId}`).set("Authorization", `Bearer ${token}`);
 	});
 });
+
+// ─────────────────────────────────────────────
+// RECENTLY LOGGED
+// ─────────────────────────────────────────────
+
+describe("Recent Logged Endpoint", () => {
+	let foodId;
+	let recipeId;
+
+	beforeAll(async () => {
+		const foodResp = await request(app)
+			.post("/nutrition/foods")
+			.set("Content-Type", "application/json")
+			.set("Authorization", `Bearer ${token}`)
+			.send({ ...addFoodPayload, name: "Recent Test Food" });
+		foodId = foodResp.body.food.id;
+
+		const recipeResp = await request(app)
+			.post("/nutrition/recipes")
+			.set("Content-Type", "application/json")
+			.set("Authorization", `Bearer ${token}`)
+			.send({ name: "Recent Test Recipe", servings: 2, ingredients: [{ food_id: foodId, quantity: 200, unit: "g" }] });
+		recipeId = recipeResp.body.recipe.recipe_id;
+
+		// Log the recipe first, then the food, then the same food again.
+		await request(app)
+			.post("/nutrition/diary")
+			.set("Content-Type", "application/json")
+			.set("Authorization", `Bearer ${token}`)
+			.send({ recipe_id: recipeId, meal_type: "dinner", logged_at: "2025-03-01", quantity: 1, unit: "serving" });
+
+		await request(app)
+			.post("/nutrition/diary")
+			.set("Content-Type", "application/json")
+			.set("Authorization", `Bearer ${token}`)
+			.send({ food_id: foodId, meal_type: "breakfast", logged_at: "2025-03-02", quantity: 100, unit: "g" });
+
+		await request(app)
+			.post("/nutrition/diary")
+			.set("Content-Type", "application/json")
+			.set("Authorization", `Bearer ${token}`)
+			.send({ food_id: foodId, meal_type: "lunch", logged_at: "2025-03-03", quantity: 150, unit: "g" });
+	});
+
+	test("GET /nutrition/recent - newest first, de-duped, with card-ready shape", async () => {
+		const resp = await request(app).get("/nutrition/recent").set("Authorization", `Bearer ${token}`);
+
+		expect(resp.status).toBe(200);
+		expect(Array.isArray(resp.body.recent)).toBe(true);
+
+		const foodEntries = resp.body.recent.filter((r) => r.type === "food" && r.food.id === foodId);
+		const recipeEntries = resp.body.recent.filter((r) => r.type === "recipe" && r.recipe.id === recipeId);
+
+		// Food logged twice but appears once
+		expect(foodEntries.length).toBe(1);
+		expect(recipeEntries.length).toBe(1);
+
+		// Food (logged most recently) comes before the recipe
+		const foodIdx = resp.body.recent.findIndex((r) => r.type === "food" && r.food.id === foodId);
+		const recipeIdx = resp.body.recent.findIndex((r) => r.type === "recipe" && r.recipe.id === recipeId);
+		expect(foodIdx).toBeLessThan(recipeIdx);
+
+		// Food item is shaped like a search result (re-loggable via FoodCard)
+		expect(Array.isArray(foodEntries[0].food.serving_sizes)).toBe(true);
+		expect(Array.isArray(foodEntries[0].food.nutrients_per_100g)).toBe(true);
+		expect(foodEntries[0].food.default_serving).toBeDefined();
+
+		// Recipe item is shaped like a recipe summary
+		expect(recipeEntries[0].recipe.calories_per_serving).toBeDefined();
+		expect(parseFloat(recipeEntries[0].recipe.servings)).toBe(2);
+	});
+
+	test("GET /nutrition/recent - excludes a deleted recipe", async () => {
+		await request(app).delete(`/nutrition/recipes/${recipeId}`).set("Authorization", `Bearer ${token}`);
+
+		const resp = await request(app).get("/nutrition/recent").set("Authorization", `Bearer ${token}`);
+		expect(resp.status).toBe(200);
+		expect(resp.body.recent.some((r) => r.type === "recipe" && r.recipe.id === recipeId)).toBe(false);
+		// Food still there
+		expect(resp.body.recent.some((r) => r.type === "food" && r.food.id === foodId)).toBe(true);
+	});
+});

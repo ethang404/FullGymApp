@@ -2,16 +2,10 @@ import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { useMemo } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
+import type { RecipeSummary } from "../../types/nutrition";
 
-export interface Recipe {
-	id: string;
-	name: string;
-	servings: number;
-	calories_per_serving: number;
-	protein_per_serving: number;
-	carbs_per_serving: number;
-	fat_per_serving: number;
-}
+// Kept as a local alias for existing importers; canonical shape lives in types/nutrition.
+export type Recipe = RecipeSummary;
 
 type RecipeCardProps = {
 	recipe: Recipe;

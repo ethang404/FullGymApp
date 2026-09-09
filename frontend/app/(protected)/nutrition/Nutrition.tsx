@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, TouchableOpacity, SectionList, Pressable, RefreshControl } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, type ComponentProps } from "react";
 import { router, useFocusEffect } from "expo-router";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
@@ -10,13 +10,32 @@ import { toast } from "@/utils/toast";
 import { todayISO, shiftISODate, formatDayHeading } from "@/utils/date";
 import { useProfile } from "@/utils/ProfileProvider";
 import { ScreenState } from "@/components/ScreenState";
+import { RingProgress } from "@/components/RingProgress";
 import Screen from "@/components/Screen";
 
 import LogFoodModal from "./LogFoodModal";
 
+type IconName = ComponentProps<typeof FontAwesome5>["name"];
+
 //Put the various types I need here
-type MealType = "breakfast" | "lunch" | "dinner" | "snacks";
-const MEAL_TYPES: MealType[] = ["breakfast", "lunch", "dinner", "snacks"];
+// Canonical values match the backend meal_type enum. Display labels are separate
+// (we still want to show "Snacks" even though the stored value is "snack").
+type MealType = "breakfast" | "lunch" | "dinner" | "snack";
+const MEAL_TYPES: MealType[] = ["breakfast", "lunch", "dinner", "snack"];
+
+const MEAL_LABELS: Record<MealType, string> = {
+	breakfast: "Breakfast",
+	lunch: "Lunch",
+	dinner: "Dinner",
+	snack: "Snacks",
+};
+
+const MEAL_ICONS: Record<MealType, IconName> = {
+	breakfast: "coffee",
+	lunch: "utensils",
+	dinner: "moon",
+	snack: "apple-alt",
+};
 
 interface DiaryEntry {
 	id: number;
@@ -75,6 +94,7 @@ function MacroBar({
 	color,
 	textColor,
 	trackColor,
+	valueColor,
 }: {
 	label: string;
 	current: number;
@@ -82,26 +102,29 @@ function MacroBar({
 	color: string;
 	textColor: string;
 	trackColor: string;
+	valueColor: string;
 }) {
 	const pct = goal > 0 ? Math.min((current / goal) * 100, 100) : 0;
 	return (
-		<View style={{ flex: 1, gap: 4 }}>
-			<View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-				<Text style={{ fontSize: 10, fontWeight: "700", color, letterSpacing: 0.8, textTransform: "uppercase" }}>{label}</Text>
-				<Text style={{ fontSize: 10, color: textColor }}>
-					{Math.round(current)}/{goal}g
-				</Text>
-			</View>
-			<View style={{ height: 3, backgroundColor: trackColor, borderRadius: 2 }}>
-				<View style={{ height: 3, width: `${pct}%`, backgroundColor: color, borderRadius: 2 }} />
+		<View style={{ flex: 1, gap: 6 }}>
+			<Text style={{ fontSize: 10, fontWeight: "700", color, letterSpacing: 0.8, textTransform: "uppercase" }}>{label}</Text>
+			<Text style={{ fontSize: 17, fontWeight: "800", color: valueColor }}>
+				{Math.round(current)}
+				<Text style={{ fontSize: 12, fontWeight: "600", color: textColor }}> g</Text>
+			</Text>
+			<View style={{ height: 4, backgroundColor: trackColor, borderRadius: 2, overflow: "hidden" }}>
+				<View style={{ height: 4, width: `${pct}%`, backgroundColor: color, borderRadius: 2 }} />
 			</View>
 		</View>
 	);
 }
 
+// % of goal, guarding against a 0 / missing goal.
+const pctOfGoal = (current: number, goal: number) => (goal > 0 ? (current / goal) * 100 : 0);
+
 export default function Nutrition() {
 	const { theme } = useTheme();
-	const { goals } = useProfile();
+	const { goals, profile } = useProfile();
 	const insets = useSafeAreaInsets();
 
 	const [loading, setLoading] = useState(true);
@@ -143,7 +166,6 @@ export default function Nutrition() {
 	);
 
 	const totals = useMemo(() => calculateTotalMacros(entries), [entries]);
-	const remaining = goals.calories - totals.calories;
 
 	const sections: MealSection[] = useMemo(() => {
 		return MEAL_TYPES.map((mealType) => ({
@@ -158,12 +180,9 @@ export default function Nutrition() {
 		() =>
 			StyleSheet.create({
 				header: {
-					flexDirection: "row",
-					justifyContent: "flex-end",
-					alignItems: "center",
 					paddingHorizontal: 16,
 					paddingTop: 10,
-					paddingBottom: 10,
+					paddingBottom: 14,
 				},
 				createMenu: {
 					position: "absolute",
@@ -224,8 +243,7 @@ export default function Nutrition() {
 				summaryCard: {
 					paddingHorizontal: 20,
 					paddingVertical: 24,
-					gap: 14,
-					alignItems: "center",
+					gap: 18,
 				},
 				remainingLabel: {
 					fontSize: 11,
@@ -233,16 +251,14 @@ export default function Nutrition() {
 					color: theme.textMuted,
 					letterSpacing: 1.2,
 					textTransform: "uppercase",
-					textAlign: "center",
 				},
 				remainingRow: {
 					flexDirection: "row",
-					alignItems: "baseline",
-					justifyContent: "center",
-					gap: 6,
+					alignItems: "center",
+					justifyContent: "space-between",
 				},
 				remainingValue: {
-					fontSize: 46,
+					fontSize: 40,
 					fontWeight: "800",
 					color: theme.text,
 					letterSpacing: -1,
@@ -264,20 +280,50 @@ export default function Nutrition() {
 					alignItems: "center",
 					backgroundColor: theme.cardBgAlt,
 					paddingHorizontal: 16,
-					paddingVertical: 16,
-					borderLeftWidth: 3,
+					paddingVertical: 14,
 					marginTop: 12,
-					borderLeftColor: theme.primary,
+					borderTopLeftRadius: 16,
+					borderTopRightRadius: 16,
+				},
+				sectionHeaderLast: {
+					borderBottomLeftRadius: 16,
+					borderBottomRightRadius: 16,
+				},
+				sectionHeaderLeft: {
+					flexDirection: "row",
+					alignItems: "center",
+					gap: 12,
+				},
+				sectionIconChip: {
+					width: 34,
+					height: 34,
+					borderRadius: 10,
+					backgroundColor: theme.background,
+					alignItems: "center",
+					justifyContent: "center",
 				},
 				sectionHeaderText: {
-					color: theme.primary,
+					color: theme.text,
 					fontWeight: "700",
-					fontSize: 13,
-					letterSpacing: 0.8,
+					fontSize: 15,
 				},
 				sectionHeaderCalories: {
 					color: theme.textMuted,
-					fontSize: 13,
+					fontSize: 12,
+					marginTop: 1,
+				},
+				sectionAddButton: {
+					width: 30,
+					height: 30,
+					borderRadius: 15,
+					alignItems: "center",
+					justifyContent: "center",
+					borderWidth: 1.5,
+					borderColor: theme.primary,
+				},
+				sectionAddButtonFilled: {
+					backgroundColor: theme.primary,
+					borderColor: theme.primary,
 				},
 
 				// Diary entry rows
@@ -290,6 +336,12 @@ export default function Nutrition() {
 					paddingVertical: 12,
 					borderBottomWidth: StyleSheet.hairlineWidth,
 					borderBottomColor: theme.border,
+				},
+				entryRowLast: {
+					borderBottomWidth: 0,
+					borderBottomLeftRadius: 16,
+					borderBottomRightRadius: 16,
+					marginBottom: 4,
 				},
 				entryName: {
 					color: theme.text,
@@ -311,8 +363,8 @@ export default function Nutrition() {
 					fontSize: 12,
 				},
 				entryMacro: {
-					fontSize: 12,
-					fontWeight: "600",
+					fontSize: 11,
+					fontWeight: "500",
 				},
 				entryCalories: {
 					color: theme.text,
@@ -320,39 +372,40 @@ export default function Nutrition() {
 					fontWeight: "700",
 					marginLeft: 12,
 				},
-
-				logFoodRow: {
-					flexDirection: "row",
-					justifyContent: "space-between",
-					alignItems: "center",
-					backgroundColor: theme.cardBg,
-					paddingHorizontal: 16,
-					paddingVertical: 18,
-					borderBottomWidth: StyleSheet.hairlineWidth,
-					borderBottomColor: theme.border,
-				},
-				logFoodText: {
-					color: theme.textMuted,
-					fontWeight: "700",
-					fontSize: 12,
-					letterSpacing: 0.8,
-				},
 			}),
 		[theme],
 	);
 
 	//Starting here we'll define other functions
 
-	function renderMealHeader(title: string, calories: number) {
+	function renderMealHeader(mealType: MealType, calories: number, isLastSection: boolean) {
+		const hasEntries = calories > 0;
 		return (
-			<View style={styles.sectionHeader}>
-				<Text style={styles.sectionHeaderText}>{title.toUpperCase()}</Text>
-				<Text style={styles.sectionHeaderCalories}>{Math.round(calories)} kcal</Text>
+			<View style={[styles.sectionHeader, isLastSection && styles.sectionHeaderLast]}>
+				<View style={styles.sectionHeaderLeft}>
+					<View style={styles.sectionIconChip}>
+						<FontAwesome5 name={MEAL_ICONS[mealType]} size={14} color={theme.primary} />
+					</View>
+					<View>
+						<Text style={styles.sectionHeaderText}>{MEAL_LABELS[mealType]}</Text>
+						<Text style={styles.sectionHeaderCalories}>{Math.round(calories)} kcal</Text>
+					</View>
+				</View>
+				<TouchableOpacity
+					style={[styles.sectionAddButton, !hasEntries && styles.sectionAddButtonFilled]}
+					hitSlop={8}
+					onPress={() => {
+						setActiveMealType(mealType);
+						setLogModalVisible(true);
+					}}
+				>
+					<FontAwesome5 name="plus" size={12} color={hasEntries ? theme.primary : theme.textInverse} />
+				</TouchableOpacity>
 			</View>
 		);
 	}
 
-	function renderDiaryEntry(entry: DiaryEntry) {
+	function renderDiaryEntry(entry: DiaryEntry, isLastInSection: boolean) {
 		const name = entry.type === "food" ? entry.food?.name : entry.recipe?.name;
 		const protein = entry.nutrients.protein ?? 0;
 		const carbs = entry.nutrients.carbs ?? 0;
@@ -360,7 +413,7 @@ export default function Nutrition() {
 		const calories = entry.nutrients.calories ?? 0;
 
 		return (
-			<View style={styles.entryRow}>
+			<View style={[styles.entryRow, isLastInSection && styles.entryRowLast]}>
 				<View style={{ flex: 1 }}>
 					<Text style={styles.entryName}>{name}</Text>
 					<View style={styles.entryMetaRow}>
@@ -379,27 +432,10 @@ export default function Nutrition() {
 		);
 	}
 
-	function renderLogFoodRow(mealType: MealType) {
-		return (
-			<TouchableOpacity
-				style={styles.logFoodRow}
-				onPress={() => {
-					setActiveMealType(mealType);
-					setLogModalVisible(true);
-				}}
-			>
-				<Text style={styles.logFoodText}>LOG FOOD</Text>
-				<FontAwesome5 name="plus" size={12} color={theme.primary} />
-			</TouchableOpacity>
-		);
-	}
+	const initials = (profile?.first_name?.[0] || profile?.user_name?.[0] || "U").toUpperCase();
 
 	return (
 		<Screen edges={["top"]}>
-			<TouchableOpacity onPress={() => setCreateMenuOpen((v) => !v)} style={styles.header} onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}>
-				<FontAwesome5 name={createMenuOpen ? "times" : "plus"} size={20} color={theme.primary} />
-			</TouchableOpacity>
-
 			{createMenuOpen && (
 				<>
 					<Pressable style={StyleSheet.absoluteFill} onPress={() => setCreateMenuOpen(false)} />
@@ -441,55 +477,89 @@ export default function Nutrition() {
 			)}
 
 			<ScreenState loading={loading} error={error} onRetry={fetchEntries} errorTitle="Couldn't load your diary">
-			<View style={styles.heroCardWrapper}>
-				<View style={styles.heroCard}>
-					<View style={styles.dateNavBar}>
-						<TouchableOpacity onPress={() => setSelectedDate((prev) => shiftISODate(prev, -1))} hitSlop={10} style={styles.dateNavArrow}>
-							<FontAwesome5 name="chevron-left" size={14} color={theme.textMuted} />
-						</TouchableOpacity>
-						<Text style={styles.dateText}>{formatDayHeading(selectedDate)}</Text>
-						<TouchableOpacity onPress={() => setSelectedDate((prev) => shiftISODate(prev, 1))} hitSlop={10} style={styles.dateNavArrow}>
-							<FontAwesome5 name="chevron-right" size={14} color={theme.textMuted} />
-						</TouchableOpacity>
-					</View>
-
-					<View style={styles.summaryCard}>
-						<Text style={styles.remainingLabel}>Remaining Budget</Text>
-						<View style={styles.remainingRow}>
-							<Text style={[styles.remainingValue, remaining < 0 && { color: theme.error }]}>{Math.round(remaining).toLocaleString()}</Text>
-							<Text style={styles.remainingUnit}>kcal</Text>
+				<View style={styles.heroCardWrapper}>
+					<View style={styles.heroCard}>
+						<View style={styles.dateNavBar}>
+							<TouchableOpacity onPress={() => setSelectedDate((prev) => shiftISODate(prev, -1))} hitSlop={10} style={styles.dateNavArrow}>
+								<FontAwesome5 name="chevron-left" size={14} color={theme.textMuted} />
+							</TouchableOpacity>
+							<Text style={styles.dateText}>{formatDayHeading(selectedDate)}</Text>
+							<TouchableOpacity onPress={() => setSelectedDate((prev) => shiftISODate(prev, 1))} hitSlop={10} style={styles.dateNavArrow}>
+								<FontAwesome5 name="chevron-right" size={14} color={theme.textMuted} />
+							</TouchableOpacity>
 						</View>
 
-						<View style={styles.macroRow}>
-							<MacroBar label="Protein" current={totals.protein} goal={goals.protein} color={theme.macroProtein} textColor={theme.textMuted} trackColor={theme.border} />
-							<MacroBar label="Carbs" current={totals.carbs} goal={goals.carbs} color={theme.macroCarbs} textColor={theme.textMuted} trackColor={theme.border} />
-							<MacroBar label="Fat" current={totals.fat} goal={goals.fat} color={theme.macroFat} textColor={theme.textMuted} trackColor={theme.border} />
-							<MacroBar label="Fiber" current={totals.fiber ?? 0} goal={goals.fiber} color={theme.macroCarbs} textColor={theme.textMuted} trackColor={theme.border} />
+						<View style={styles.summaryCard}>
+							<Text style={styles.remainingLabel}>Calories Consumed</Text>
+							<View style={styles.remainingRow}>
+								<View>
+									<Text style={styles.remainingValue}>{Math.round(totals.calories).toLocaleString()}</Text>
+									<Text style={styles.remainingUnit}>of {goals.calories.toLocaleString()} kcal</Text>
+								</View>
+								<RingProgress percent={pctOfGoal(totals.calories, goals.calories)} color={theme.primary} trackColor={theme.border} size={72} strokeWidth={7} />
+							</View>
+
+							<View style={styles.macroRow}>
+								<MacroBar
+									label="Protein"
+									current={totals.protein}
+									goal={goals.protein}
+									color={theme.macroProtein}
+									textColor={theme.textMuted}
+									trackColor={theme.border}
+									valueColor={theme.text}
+								/>
+								<MacroBar
+									label="Carbs"
+									current={totals.carbs}
+									goal={goals.carbs}
+									color={theme.macroCarbs}
+									textColor={theme.textMuted}
+									trackColor={theme.border}
+									valueColor={theme.text}
+								/>
+								<MacroBar
+									label="Fat"
+									current={totals.fat}
+									goal={goals.fat}
+									color={theme.macroFat}
+									textColor={theme.textMuted}
+									trackColor={theme.border}
+									valueColor={theme.text}
+								/>
+								<MacroBar
+									label="Fiber"
+									current={totals.fiber ?? 0}
+									goal={goals.fiber}
+									color={theme.macroCarbs}
+									textColor={theme.textMuted}
+									trackColor={theme.border}
+									valueColor={theme.text}
+								/>
+							</View>
 						</View>
 					</View>
 				</View>
-			</View>
 
-			<SectionList
-				style={{ flex: 1 }}
-				sections={sections}
-				keyExtractor={(item) => String(item.id)}
-				renderItem={({ item }) => renderDiaryEntry(item)}
-				renderSectionHeader={({ section }) => renderMealHeader(section.title, section.calories)}
-				renderSectionFooter={({ section }) => renderLogFoodRow(section.mealType)}
-				stickySectionHeadersEnabled={false}
-				contentContainerStyle={{ paddingBottom: 100 + insets.bottom, backgroundColor: theme.background }}
-				refreshControl={
-					<RefreshControl
-						refreshing={refreshing}
-						onRefresh={() => {
-							setRefreshing(true);
-							fetchEntries(true);
-						}}
-						tintColor={theme.primary}
-					/>
-				}
-			/>
+				<SectionList
+					style={{ flex: 1 }}
+					sections={sections}
+					keyExtractor={(item) => String(item.id)}
+					renderItem={({ item, index, section }) => renderDiaryEntry(item, index === section.data.length - 1)}
+					renderSectionHeader={({ section }) => renderMealHeader(section.mealType, section.calories, section.data.length === 0)}
+					stickySectionHeadersEnabled={false}
+					contentContainerStyle={{ paddingBottom: 100 + insets.bottom, backgroundColor: theme.background }}
+					refreshControl={
+						<RefreshControl
+							refreshing={refreshing}
+							onRefresh={() => {
+								setRefreshing(true);
+								fetchEntries(true);
+							}}
+							tintColor={theme.primary}
+						/>
+					}
+				/>
 			</ScreenState>
 
 			{/* Log food modal */}
