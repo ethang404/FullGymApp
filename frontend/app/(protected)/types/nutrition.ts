@@ -51,6 +51,22 @@ export interface FoodSearchResult {
 	nutrients_per_100g: MacroPer100g[];
 }
 
+// Recipe list summary — shape returned by GET /nutrition/recipes and by the
+// recipe entries of GET /nutrition/recent. Enough to render a card and log it.
+export interface RecipeSummary {
+	id: string;
+	name: string;
+	servings: number;
+	calories_per_serving: number;
+	protein_per_serving: number;
+	carbs_per_serving: number;
+	fat_per_serving: number;
+}
+
+// One entry from GET /nutrition/recent — a recently logged food or recipe,
+// shaped so the same cards (FoodCard / RecipeLogCard) can render it.
+export type RecentLoggedItem = { type: "food"; food: FoodSearchResult } | { type: "recipe"; recipe: RecipeSummary };
+
 export const NUTRIENT_NAME_TO_IDS = {
 	// ── Core macros ──────────────────────────────────────────
 	ENERGY: 1008,

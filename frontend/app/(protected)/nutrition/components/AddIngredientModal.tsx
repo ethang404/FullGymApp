@@ -1,14 +1,12 @@
 import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 
-import { instance } from "@/utils/AxiosInterceptorHandler";
-import { log } from "@/utils/log";
-
 import RecipeFoodCard from "./RecipeFoodCard";
-import type { FoodSearchResult, RecipeIngredient } from "../../types/nutrition";
+import { useFoodSearch } from "../hooks/useFoodSearch";
+import type { RecipeIngredient } from "../../types/nutrition";
 
 interface AddIngredientModalProps {
 	visible: boolean;
@@ -16,32 +14,11 @@ interface AddIngredientModalProps {
 	onAdd: (ingredient: RecipeIngredient) => void;
 }
 
-// Same search-debounce pattern as LogFoodModal
 export default function AddIngredientModal({ visible, onClose, onAdd }: AddIngredientModalProps) {
 	const { theme } = useTheme();
 	const insets = useSafeAreaInsets();
 
-	const [query, setQuery] = useState<string>("");
-	const [searchResults, setSearchResults] = useState<FoodSearchResult[]>([]);
-
-	async function searchForFoods(searchQuery: string) {
-		try {
-			const res = await instance.get(`/nutrition/foods?q=${encodeURIComponent(searchQuery)}`);
-			if (searchQuery !== query) return;
-			setSearchResults(res.data.foods ?? []);
-		} catch (e) {
-			log.error("Ingredient search error:", e);
-		}
-	}
-
-	useEffect(() => {
-		if (!query) {
-			setSearchResults([]);
-			return;
-		}
-		const timeoutId = setTimeout(() => searchForFoods(query), 300);
-		return () => clearTimeout(timeoutId);
-	}, [query]);
+	const { query, setQuery, results: searchResults } = useFoodSearch();
 
 	const styles = useMemo(
 		() =>
