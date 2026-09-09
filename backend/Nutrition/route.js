@@ -19,6 +19,8 @@ router.post("/foods/:id/serving-sizes", verifyToken, controller.addFoodServing);
 // GET   endpoint looks like: /diary?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD&meal_type=breakfast
 router.get("/diary", verifyToken, controller.getDiaryEntries);
 router.post("/diary", verifyToken, controller.addDiaryEntry);
+// GET /recent   recently logged distinct foods + recipes (newest first), for quick re-logging
+router.get("/recent", verifyToken, controller.getRecentLogged);
 router.put("/diary/:id", verifyToken, controller.editDiaryEntry);
 router.delete("/diary/:id", verifyToken, controller.deleteDiaryEntry);
 

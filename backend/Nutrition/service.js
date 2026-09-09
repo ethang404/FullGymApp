@@ -189,6 +189,79 @@ function scaleRecipeNutrients(recipeIngredients, scale) {
 }
 
 // ---------------------------------------------
+// SERIALIZERS (shared response shapes)
+// ---------------------------------------------
+
+/**
+ * Shapes a Food model instance (with foodNutrients + foodServingSizes included)
+ * into the search-result object the frontend expects (serving_sizes,
+ * default_serving w/ macros, nutrients_per_100g). Shared by SearchFoods and
+ * getRecentLogged so both return an identical shape.
+ */
+function serializeFoodSearchResult(food) {
+	const { foodNutrients, foodServingSizes, ...foodJson } = food.toJSON();
+
+	const servingSizes = (foodServingSizes ?? []).map(({ label, weight_g, default_quantity }) => ({
+		label,
+		weight_g: parseFloat(weight_g),
+		default_quantity: default_quantity != null ? parseFloat(default_quantity) : null,
+	}));
+	const nutrients = foodNutrients ?? [];
+
+	const fallback = { label: "g", weight_g: 100, default_quantity: null }; //use a fallback of 100g basis stored in db if we have no serving size data.
+
+	const displayServing = servingSizes[0] ?? fallback;
+	const usingFallback = servingSizes.length === 0;
+
+	const quantity = usingFallback ? displayServing.weight_g : 1;
+	const unit = displayServing.label;
+
+	return {
+		...foodJson,
+		serving_sizes: servingSizes,
+		default_serving: {
+			label: usingFallback ? "g" : displayServing.label,
+			weight_g: displayServing.weight_g,
+			default_quantity: displayServing.default_quantity ?? null,
+			macros: calcNutrients(quantity, unit, servingSizes, nutrients, { name: foodJson.name, brand: foodJson.brand }),
+		},
+		nutrients_per_100g: nutrients.map((n) => ({
+			//we use this data to convert on frontend for display purposes
+			nutrient_id: n.nutrient_id,
+			name: n.nutrient_name,
+			unit: n.unit,
+			amount_per_100g: parseFloat(n.amount_per_100g),
+		})),
+	};
+}
+
+/**
+ * Shapes a Recipe model instance (with recipeIngredients included, macros
+ * pre-stored on each ingredient row) into the list summary the frontend expects
+ * (id, name, servings, *_per_serving). Shared by getRecipes and getRecentLogged.
+ */
+function serializeRecipeSummary(recipe) {
+	const ingredients = recipe.recipeIngredients ?? [];
+	const servings = parseFloat(recipe.servings) || 1;
+
+	const totals = {
+		total_calories: ingredients.reduce((sum, i) => sum + (parseFloat(i.calories) || 0), 0),
+		total_protein: ingredients.reduce((sum, i) => sum + (parseFloat(i.protein) || 0), 0),
+		total_carbs: ingredients.reduce((sum, i) => sum + (parseFloat(i.carbs) || 0), 0),
+		total_fat: ingredients.reduce((sum, i) => sum + (parseFloat(i.fat) || 0), 0),
+	};
+
+	return {
+		...recipe.toJSON(),
+		id: recipe.recipe_id,
+		calories_per_serving: Math.round(totals.total_calories / servings),
+		protein_per_serving: Math.round(totals.total_protein / servings),
+		carbs_per_serving: Math.round(totals.total_carbs / servings),
+		fat_per_serving: Math.round(totals.total_fat / servings),
+	};
+}
+
+// ---------------------------------------------
 // FOODS
 // ---------------------------------------------
 
@@ -230,42 +303,7 @@ async function SearchFoods(query) {
 	});
 
 	//Convert to better serving display not 100g basis
-	return foods.map((food) => {
-		const { foodNutrients, foodServingSizes, ...foodJson } = food.toJSON();
-
-		const servingSizes = (foodServingSizes ?? []).map(({ label, weight_g, default_quantity }) => ({
-			label,
-			weight_g: parseFloat(weight_g),
-			default_quantity: default_quantity != null ? parseFloat(default_quantity) : null,
-		}));
-		const nutrients = foodNutrients ?? [];
-
-		const fallback = { label: "g", weight_g: 100, default_quantity: null }; //use a fallback of 100g basis stored in db if we have no serving size data.
-
-		const displayServing = servingSizes[0] ?? fallback;
-		const usingFallback = servingSizes.length === 0;
-
-		const quantity = usingFallback ? displayServing.weight_g : 1;
-		const unit = displayServing.label;
-
-		return {
-			...foodJson,
-			serving_sizes: servingSizes,
-			default_serving: {
-				label: usingFallback ? "g" : displayServing.label,
-				weight_g: displayServing.weight_g,
-				default_quantity: displayServing.default_quantity ?? null,
-				macros: calcNutrients(quantity, unit, servingSizes, nutrients, { name: foodJson.name, brand: foodJson.brand }),
-			},
-			nutrients_per_100g: nutrients.map((n) => ({
-				//we use this data to convert on frontend for display purposes
-				nutrient_id: n.nutrient_id,
-				name: n.nutrient_name,
-				unit: n.unit,
-				amount_per_100g: parseFloat(n.amount_per_100g),
-			})),
-		};
-	});
+	return foods.map(serializeFoodSearchResult);
 }
 
 /**
@@ -766,26 +804,89 @@ async function getRecipes(user_id) {
 		where: { user_id },
 	});
 
-	return recipes.map((recipe) => {
-		const ingredients = recipe.recipeIngredients ?? [];
-		const servings = parseFloat(recipe.servings) || 1;
+	return recipes.map(serializeRecipeSummary);
+}
 
-		const totals = {
-			total_calories: ingredients.reduce((sum, i) => sum + (parseFloat(i.calories) || 0), 0),
-			total_protein: ingredients.reduce((sum, i) => sum + (parseFloat(i.protein) || 0), 0),
-			total_carbs: ingredients.reduce((sum, i) => sum + (parseFloat(i.carbs) || 0), 0),
-			total_fat: ingredients.reduce((sum, i) => sum + (parseFloat(i.fat) || 0), 0),
-		};
-
-		return {
-			...recipe.toJSON(),
-			id: recipe.recipe_id,
-			calories_per_serving: Math.round(totals.total_calories / servings),
-			protein_per_serving: Math.round(totals.total_protein / servings),
-			carbs_per_serving: Math.round(totals.total_carbs / servings),
-			fat_per_serving: Math.round(totals.total_fat / servings),
-		};
+/**
+ * GET /recent
+ * Most recently logged distinct foods and recipes for this user, newest first.
+ * Food items come back in the same shape as /foods search results and recipe
+ * items in the same shape as /recipes, so the frontend can reuse the same cards.
+ */
+async function getRecentLogged(user_id, limit = 20) {
+	// Over-fetch recent rows, then de-dupe by food/recipe keeping the newest.
+	// Order by the autoincrement id (monotonic with insertion = log order) rather
+	// than a timestamp column, so we don't depend on the created_at column name.
+	const rows = await DiaryEntryModel.findAll({
+		where: { user_id },
+		order: [["id", "DESC"]],
+		limit: 100,
 	});
+
+	const seenFoods = new Set();
+	const seenRecipes = new Set();
+	const ordered = []; // [{ kind: "food", id }, { kind: "recipe", id }]
+
+	for (const row of rows) {
+		if (ordered.length >= limit) break;
+		if (row.food_id != null && !seenFoods.has(row.food_id)) {
+			seenFoods.add(row.food_id);
+			ordered.push({ kind: "food", id: row.food_id });
+		} else if (row.recipe_id != null && !seenRecipes.has(row.recipe_id)) {
+			seenRecipes.add(row.recipe_id);
+			ordered.push({ kind: "recipe", id: row.recipe_id });
+		}
+	}
+
+	const MACRO_IDS = [1008, 1003, 1005, 1004];
+
+	const [foods, recipes] = await Promise.all([
+		seenFoods.size
+			? FoodModel.findAll({
+					where: { id: { [Op.in]: [...seenFoods] }, is_deleted: false },
+					include: [
+						{ model: FoodNutrientModel, where: { nutrient_id: { [Op.in]: MACRO_IDS } }, required: false },
+						{ model: FoodServingSizeModel, required: false },
+					],
+				})
+			: [],
+		seenRecipes.size
+			? RecipeModel.findAll({
+					where: { recipe_id: { [Op.in]: [...seenRecipes] }, user_id },
+					include: [{ model: RecipeIngredientModel, required: false }],
+				})
+			: [],
+	]);
+
+	// Serialize per-item: this endpoint reads arbitrary historical diary rows, so
+	// one malformed food/recipe (e.g. a serving size with a null weight_g) should
+	// drop that item, not 500 the whole list.
+	const foodMap = new Map();
+	for (const f of foods) {
+		try {
+			foodMap.set(f.id, serializeFoodSearchResult(f));
+		} catch (e) {
+			console.warn(`getRecentLogged: skipping food ${f.id} - ${e.message}`);
+		}
+	}
+
+	const recipeMap = new Map();
+	for (const r of recipes) {
+		try {
+			recipeMap.set(r.recipe_id, serializeRecipeSummary(r));
+		} catch (e) {
+			console.warn(`getRecentLogged: skipping recipe ${r.recipe_id} - ${e.message}`);
+		}
+	}
+
+	// Rebuild in recency order, dropping anything that no longer exists (deleted food/recipe).
+	return ordered
+		.map((item) =>
+			item.kind === "food"
+				? foodMap.has(item.id) && { type: "food", food: foodMap.get(item.id) }
+				: recipeMap.has(item.id) && { type: "recipe", recipe: recipeMap.get(item.id) },
+		)
+		.filter(Boolean);
 }
 
 async function getRecipe(recipe_id, user_id) {
@@ -884,6 +985,7 @@ module.exports = {
 	getDiaryEntries,
 	editDiaryEntry,
 	deleteDiaryEntry,
+	getRecentLogged,
 	// Recipes
 	createRecipe,
 	editRecipe,
