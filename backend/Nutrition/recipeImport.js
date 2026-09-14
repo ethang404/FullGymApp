@@ -1,4 +1,5 @@
 const { DataError } = require("../error");
+const { isTikTokUrl, importTikTokRecipe } = require("./tiktokRecipeImport");
 
 // ---------------------------------------------
 // Recipe import — fetch a recipe web page, pull the schema.org
@@ -370,6 +371,10 @@ async function importRecipeFromUrl(rawUrl, { fetchImpl = fetch } = {}) {
 	}
 
 	const url = assertSafeUrl(rawUrl.trim());
+
+	if (isTikTokUrl(url)) {
+		return importTikTokRecipe(url.href, { fetchImpl });
+	}
 
 	const controller = new AbortController();
 	const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
