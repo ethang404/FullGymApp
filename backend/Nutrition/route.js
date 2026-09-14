@@ -35,6 +35,10 @@ router.delete("/diary/:id", verifyToken, controller.deleteDiaryEntry);
 // POST   /recipes/:id/ingredients            add ingredient to existing recipe
 // DELETE /recipes/:id/ingredients/:iid       remove one ingredient
 
+// POST   /recipes/import   { url }   parse a recipe web page's JSON-LD into flat
+//                                    arrays (ingredients/instructions/...) — no DB write
+router.post("/recipes/import", verifyToken, controller.importRecipe);
+
 router.get("/recipes", verifyToken, controller.getRecipes);
 router.get("/recipes/:id", verifyToken, controller.getRecipe);
 

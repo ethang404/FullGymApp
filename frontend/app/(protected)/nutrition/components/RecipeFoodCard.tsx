@@ -2,12 +2,11 @@ import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity, Activi
 import { useMemo, useState, useEffect } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
-import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
 
-import { COMMON_UNITS, calcMacrosFromPer100g, type ServingSize, type FoodSearchResult } from "../../types/nutrition";
+import { COMMON_UNITS, calcMacrosFromPer100g, type ServingSize, type FoodSearchResult, type RecipeIngredient } from "../../types/nutrition";
 import { AddServingModal } from "./AddServingModal";
-import type { RecipeIngredient } from "../../types/nutrition";
+import { getFullFood } from "../hooks/useFoodSearch";
 
 //This component will give us 2 options, used in creating a new recipe
 //we either add a new ingrediant and pass data to main component
@@ -61,14 +60,6 @@ export default function RecipeFoodCard(props: RecipeFoodCardProps) {
 	);
 
 	const [isAdding, setIsAdding] = useState(false);
-
-	//This endpoint is specifically for getting full food nutritional data so we can calculate the correct values for FDA
-	//(on add)
-	//This might be overkill for a recipe? But maybe it's worth the cost and easy to expand later
-	async function getFullFood(foodId: number) {
-		const res = await instance.get(`/nutrition/foods/${foodId}`);
-		return res.data.food ?? res.data;
-	}
 
 	//we use this to handle changing quantity of recipes ingrediants.
 	//So if we double recipe ingrediant amounts for a recipe, it will update the individual food cards display too

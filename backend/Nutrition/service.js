@@ -14,6 +14,7 @@ const {
 
 const { NotFoundError, DataError, ForbiddenError } = require("../error");
 const { resolveUnitWeightG } = require("./unitConversion");
+const { importRecipeFromUrl } = require("./recipeImport");
 
 //Mapping of nutrients to compare against
 const NUTRIENT_MAP = {
@@ -992,4 +993,5 @@ module.exports = {
 	getRecipes,
 	getRecipe,
 	deleteRecipe,
+	importRecipeFromUrl,
 };

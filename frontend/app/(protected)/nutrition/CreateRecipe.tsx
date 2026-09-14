@@ -9,9 +9,31 @@ import { toast } from "@/utils/toast";
 import Screen from "@/components/Screen";
 
 import AddIngredientModal from "./components/AddIngredientModal";
+import ImportRecipeModal from "./components/ImportRecipeModal";
 import RecipeFoodCard from "./components/RecipeFoodCard";
 import NutritionFactsLabel from "./components/NutritionLabel";
-import { calcNutrientsFromPer100g, resolveServingWeightG, NUTRIENT_NAME_TO_IDS, NUTRIENT_IDS_TO_NAMES, type RecipeIngredient } from "../types/nutrition";
+import { getFullFood, searchFoods } from "./hooks/useFoodSearch";
+import {
+	calcNutrientsFromPer100g,
+	calcMacrosFromPer100g,
+	resolveServingWeightG,
+	parseIngredientLine,
+	isLikelyIngredientMatch,
+	NUTRIENT_NAME_TO_IDS,
+	NUTRIENT_IDS_TO_NAMES,
+	type RecipeIngredient,
+	type ImportedRecipe,
+	type ParsedIngredientLine,
+	type FoodSearchResult,
+	type ServingSize,
+} from "../types/nutrition";
+
+// "https://www.hungryhobby.net/x/" -> "HUNGRYHOBBY.NET" (RN's URL is spotty, so parse by hand)
+function hostLabel(url: string | null): string {
+	if (!url) return "LINK";
+	const m = url.match(/^https?:\/\/([^/]+)/i);
+	return m ? m[1].replace(/^www\./, "").toUpperCase() : "LINK";
+}
 
 export default function CreateRecipe() {
 	const { theme } = useTheme();
@@ -24,6 +46,18 @@ export default function CreateRecipe() {
 	const [addModalVisible, setAddModalVisible] = useState(false);
 	const [loading, setLoading] = useState(!!recipe_id);
 	const [saving, setSaving] = useState(false);
+
+	// Recipe imported from a URL: raw ingredient/step strings still waiting to be
+	// matched to foods in our DB. Tapping one opens the search sheet prefilled.
+	const [importModalVisible, setImportModalVisible] = useState(false);
+	const [importedIngredients, setImportedIngredients] = useState<string[]>([]);
+	const [importedInstructions, setImportedInstructions] = useState<string[]>([]);
+	const [importSourceUrl, setImportSourceUrl] = useState<string | null>(null);
+	const [pendingIngredientQuery, setPendingIngredientQuery] = useState<string | undefined>(undefined);
+	// The imported line `pendingIngredientQuery` was derived from, so we can drop
+	// that exact row once a food is added for it.
+	const [pendingImportedLine, setPendingImportedLine] = useState<string | undefined>(undefined);
+	const [autoMatching, setAutoMatching] = useState(false);
 
 	useEffect(() => {
 		if (!recipe_id) return;
@@ -165,8 +199,143 @@ export default function CreateRecipe() {
 		setServings(String(baseServingAmount * factor));
 	}
 
+	function handleImported(imported: ImportedRecipe) {
+		if (imported.name) setRecipeName(imported.name);
+		if (imported.servings && imported.servings > 0) {
+			setServings(String(imported.servings));
+			setBaseServings(String(imported.servings));
+		}
+		const lines = imported.ingredients ?? [];
+		setImportedIngredients(lines);
+		setImportedInstructions(imported.instructions ?? []);
+		setImportSourceUrl(imported.source_url ?? null);
+
+		toast.success(lines.length ? `Imported ${lines.length} ingredient${lines.length === 1 ? "" : "s"} — matching against your food list…` : "Recipe imported.");
+
+		// Best-effort: try to resolve each line to a food automatically. Whatever
+		// doesn't confidently match stays in the review list for manual search.
+		void runAutoMatch(lines);
+	}
+
+	// Turn one imported ingredient line into a food-search hit, iff we're
+	// confident enough to add it without the user looking at it first.
+	// Returns null (never throws) so Promise.allSettled in runAutoMatch treats
+	// "no match" and "search failed" the same way.
+	async function autoMatchIngredient(line: string): Promise<RecipeIngredient | null> {
+		const parsed = parseIngredientLine(line);
+		if (!parsed.searchText) return null;
+
+		let results: FoodSearchResult[];
+		try {
+			results = await searchFoods(parsed.searchText);
+		} catch (e) {
+			log.error(`Auto-match search failed for "${line}":`, e);
+			return null;
+		}
+		if (results.length === 0) return null;
+
+		const top = results[0];
+		if (!isLikelyIngredientMatch(parsed.searchText, top.name)) return null;
+
+		try {
+			return await buildIngredientFromMatch(parsed, top);
+		} catch (e) {
+			log.error(`Auto-match failed to build ingredient for "${line}":`, e);
+			return null;
+		}
+	}
+
+	// quantity/unit from the recipe text if we can resolve it against this
+	// food's servings, otherwise the food's own default serving (still added -
+	// it's an editable RecipeFoodCard, so a wrong guess is a one-tap fix).
+	async function buildIngredientFromMatch(parsed: ParsedIngredientLine, food: FoodSearchResult): Promise<RecipeIngredient> {
+		let quantity = parsed.quantity ?? 1;
+		let serving: ServingSize;
+
+		const weightG = parsed.unit ? resolveServingWeightG(parsed.unit, food.serving_sizes) : null;
+		if (weightG != null) {
+			serving = { label: parsed.unit as string, weight_g: weightG };
+		} else {
+			quantity = food.default_serving.default_quantity ?? quantity;
+			serving = { label: food.default_serving.label, weight_g: food.default_serving.weight_g };
+		}
+
+		// Search results only carry the 4 macro nutrients - fetch the full food
+		// for accurate label math (same reason RecipeFoodCard does this on add).
+		const fullFood = await getFullFood(food.id);
+		const macros = calcMacrosFromPer100g(quantity, serving.weight_g, fullFood.nutrients_per_100g);
+
+		return {
+			id: `${food.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, //need temporary unique id for display
+			food: fullFood,
+			quantity,
+			baseQuantity: quantity,
+			serving,
+			cals: macros.cals ?? 0,
+			protein: macros.protein ?? 0,
+			carbs: macros.carbs ?? 0,
+			fat: macros.fat ?? 0,
+		};
+	}
+
+	// Runs the auto-matcher over `lines` in parallel and merges whatever hits
+	// straight into the recipe's ingredient list. Uses functional state updates
+	// throughout so a manual match/dismiss the user makes while this is in
+	// flight isn't clobbered when it resolves.
+	async function runAutoMatch(IngredientLines: string[]) {
+		if (IngredientLines.length === 0) return;
+		setAutoMatching(true);
+
+		const settled = await Promise.allSettled(IngredientLines.map((line) => autoMatchIngredient(line)));
+
+		const createdIngredients: RecipeIngredient[] = [];
+		const matchedLines = new Set<string>();
+		settled.forEach((result, i) => {
+			if (result.status === "fulfilled" && result.value) {
+				createdIngredients.push(result.value);
+				matchedLines.add(IngredientLines[i]);
+			}
+		});
+
+		if (createdIngredients.length > 0) {
+			setIngredients((prev) => [...prev, ...createdIngredients]);
+			setImportedIngredients((prev) => prev.filter((line) => !matchedLines.has(line))); //keep only lines not found/matched
+		}
+
+		setAutoMatching(false);
+		toast[createdIngredients.length ? "success" : "error"](
+			createdIngredients.length
+				? `Auto-matched ${createdIngredients.length}/${IngredientLines.length} ingredient${IngredientLines.length === 1 ? "" : "s"}. Review the rest below.`
+				: "Couldn't auto-match any ingredients — tap one below to search manually.",
+		);
+	}
+
+	// Open the food-search sheet prefilled with an imported ingredient string.
+	// Track the original line so handleAddIngredient can clear the right row.
+	function matchImportedIngredient(text: string) {
+		setPendingImportedLine(text);
+		setPendingIngredientQuery(parseIngredientLine(text).searchText);
+		setAddModalVisible(true);
+	}
+
+	function openAddIngredient() {
+		setPendingIngredientQuery(undefined);
+		setPendingImportedLine(undefined);
+		setAddModalVisible(true);
+	}
+
+	function dismissImportedIngredient(text: string) {
+		setImportedIngredients((prev) => prev.filter((t) => t !== text));
+	}
+
 	function handleAddIngredient(ingredient: RecipeIngredient) {
 		setIngredients((prev) => [...prev, ingredient]);
+		// If this add came from matching an imported line, clear that line.
+		if (pendingImportedLine) {
+			dismissImportedIngredient(pendingImportedLine);
+			setPendingImportedLine(undefined);
+			setPendingIngredientQuery(undefined);
+		}
 	}
 
 	function handleChangeIngredient(updated: RecipeIngredient) {
@@ -270,6 +439,43 @@ export default function CreateRecipe() {
 					backgroundColor: theme.cardBg,
 				},
 				scaleBtnText: { fontSize: 12, fontWeight: "700", color: theme.primary },
+
+				importBtn: {
+					flexDirection: "row",
+					alignItems: "center",
+					justifyContent: "center",
+					gap: 8,
+					borderWidth: 1.5,
+					borderStyle: "dashed",
+					borderColor: theme.primary,
+					borderRadius: 14,
+					paddingVertical: 14,
+					marginBottom: 20,
+				},
+				importBtnText: { color: theme.primary, fontSize: 13, fontWeight: "700", letterSpacing: 0.5 },
+
+				importedCard: {
+					backgroundColor: theme.cardBg,
+					borderRadius: 14,
+					borderWidth: StyleSheet.hairlineWidth,
+					borderColor: theme.border,
+					padding: 14,
+					marginBottom: 20,
+				},
+				importedHeaderRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 10, marginBottom: 4 },
+				importedHint: { flex: 1, color: theme.textMuted, fontSize: 11, lineHeight: 15 },
+				retryMatchBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingVertical: 2 },
+				retryMatchText: { color: theme.primary, fontSize: 11, fontWeight: "700" },
+				importedRow: {
+					flexDirection: "row",
+					alignItems: "center",
+					gap: 10,
+					paddingVertical: 10,
+					borderTopWidth: StyleSheet.hairlineWidth,
+					borderTopColor: theme.border,
+				},
+				importedText: { flex: 1, color: theme.text, fontSize: 13 },
+				importedInstruction: { color: theme.textMuted, fontSize: 12, lineHeight: 17, marginTop: 6 },
 			}),
 		[theme],
 	);
@@ -298,6 +504,11 @@ export default function CreateRecipe() {
 					value={recipeName}
 					onChangeText={setRecipeName}
 				/>
+
+				<TouchableOpacity style={styles.importBtn} onPress={() => setImportModalVisible(true)} activeOpacity={0.7}>
+					<FontAwesome5 name="link" size={12} color={theme.primary} />
+					<Text style={styles.importBtnText}>IMPORT FROM A LINK</Text>
+				</TouchableOpacity>
 
 				<View style={styles.macroCards}>
 					<View style={styles.macroCard}>
@@ -334,10 +545,49 @@ export default function CreateRecipe() {
 					<RecipeFoodCard key={ing.id} mode="edit" ingredient={ing} onChange={handleChangeIngredient} onRemove={handleRemoveIngredient} />
 				))}
 
-				<TouchableOpacity style={styles.addComponentBtn} onPress={() => setAddModalVisible(true)} activeOpacity={0.7}>
+				{importedIngredients.length > 0 && (
+					<View style={styles.importedCard}>
+						<View style={styles.importedHeaderRow}>
+							<Text style={styles.importedHint}>
+								FROM {hostLabel(importSourceUrl)} · {autoMatching ? "auto-matching…" : "tap an item to find and add the matching food, or dismiss it with ✕."}
+							</Text>
+							{!autoMatching && (
+								<TouchableOpacity style={styles.retryMatchBtn} onPress={() => runAutoMatch(importedIngredients)}>
+									<FontAwesome5 name="magic" size={10} color={theme.primary} />
+									<Text style={styles.retryMatchText}>MATCH</Text>
+								</TouchableOpacity>
+							)}
+							{autoMatching && <ActivityIndicator size="small" color={theme.primary} />}
+						</View>
+						{importedIngredients.map((text, i) => (
+							<View key={`${text}-${i}`} style={styles.importedRow}>
+								<FontAwesome5 name="search" size={11} color={theme.primary} />
+								<Text style={styles.importedText} onPress={() => matchImportedIngredient(text)}>
+									{text}
+								</Text>
+								<TouchableOpacity onPress={() => dismissImportedIngredient(text)} hitSlop={10}>
+									<FontAwesome5 name="times" size={12} color={theme.textMuted} />
+								</TouchableOpacity>
+							</View>
+						))}
+					</View>
+				)}
+
+				<TouchableOpacity style={styles.addComponentBtn} onPress={openAddIngredient} activeOpacity={0.7}>
 					<FontAwesome5 name="plus" size={12} color={theme.primary} />
 					<Text style={styles.addComponentText}>ADD COMPONENT</Text>
 				</TouchableOpacity>
+
+				{importedInstructions.length > 0 && (
+					<View style={styles.importedCard}>
+						<Text style={styles.sectionLabel}>IMPORTED STEPS ({String(importedInstructions.length).padStart(2, "0")})</Text>
+						{importedInstructions.map((step, i) => (
+							<Text key={i} style={styles.importedInstruction}>
+								{i + 1}. {step}
+							</Text>
+						))}
+					</View>
+				)}
 
 				<View style={styles.servingsRow}>
 					<Text style={styles.servingsLabel}>SERVINGS PER RECIPE</Text>
@@ -363,7 +613,18 @@ export default function CreateRecipe() {
 
 				<NutritionFactsLabel nutrients={totals.nutrients} totalWeightG={totals.weight} servings={parseFloat(servings) || 1} />
 
-				<AddIngredientModal visible={addModalVisible} onClose={() => setAddModalVisible(false)} onAdd={handleAddIngredient} />
+				<AddIngredientModal
+					visible={addModalVisible}
+					initialQuery={pendingIngredientQuery}
+					onClose={() => {
+						setAddModalVisible(false);
+						setPendingIngredientQuery(undefined);
+						setPendingImportedLine(undefined);
+					}}
+					onAdd={handleAddIngredient}
+				/>
+
+				<ImportRecipeModal visible={importModalVisible} onClose={() => setImportModalVisible(false)} onImported={handleImported} />
 
 				<TouchableOpacity
 					style={[styles.saveButton, saving && { opacity: 0.6 }]}
