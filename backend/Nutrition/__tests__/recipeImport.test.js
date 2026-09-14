@@ -1,4 +1,7 @@
+jest.mock("../tiktokRecipeImport");
+
 const { parseRecipeFromHtml, importRecipeFromUrl, _internal } = require("../recipeImport");
+const { importTikTokRecipe } = require("../tiktokRecipeImport");
 
 // Trimmed-down copy of the schema.org @graph a WP Recipe Maker page emits
 // (the hungryhobby.net crockpot turkey meatballs example).
@@ -227,5 +230,42 @@ describe("importRecipeFromUrl", () => {
 	test("maps an aborted/slow fetch to a friendly message", async () => {
 		const fetchImpl = jest.fn().mockRejectedValue(Object.assign(new Error("aborted"), { name: "AbortError" }));
 		await expect(importRecipeFromUrl(SOURCE, { fetchImpl })).rejects.toThrow(/too long/i);
+	});
+});
+
+describe("importRecipeFromUrl — TikTok dispatch", () => {
+	const { isTikTokUrl } = require("../tiktokRecipeImport");
+	const TIKTOK_URL = "https://www.tiktok.com/@chef/video/7312508978880154888";
+
+	beforeEach(() => {
+		isTikTokUrl.mockReset();
+		importTikTokRecipe.mockReset();
+	});
+
+	test("dispatches TikTok urls to importTikTokRecipe", async () => {
+		isTikTokUrl.mockReturnValue(true);
+		importTikTokRecipe.mockResolvedValue({ source_url: TIKTOK_URL, ingredients: ["x"] });
+		const fetchImpl = jest.fn();
+
+		const recipe = await importRecipeFromUrl(TIKTOK_URL, { fetchImpl });
+
+		expect(importTikTokRecipe).toHaveBeenCalledWith(TIKTOK_URL, { fetchImpl });
+		expect(fetchImpl).not.toHaveBeenCalled();
+		expect(recipe.ingredients).toEqual(["x"]);
+	});
+
+	test("leaves normal recipe-blog urls on the existing JSON-LD path", async () => {
+		isTikTokUrl.mockReturnValue(false);
+		const fetchImpl = jest.fn().mockResolvedValue({
+			ok: true,
+			status: 200,
+			headers: { get: (k) => (k.toLowerCase() === "content-type" ? "text/html" : null) },
+			text: async () => SAMPLE_HTML,
+		});
+
+		const recipe = await importRecipeFromUrl(SOURCE, { fetchImpl });
+
+		expect(importTikTokRecipe).not.toHaveBeenCalled();
+		expect(recipe.ingredients).toHaveLength(10);
 	});
 });
