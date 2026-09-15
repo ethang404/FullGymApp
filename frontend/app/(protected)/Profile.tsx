@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useContext, useMemo, useState, useEffect } from "react";
+import { useRouter } from "expo-router";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import Pills from "@/components/Pills";
@@ -53,6 +54,7 @@ export default function Profile() {
 	const { theme, name: activeName, setTheme } = useTheme();
 	const { signOut } = useContext(AuthContext);
 	const { profile, goals, updateProfile, estimateGoals } = useProfile();
+	const router = useRouter();
 
 	const [goalsModalOpen, setGoalsModalOpen] = useState(false);
 	const [bodyModalOpen, setBodyModalOpen] = useState(false);
@@ -207,6 +209,21 @@ export default function Profile() {
 						<Text style={styles.rowValue}>
 							{profile?.body?.weight_kg ? `${Math.round(Number(profile.body.weight_kg))} kg` : "Set up"}
 						</Text>
+						<FontAwesome5 name="chevron-right" size={12} color={theme.textTertiary} />
+					</TouchableOpacity>
+				</View>
+
+				<Text style={styles.sectionLabel}>Nutrition</Text>
+				<View style={styles.group}>
+					<TouchableOpacity
+						style={[styles.row, styles.rowLast]}
+						onPress={() => router.push("/(protected)/nutrition/DisplayRecipes")}
+						activeOpacity={0.7}
+					>
+						<View style={styles.rowIcon}>
+							<FontAwesome5 name="utensils" size={13} color={theme.textSecondary} />
+						</View>
+						<Text style={styles.rowLabel}>My Recipes</Text>
 						<FontAwesome5 name="chevron-right" size={12} color={theme.textTertiary} />
 					</TouchableOpacity>
 				</View>

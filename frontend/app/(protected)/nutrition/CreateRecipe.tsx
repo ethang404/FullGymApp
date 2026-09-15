@@ -474,7 +474,7 @@ export default function CreateRecipe() {
 					borderTopWidth: StyleSheet.hairlineWidth,
 					borderTopColor: theme.border,
 				},
-				importedText: { flex: 1, color: theme.text, fontSize: 13 },
+				importedText: { flex: 1, color: theme.text, fontSize: 18 },
 				importedInstruction: { color: theme.textMuted, fontSize: 12, lineHeight: 17, marginTop: 6 },
 			}),
 		[theme],
@@ -525,11 +525,6 @@ export default function CreateRecipe() {
 					</View>
 				</View>
 
-				<View style={styles.ingredientsHeaderRow}>
-					<Text style={styles.sectionLabel}>INGREDIENTS ({String(ingredients.length).padStart(2, "0")})</Text>
-					<Text style={styles.tapToEdit}>TAP TO EDIT</Text>
-				</View>
-
 				<View style={styles.scaleRow}>
 					<Text style={styles.scaleLabel}>SCALE RECIPE</Text>
 					<View style={styles.scaleButtons}>
@@ -561,12 +556,12 @@ export default function CreateRecipe() {
 						</View>
 						{importedIngredients.map((text, i) => (
 							<View key={`${text}-${i}`} style={styles.importedRow}>
-								<FontAwesome5 name="search" size={11} color={theme.primary} />
+								<FontAwesome5 name="search" size={20} color={theme.primary} />
 								<Text style={styles.importedText} onPress={() => matchImportedIngredient(text)}>
 									{text}
 								</Text>
 								<TouchableOpacity onPress={() => dismissImportedIngredient(text)} hitSlop={10}>
-									<FontAwesome5 name="times" size={12} color={theme.textMuted} />
+									<FontAwesome5 name="times" size={20} color={theme.textMuted} />
 								</TouchableOpacity>
 							</View>
 						))}

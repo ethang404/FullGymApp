@@ -74,6 +74,26 @@ describe("extractRecipeFromCaption", () => {
 	test("network/timeout error maps to a generic retry message", async () => {
 		const fetchImpl = jest.fn().mockRejectedValue(Object.assign(new Error("aborted"), { name: "AbortError" }));
 		await expect(extractRecipeFromCaption("some caption", { fetchImpl })).rejects.toThrow(/try again later/i);
+		expect(fetchImpl).toHaveBeenCalledTimes(2); // one retry attempted before giving up
+	});
+
+	test("recovers when the first attempt times out but the retry succeeds", async () => {
+		const fetchImpl = jest
+			.fn()
+			.mockRejectedValueOnce(Object.assign(new Error("aborted"), { name: "AbortError" }))
+			.mockResolvedValueOnce(
+				geminiOkResponse({
+					is_recipe: true,
+					name: "Turkey Meatballs",
+					ingredients: ["2 lbs ground turkey"],
+					instructions: [],
+				})
+			);
+
+		const result = await extractRecipeFromCaption("Turkey meatballs recipe...", { fetchImpl });
+
+		expect(fetchImpl).toHaveBeenCalledTimes(2);
+		expect(result.name).toBe("Turkey Meatballs");
 	});
 
 	test("blank caption input rejects without calling fetchImpl", async () => {

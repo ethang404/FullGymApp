@@ -7,9 +7,14 @@ const { DataError } = require("../error");
 // to return exactly the shape we need, minimizing manual parsing/validation.
 // ---------------------------------------------
 
-const GEMINI_TIMEOUT_MS = 15000;
+const GEMINI_TIMEOUT_MS = 20000;
+const GEMINI_RETRY_DELAY_MS = 750;
 const DEFAULT_MODEL = "gemini-2.5-flash";
 const MAX_CAPTION_CHARS = 4000; // TikTok captions are short; this is just a defensive cap
+
+function sleep(ms) {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 const RECIPE_RESPONSE_SCHEMA = {
 	type: "OBJECT",
@@ -44,6 +49,27 @@ Respond with JSON only, matching this shape:
 If this is not a recipe, or you cannot find any ingredients, set is_recipe to false and return empty arrays for ingredients and instructions.`;
 }
 
+// One attempt at the POST, timing out after GEMINI_TIMEOUT_MS. Throws
+// whatever fetchImpl throws (AbortError on timeout, or a network error) -
+// caller decides whether that's worth retrying.
+async function postToGemini(endpoint, body, apiKey, fetchImpl) {
+	const controller = new AbortController();
+	const timer = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
+	try {
+		return await fetchImpl(endpoint, {
+			method: "POST",
+			signal: controller.signal,
+			headers: {
+				"Content-Type": "application/json",
+				"x-goog-api-key": apiKey,
+			},
+			body: JSON.stringify(body),
+		});
+	} finally {
+		clearTimeout(timer);
+	}
+}
+
 async function callGemini(captionText, fetchImpl) {
 	const apiKey = process.env.GEMINI_API_KEY;
 	if (!apiKey) {
@@ -64,25 +90,21 @@ async function callGemini(captionText, fetchImpl) {
 		},
 	};
 
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
-
+	// A stalled/timed-out request is usually a one-off (cold connection, a
+	// brief local network hiccup) rather than a persistent failure, so one
+	// quick retry clears most of them instead of failing the whole import.
 	let res;
 	try {
-		res = await fetchImpl(endpoint, {
-			method: "POST",
-			signal: controller.signal,
-			headers: {
-				"Content-Type": "application/json",
-				"x-goog-api-key": apiKey,
-			},
-			body: JSON.stringify(body),
-		});
+		res = await postToGemini(endpoint, body, apiKey, fetchImpl);
 	} catch (err) {
-		console.error("Gemini request failed:", err);
-		throw new DataError("Couldn't process that TikTok video right now. Try again later.");
-	} finally {
-		clearTimeout(timer);
+		console.error("Gemini request failed, retrying once:", err);
+		await sleep(GEMINI_RETRY_DELAY_MS);
+		try {
+			res = await postToGemini(endpoint, body, apiKey, fetchImpl);
+		} catch (retryErr) {
+			console.error("Gemini request failed again:", retryErr);
+			throw new DataError("Couldn't process that TikTok video right now. Try again later.");
+		}
 	}
 
 	if (!res.ok) {
