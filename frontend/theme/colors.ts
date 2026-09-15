@@ -1,3 +1,57 @@
+//Cream/Coral/Sage/Lavender — "cute", soft-on-the-eyes default
+export const sorbetTheme = {
+	// Core
+	primary: "#FF9C7A",
+	background: "#FDF6F0",
+	cardBg: "#FFFFFF",
+	cardBgAlt: "#FBEEE6",
+
+	// Text
+	text: "#4A4A4A",
+	textMuted: "#A8917E",
+	textSecondary: "#7A6A5D",
+	textTertiary: "#C2AFA0",
+	textQuaternary: "#E3D5C8",
+	textInverse: "#FFFFFF",
+
+	// Auth
+	authBackground: "#FDF6F0",
+	authCardBg: "#FFFFFF",
+	authCardBorder: "#F0E1D5",
+	authText: "#4A4A4A",
+	authTextMuted: "#A8917E",
+	authTextHint: "#C2AFA0",
+	authInputBg: "#FFFFFF",
+	authInputBorder: "#E8D9CE",
+	authInputText: "#4A4A4A",
+	authLabel: "#7A6A5D",
+
+	// Inputs
+	inputBg: "#FFFFFF",
+	inputBorder: "#E8D9CE",
+	inputPlaceholder: "#C2AFA0",
+
+	// Borders
+	border: "#F0E1D5",
+	borderLight: "#FBEEE6",
+
+	// Semantic
+	error: "#D96B5C",
+	accent: "#C8B6E2",
+	dotActive: "#FF9C7A",
+
+	// Macros (nutrition rings/bars) — coral / sage / lavender trio
+	macroProtein: "#3F8A64", // deepened sage for contrast on light bg
+	macroCarbs: "#D85A30", // deepened coral
+	macroFat: "#7F6BAE", // deepened lavender
+
+	// Overlays
+	overlay: "rgba(0,0,0,0.5)",
+
+	// Shadows
+	shadowColor: "#000000",
+};
+
 //Red/black
 export const kratosRedTheme = {
 	// Core
@@ -433,11 +487,12 @@ export const lavenderTheme = {
 export type Theme = typeof kratosRedTheme; //creates a type of Theme, must contain primary/backgreound etc.
 
 //so this is a string type, but where it's only allowed to be these strings here
-export type ThemeName = "kratosRed" | "midnight" | "crimsonLight" | "carbon" | "slate" | "blossom" | "sage" | "lavender";
+export type ThemeName = "sorbet" | "kratosRed" | "midnight" | "crimsonLight" | "carbon" | "slate" | "blossom" | "sage" | "lavender";
 
 //Combine theme name w/ theme
 //Think of zip in python
 export const themes: Record<ThemeName, Theme> = {
+	sorbet: sorbetTheme,
 	kratosRed: kratosRedTheme,
 	midnight: midnightTheme,
 	crimsonLight: crimsonLightTheme,
@@ -450,6 +505,7 @@ export const themes: Record<ThemeName, Theme> = {
 
 // Display label for each theme
 export const themeLabels: Record<ThemeName, string> = {
+	sorbet: "Sorbet",
 	kratosRed: "Kratos",
 	midnight: "Midnight",
 	crimsonLight: "Crimson",
@@ -459,3 +515,7 @@ export const themeLabels: Record<ThemeName, string> = {
 	sage: "Sage",
 	lavender: "Lavender",
 };
+
+// Default theme — used wherever the app initializes its theme state
+// (e.g. `useState<ThemeName>(defaultThemeName)` or a fallback in your theme provider/context)
+export const defaultThemeName: ThemeName = "sorbet";

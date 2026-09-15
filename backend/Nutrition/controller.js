@@ -186,6 +186,19 @@ async function editRecipe(req, res) {
 	}
 }
 
+// Body: { url }
+// Fetches the page, parses its schema.org JSON-LD, and returns the recipe as
+// flat arrays (ingredients, instructions, ...). Does NOT persist anything —
+// the client matches ingredients to foods and calls POST /recipes afterwards.
+async function importRecipe(req, res) {
+	try {
+		const recipe = await service.importRecipeFromUrl(req.body?.url);
+		return res.status(200).json({ recipe });
+	} catch (error) {
+		return handleError(res, error);
+	}
+}
+
 module.exports = {
 	searchFoods,
 	createFood,
@@ -203,4 +216,5 @@ module.exports = {
 	createRecipe,
 	editRecipe,
 	deleteRecipe,
+	importRecipe,
 };

@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 
@@ -12,13 +12,23 @@ interface AddIngredientModalProps {
 	visible: boolean;
 	onClose: () => void;
 	onAdd: (ingredient: RecipeIngredient) => void;
+	// Prefill the search box (e.g. an ingredient string parsed from an imported
+	// recipe). Applied once each time the modal opens.
+	initialQuery?: string;
 }
 
-export default function AddIngredientModal({ visible, onClose, onAdd }: AddIngredientModalProps) {
+export default function AddIngredientModal({ visible, onClose, onAdd, initialQuery }: AddIngredientModalProps) {
 	const { theme } = useTheme();
 	const insets = useSafeAreaInsets();
 
 	const { query, setQuery, results: searchResults } = useFoodSearch();
+
+	// Seed the query when the sheet opens; don't fight the user's typing after.
+	const wasVisible = useRef(false);
+	useEffect(() => {
+		if (visible && !wasVisible.current) setQuery(initialQuery ?? "");
+		wasVisible.current = visible;
+	}, [visible, initialQuery, setQuery]);
 
 	const styles = useMemo(
 		() =>

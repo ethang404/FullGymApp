@@ -13,7 +13,7 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: PropsWithChildren) {
-	const [name, setName] = useState<ThemeName>("kratosRed");
+	const [name, setName] = useState<ThemeName>("sorbet");
 
 	// Load persisted theme on mount
 	useEffect(() => {
