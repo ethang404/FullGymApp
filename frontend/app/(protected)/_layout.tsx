@@ -80,6 +80,7 @@ export default function ProtectedLayout() {
 			<Tabs.Screen name="workouts/[workout_id]" options={{ href: null }} />
 			<Tabs.Screen name="types/workouts" options={{ href: null }} />
 			<Tabs.Screen name="types/nutrition" options={{ href: null }} />
+			<Tabs.Screen name="types/tasks" options={{ href: null }} />
 			{/* 			<Tabs.Screen name="components/NutritionLabel" options={{ href: null }} />
 			<Tabs.Screen name="components/RecipeFoodCard" options={{ href: null }} />
 			<Tabs.Screen name="components/FoodCard" options={{ href: null }} />

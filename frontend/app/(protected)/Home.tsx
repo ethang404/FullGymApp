@@ -10,6 +10,7 @@ import { useProfile } from "@/utils/ProfileProvider";
 import { ScreenState } from "@/components/ScreenState";
 import { PressableScale } from "@/components/PressableScale";
 import { RingProgress } from "@/components/RingProgress";
+import { Tasks } from "@/components/Tasks";
 import Screen from "@/components/Screen";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -293,86 +294,110 @@ export default function Home() {
 	return (
 		<Screen edges={["top"]}>
 			<ScreenState loading={loading} error={error} onRetry={fetchData} errorTitle="Couldn't load your dashboard">
-			<ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-				{/* Header */}
-				<View style={styles.header}>
-					<Text style={styles.appName}>Kratos</Text>
-				</View>
-
-				{/* Calorie card */}
-				<View style={styles.card}>
-					<Text style={styles.calLabel}>Daily Calories</Text>
-					<View style={styles.calRow}>
-						<View>
-							<Text style={styles.calNumber}>{summary?.calories.toLocaleString() ?? "0"}</Text>
-							<Text style={styles.calGoal}>of {calorieGoal.toLocaleString()} kcal</Text>
-						</View>
-						<RingProgress percent={calPercent} color={theme.primary} trackColor={theme.border} label="GOAL" size={80} strokeWidth={8} />
-					</View>
-					<View style={styles.barTrack}>
-						<View style={[styles.barFill, { width: `${Math.min(calPercent, 100)}%` }]} />
+				<ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+					{/* Header */}
+					<View style={styles.header}>
+						<Text style={styles.appName}>Kratos</Text>
 					</View>
 
-					{/* Macro rings */}
-					{summary && (
-						<View style={styles.macroRow}>
-							<RingProgress percent={pctOfGoal(summary.protein, goals.protein)} color={theme.macroProtein} trackColor={theme.border} label="PROTEIN" size={64} strokeWidth={6} />
-							<RingProgress percent={pctOfGoal(summary.carbs, goals.carbs)} color={theme.macroCarbs} trackColor={theme.border} label="CARBS" size={64} strokeWidth={6} />
-							<RingProgress percent={pctOfGoal(summary.fat, goals.fat)} color={theme.macroFat} trackColor={theme.border} label="FAT" size={64} strokeWidth={6} />
-						</View>
-					)}
-				</View>
-
-				{/* CTA buttons */}
-				<View style={styles.ctaRow}>
-					<PressableScale style={styles.ctaPrimary} onPress={() => router.push("/(protected)/nutrition/Nutrition")}>
-						<FontAwesome5 name="utensils" size={14} color={theme.textInverse} />
-						<Text style={styles.ctaPrimaryText}>Log Food</Text>
-					</PressableScale>
-					<PressableScale style={styles.ctaSecondary} onPress={() => router.push("/(protected)/Workouts")}>
-						<FontAwesome5 name="dumbbell" size={14} color={theme.text} />
-						<Text style={styles.ctaSecondaryText}>Workout</Text>
-					</PressableScale>
-				</View>
-
-				{/* Recent workouts */}
-				<View>
-					<View style={styles.sectionRow}>
-						<Text style={styles.sectionTitle}>Recent Workouts</Text>
-						<TouchableOpacity onPress={() => router.push("/(protected)/Workouts")}>
-							<Text style={styles.viewAll}>View All</Text>
-						</TouchableOpacity>
-					</View>
-
+					{/* Calorie card */}
 					<View style={styles.card}>
-						{workouts.length === 0 ? (
-							<Text style={styles.emptyText}>No workouts yet. Start one!</Text>
-						) : (
-							workouts.map((w, i) => (
-								<TouchableOpacity
-									key={w.id}
-									style={[styles.workoutRow, i === workouts.length - 1 && { borderBottomWidth: 0 }]}
-									onPress={() => router.push(`/(protected)/workouts/${w.id}`)}
-									activeOpacity={0.7}
-								>
-									<View style={styles.workoutIcon}>
-										<FontAwesome5 name="dumbbell" size={14} color={theme.primary} />
-									</View>
-									<View style={{ flex: 1 }}>
-										<Text style={styles.workoutName}>{w.name}</Text>
-										<Text style={styles.workoutMeta}>
-											{formatRelativeDate(w.date)}
-											{w.duration_minutes ? ` · ${w.duration_minutes}m` : ""}
-											{w.total_volume_kg ? ` · ${w.total_volume_kg.toLocaleString()}kg` : ""}
-										</Text>
-									</View>
-									<FontAwesome5 name="chevron-right" size={12} color={theme.textTertiary} style={styles.workoutChevron} />
-								</TouchableOpacity>
-							))
+						<Text style={styles.calLabel}>Daily Calories</Text>
+						<View style={styles.calRow}>
+							<View>
+								<Text style={styles.calNumber}>{summary?.calories.toLocaleString() ?? "0"}</Text>
+								<Text style={styles.calGoal}>of {calorieGoal.toLocaleString()} kcal</Text>
+							</View>
+							<RingProgress percent={calPercent} color={theme.primary} trackColor={theme.border} label="GOAL" size={80} strokeWidth={8} />
+						</View>
+						<View style={styles.barTrack}>
+							<View style={[styles.barFill, { width: `${Math.min(calPercent, 100)}%` }]} />
+						</View>
+
+						{/* Macro rings */}
+						{summary && (
+							<View style={styles.macroRow}>
+								<RingProgress
+									percent={pctOfGoal(summary.protein, goals.protein)}
+									color={theme.macroProtein}
+									trackColor={theme.border}
+									label="PROTEIN"
+									size={64}
+									strokeWidth={6}
+								/>
+								<RingProgress
+									percent={pctOfGoal(summary.carbs, goals.carbs)}
+									color={theme.macroCarbs}
+									trackColor={theme.border}
+									label="CARBS"
+									size={64}
+									strokeWidth={6}
+								/>
+								<RingProgress
+									percent={pctOfGoal(summary.fat, goals.fat)}
+									color={theme.macroFat}
+									trackColor={theme.border}
+									label="FAT"
+									size={64}
+									strokeWidth={6}
+								/>
+							</View>
 						)}
 					</View>
-				</View>
-			</ScrollView>
+
+					{/* CTA buttons */}
+					<View style={styles.ctaRow}>
+						<PressableScale style={styles.ctaPrimary} onPress={() => router.push("/(protected)/nutrition/Nutrition")}>
+							<FontAwesome5 name="utensils" size={14} color={theme.textInverse} />
+							<Text style={styles.ctaPrimaryText}>Log Food</Text>
+						</PressableScale>
+						<PressableScale style={styles.ctaSecondary} onPress={() => router.push("/(protected)/Workouts")}>
+							<FontAwesome5 name="dumbbell" size={14} color={theme.text} />
+							<Text style={styles.ctaSecondaryText}>Workout</Text>
+						</PressableScale>
+					</View>
+
+					{/* Tasks -- might also add challanges here instead*/}
+					<Tasks />
+
+					{/* Recent workouts */}
+					<View>
+						<View style={styles.sectionRow}>
+							<Text style={styles.sectionTitle}>Recent Workouts</Text>
+							<TouchableOpacity onPress={() => router.push("/(protected)/Workouts")}>
+								<Text style={styles.viewAll}>View All</Text>
+							</TouchableOpacity>
+						</View>
+
+						<View style={styles.card}>
+							{workouts.length === 0 ? (
+								<Text style={styles.emptyText}>No workouts yet. Start one!</Text>
+							) : (
+								workouts.map((w, i) => (
+									<TouchableOpacity
+										key={w.id}
+										style={[styles.workoutRow, i === workouts.length - 1 && { borderBottomWidth: 0 }]}
+										onPress={() => router.push(`/(protected)/workouts/${w.id}`)}
+										activeOpacity={0.7}
+									>
+										<View style={styles.workoutIcon}>
+											<FontAwesome5 name="dumbbell" size={14} color={theme.primary} />
+										</View>
+										<View style={{ flex: 1 }}>
+											<Text style={styles.workoutName}>{w.name}</Text>
+											<Text style={styles.workoutMeta}>
+												{formatRelativeDate(w.date)}
+												{w.duration_minutes ? ` · ${w.duration_minutes}m` : ""}
+												{w.total_volume_kg ? ` · ${w.total_volume_kg.toLocaleString()}kg` : ""}
+											</Text>
+										</View>
+										<FontAwesome5 name="chevron-right" size={12} color={theme.textTertiary} style={styles.workoutChevron} />
+									</TouchableOpacity>
+								))
+							)}
+						</View>
+					</View>
+				</ScrollView>
 			</ScreenState>
 		</Screen>
 	);
