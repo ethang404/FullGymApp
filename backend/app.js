@@ -14,12 +14,14 @@ const nutritionRoutes = require("./Nutrition/route");
 const workoutRoutes = require("./Workouts/route");
 const userRoutes = require("./Users/route");
 const friendsRoutes = require("./Friends/route");
+const exploreRoutes = require("./Explore/route");
 
 app.use("/auth", authRoutes);
 app.use("/nutrition", nutritionRoutes);
 app.use("/workouts", workoutRoutes);
 app.use("/users", userRoutes);
 app.use("/friends", friendsRoutes);
+app.use("/explore", exploreRoutes);
 
 app.get("/", (req, res) => {
 	res.send("Hello World!");

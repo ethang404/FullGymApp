@@ -1,3 +1,4 @@
+const { Op } = require("sequelize");
 const { friendships } = require("../models/modelInits");
 
 // Friendship rows are always stored with user_id_a < user_id_b (see Friends/service.js),
@@ -21,4 +22,14 @@ async function canViewContent(ownerUserId, viewerUserId, visibility) {
 	return false;
 }
 
-module.exports = { areFriends, canViewContent };
+// All of the caller's accepted-friend user_ids, in one query - used by feeds (Explore) that
+// need to filter a whole result set by friendship rather than check one relationship at a time.
+async function getFriendIds(user_id) {
+	const rows = await friendships.findAll({
+		where: { status: "accepted", [Op.or]: [{ user_id_a: user_id }, { user_id_b: user_id }] },
+		attributes: ["user_id_a", "user_id_b"],
+	});
+	return rows.map((row) => (row.user_id_a === user_id ? row.user_id_b : row.user_id_a));
+}
+
+module.exports = { areFriends, canViewContent, getFriendIds };

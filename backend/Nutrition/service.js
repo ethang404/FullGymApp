@@ -1010,4 +1010,5 @@ module.exports = {
 	getRecipe,
 	deleteRecipe,
 	importRecipeFromUrl,
+	serializeRecipeSummary,
 };
