@@ -8,7 +8,7 @@ function handleError(res, error) {
 
 async function getMe(req, res) {
 	try {
-		const user = await service.getMe(res.user_id);
+		const user = await service.getMe(req.user_id);
 		return res.status(200).json({ user });
 	} catch (error) {
 		return handleError(res, error);
@@ -17,7 +17,7 @@ async function getMe(req, res) {
 
 async function updateMe(req, res) {
 	try {
-		const user = await service.updateMe(res.user_id, req.body);
+		const user = await service.updateMe(req.user_id, req.body);
 		return res.status(200).json({ user });
 	} catch (error) {
 		return handleError(res, error);

@@ -13,11 +13,13 @@ const authRoutes = require("./Auth/route");
 const nutritionRoutes = require("./Nutrition/route");
 const workoutRoutes = require("./Workouts/route");
 const userRoutes = require("./Users/route");
+const friendsRoutes = require("./Friends/route");
 
 app.use("/auth", authRoutes);
 app.use("/nutrition", nutritionRoutes);
 app.use("/workouts", workoutRoutes);
 app.use("/users", userRoutes);
+app.use("/friends", friendsRoutes);
 
 app.get("/", (req, res) => {
 	res.send("Hello World!");

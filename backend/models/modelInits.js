@@ -6,6 +6,7 @@ const sets = require("./sets.model");
 const { diaryEntries } = require("./diaryEntries.model");
 const recipe = require("./recipe.model");
 const recipeIngredient = require("./recipeIngredient.model");
+const friendships = require("./friendships.model");
 
 const exercise_catalog = require("./exerciseCatalog");
 
@@ -222,6 +223,13 @@ function defineRelationships() {
 			allowNull: false,
 		},
 	});
+
+	//friendships is self-referential on users via two FKs (always stored user_id_a < user_id_b) plus
+	//requested_by to track who sent the request. Aliased belongsTo so services can `include` display info.
+	//we do the as to easily handle each user association
+	friendships.belongsTo(users, { as: "userA", foreignKey: { name: "user_id_a", allowNull: false } });
+	friendships.belongsTo(users, { as: "userB", foreignKey: { name: "user_id_b", allowNull: false } });
+	friendships.belongsTo(users, { as: "requester", foreignKey: { name: "requested_by", allowNull: false } });
 }
 
 module.exports = {
@@ -236,4 +244,5 @@ module.exports = {
 	food,
 	foodNutrient,
 	foodServingSize,
+	friendships,
 };

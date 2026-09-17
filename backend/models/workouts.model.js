@@ -28,11 +28,17 @@ const workouts = sequelize.define(
 			//when workout was finished. Could be null, should maybe auto apply if past 2 hours.
 			type: DataTypes.DATE,
 		},
+		visibility: {
+			type: DataTypes.ENUM("private", "friends", "public"),
+			allowNull: false,
+			defaultValue: "private",
+		},
 	},
 	{
 		tableName: "workouts",
 		timestamps: true,
 		underscored: true,
+		indexes: [{ fields: ["visibility"] }],
 	},
 );
 module.exports = workouts;

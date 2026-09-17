@@ -30,7 +30,7 @@ async function verifyToken(req, res, next) {
 		return res.status(500).json({ message: "Failed to verify user" });
 	}
 
-	res.user_id = payload.user_id;
+	req.user_id = payload.user_id;
 	next();
 
 	//if accessToken is invalid: attempt to refresh token.

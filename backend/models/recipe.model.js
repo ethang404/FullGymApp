@@ -30,6 +30,11 @@ const recipe = sequelize.define(
 			allowNull: false,
 			defaultValue: 1,
 		},
+		visibility: {
+			type: DataTypes.ENUM("private", "friends", "public"),
+			allowNull: false,
+			defaultValue: "private",
+		},
 	},
 	{
 		tableName: "recipes",
@@ -37,6 +42,7 @@ const recipe = sequelize.define(
 		underscored: true,
 		indexes: [
 			{ fields: ["user_id"] },
+			{ fields: ["visibility"] },
 		],
 	},
 );
