@@ -70,6 +70,17 @@ async function getDiaryEntries(req, res) {
 	}
 }
 
+// GET /diary/friend/:friend_user_id?date=YYYY-MM-DD — read-only, friends-visible entries only
+async function getFriendDiary(req, res) {
+	const friend_user_id = parseInt(req.params.friend_user_id, 10);
+	try {
+		const diary_entries = await service.getFriendDiary(req.user_id, friend_user_id, req.query.date);
+		return res.status(200).json({ diary_entries });
+	} catch (error) {
+		return handleError(res, error);
+	}
+}
+
 // Body needs: { food_id, meal_type, logged_at, quantity, unit }
 async function addDiaryEntry(req, res) {
 	const user_id = req.user_id;
@@ -196,6 +207,7 @@ module.exports = {
 	addFoodServing,
 
 	getDiaryEntries,
+	getFriendDiary,
 	addDiaryEntry,
 	editDiaryEntry,
 	deleteDiaryEntry,

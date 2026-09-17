@@ -15,7 +15,7 @@ const {
 const { NotFoundError, DataError, ForbiddenError } = require("../error");
 const { resolveUnitWeightG } = require("./unitConversion");
 const { importRecipeFromUrl } = require("./recipeImport");
-const { canViewContent } = require("../utils/friendship");
+const { canViewContent, areFriends } = require("../utils/friendship");
 
 const RECIPE_VISIBILITIES = ["private", "friends", "public"];
 const DIARY_VISIBILITIES = ["friends", "private"];
@@ -496,33 +496,9 @@ async function addDiaryEntry(data, user_id) {
 	}
 }
 
-/**
- * GET /diary?start_date=...&end_date=...
- * Expected: start_date (YYYY-MM-DD), end_date?, meal_type?
- */
-async function getDiaryEntries(user_id, start_date, end_date, meal_type) {
-	if (!start_date) throw new DataError("start_date is required");
-	if (!isValidDate(start_date)) throw new DataError("start_date must be YYYY-MM-DD");
-
-	if (!end_date) end_date = start_date;
-	if (!isValidDate(end_date)) throw new DataError("end_date must be YYYY-MM-DD");
-	if (end_date < start_date) throw new DataError("end_date cannot be before start_date");
-
-	//so we need to get all diary entries + nutrition and all that
-	//meaning we need to do big boy join AND also consider it could be a food or recipe
-
-	const where = {
-		user_id,
-		logged_at: { [Op.between]: [start_date, end_date] },
-	};
-
-	if (meal_type) {
-		const validMeals = ["breakfast", "lunch", "dinner", "snack"];
-		if (!validMeals.includes(meal_type)) throw new DataError("Invalid meal_type");
-		where.meal_type = meal_type;
-	}
-
-	//obtain list of diary entries between those dates
+// Shared by getDiaryEntries (the owner's own diary) and getFriendDiary (a friend's diary,
+// pre-filtered by the caller to friends-visible entries only) - the query differs only in `where`.
+async function fetchAndSerializeDiaryEntries(where) {
 	const diary_entries = await DiaryEntryModel.findAll({
 		where,
 		include: [
@@ -569,6 +545,7 @@ async function getDiaryEntries(user_id, start_date, end_date, meal_type) {
 				logged_at: e.logged_at,
 				quantity: parseFloat(e.quantity),
 				unit: e.unit,
+				visibility: e.visibility,
 				food: {
 					id: e.food.id,
 					name: e.food.name,
@@ -587,6 +564,7 @@ async function getDiaryEntries(user_id, start_date, end_date, meal_type) {
 				logged_at: e.logged_at,
 				quantity: parseFloat(e.quantity),
 				unit: e.unit,
+				visibility: e.visibility,
 				recipe: {
 					id: e.recipe.recipe_id,
 					name: e.recipe.name,
@@ -596,9 +574,46 @@ async function getDiaryEntries(user_id, start_date, end_date, meal_type) {
 			};
 		}
 	});
+}
 
-	// TODO: Fetch DiaryEntries with joins (Food+Nutrients+ServingSizes or Recipe+Ingredients)
-	// TODO: Calculate nutrients for each entry (calcNutrients for food, scaleRecipeNutrients for recipes)
+/**
+ * GET /diary?start_date=...&end_date=...
+ * Expected: start_date (YYYY-MM-DD), end_date?, meal_type?
+ */
+async function getDiaryEntries(user_id, start_date, end_date, meal_type) {
+	if (!start_date) throw new DataError("start_date is required");
+	if (!isValidDate(start_date)) throw new DataError("start_date must be YYYY-MM-DD");
+
+	if (!end_date) end_date = start_date;
+	if (!isValidDate(end_date)) throw new DataError("end_date must be YYYY-MM-DD");
+	if (end_date < start_date) throw new DataError("end_date cannot be before start_date");
+
+	const where = {
+		user_id,
+		logged_at: { [Op.between]: [start_date, end_date] },
+	};
+
+	if (meal_type) {
+		const validMeals = ["breakfast", "lunch", "dinner", "snack"];
+		if (!validMeals.includes(meal_type)) throw new DataError("Invalid meal_type");
+		where.meal_type = meal_type;
+	}
+
+	return fetchAndSerializeDiaryEntries(where);
+}
+
+/**
+ * GET /diary/friend/:friend_user_id?date=YYYY-MM-DD
+ * Read-only: a friend's diary for one day, restricted to entries they marked
+ * visibility:"friends" - their "private" entries never appear here. Requires an
+ * accepted friendship; NotFoundError (not Forbidden) either way so a non-friend can't
+ * distinguish "not friends" from "friend has nothing logged" from "user doesn't exist".
+ */
+async function getFriendDiary(viewer_user_id, friend_user_id, date) {
+	if (!date || !isValidDate(date)) throw new DataError("date must be YYYY-MM-DD");
+	if (!(await areFriends(viewer_user_id, friend_user_id))) throw new NotFoundError("User not found");
+
+	return fetchAndSerializeDiaryEntries({ user_id: friend_user_id, logged_at: date, visibility: "friends" });
 }
 
 /**
@@ -1000,6 +1015,7 @@ module.exports = {
 	// Diary
 	addDiaryEntry,
 	getDiaryEntries,
+	getFriendDiary,
 	editDiaryEntry,
 	deleteDiaryEntry,
 	getRecentLogged,
