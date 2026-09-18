@@ -51,7 +51,7 @@ export default function Onboarding() {
 	// Someone who already finished onboarding should never see this screen.
 	useEffect(() => {
 		if (!loading && profile?.onboarding_completed) {
-			router.replace("/(protected)/Home");
+			router.replace("/Home");
 		}
 	}, [loading, profile?.onboarding_completed]);
 
@@ -114,7 +114,7 @@ export default function Onboarding() {
 				goals: parsed,
 				onboarding_completed: true,
 			});
-			router.replace("/(protected)/Home");
+			router.replace("/Home");
 		} catch {
 			setError("Something went wrong saving your goals. Try again.");
 			setSaving(false);
@@ -125,7 +125,7 @@ export default function Onboarding() {
 		setSaving(true);
 		try {
 			await updateProfile({ onboarding_completed: true });
-			router.replace("/(protected)/Home");
+			router.replace("/Home");
 		} catch {
 			setError("Something went wrong. Try again.");
 			setSaving(false);

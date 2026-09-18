@@ -13,5 +13,5 @@ export default function Index() {
 		return <LoadingScreen />;
 	}
 
-	return <Redirect href={isValidUser ? "/(protected)/Home" : "/login"} />;
+	return <Redirect href={isValidUser ? "/Home" : "/login"} />;
 }

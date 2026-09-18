@@ -10,7 +10,7 @@ import { todayISO } from "@/utils/date";
 import { useFriends } from "@/utils/FriendsProvider";
 import { ScreenState } from "@/components/ScreenState";
 import Screen from "@/components/Screen";
-import DiarySections, { type DiaryEntry } from "../nutrition/components/DiarySections";
+import DiarySections, { type DiaryEntry } from "../(tabs)/nutrition/components/DiarySections";
 import { displayName } from "../types/friends";
 
 export default function FriendDiary() {

@@ -10,11 +10,11 @@ import { useProfile } from "@/utils/ProfileProvider";
 import Screen from "@/components/Screen";
 import Pills from "@/components/Pills";
 
-import AddIngredientModal from "./components/AddIngredientModal";
-import ImportRecipeModal from "./components/ImportRecipeModal";
-import RecipeFoodCard from "./components/RecipeFoodCard";
-import NutritionFactsLabel from "./components/NutritionLabel";
-import { getFullFood, searchFoods } from "./hooks/useFoodSearch";
+import AddIngredientModal from "../(tabs)/nutrition/components/AddIngredientModal";
+import ImportRecipeModal from "../(tabs)/nutrition/components/ImportRecipeModal";
+import RecipeFoodCard from "../(tabs)/nutrition/components/RecipeFoodCard";
+import NutritionFactsLabel from "../(tabs)/nutrition/components/NutritionLabel";
+import { getFullFood, searchFoods } from "../(tabs)/nutrition/hooks/useFoodSearch";
 import {
 	calcNutrientsFromPer100g,
 	calcMacrosFromPer100g,

@@ -8,7 +8,7 @@ import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
 import Screen from "@/components/Screen";
 
-import RecipeDisplayCard, { type Recipe } from "./components/RecipeDisplayCard";
+import RecipeDisplayCard, { type Recipe } from "../(tabs)/nutrition/components/RecipeDisplayCard";
 
 export default function Recipes() {
 	const { theme } = useTheme();
