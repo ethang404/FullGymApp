@@ -11,6 +11,7 @@ import FoodCard from "./components/FoodCard";
 import RecipeLogCard from "./components/RecipeLogCard";
 import { useFoodSearch } from "./hooks/useFoodSearch";
 import { useRecipes, useRecentLogged } from "./hooks/useRecentLogged";
+import { DIARY_VISIBILITIES, DIARY_VISIBILITY_LABELS, type DiaryVisibility } from "../types/visibility";
 
 type MealType = "breakfast" | "lunch" | "dinner" | "snack";
 
@@ -36,6 +37,7 @@ export default function LogFoodModal({ visible, mealType, selectedDate, onClose,
 	const insets = useSafeAreaInsets();
 
 	const [tab, setTab] = useState<Tab>("foods");
+	const [visibility, setVisibility] = useState<DiaryVisibility>("private");
 
 	// Foods tab: debounced API search. Recipes/Recent: fetched once per open,
 	// filtered client-side by the same `query`.
@@ -77,7 +79,7 @@ export default function LogFoodModal({ visible, mealType, selectedDate, onClose,
 				return <Empty icon="search" text={needle ? "No foods match that search." : "Search the food database to log a food."} styles={styles} />;
 			}
 			return foodResults.map((food) => (
-				<FoodCard key={food.id} food={food} displayLogButton mealType={mealType} loggedAt={selectedDate} onLogged={handleLogged} />
+				<FoodCard key={food.id} food={food} displayLogButton mealType={mealType} loggedAt={selectedDate} visibility={visibility} onLogged={handleLogged} />
 			));
 		}
 
@@ -94,6 +96,7 @@ export default function LogFoodModal({ visible, mealType, selectedDate, onClose,
 					displayLogButton
 					mealType={mealType}
 					loggedAt={selectedDate}
+					visibility={visibility}
 					onLogged={handleLogged}
 					onNavigateAway={onClose}
 				/>
@@ -108,7 +111,7 @@ export default function LogFoodModal({ visible, mealType, selectedDate, onClose,
 		}
 		return recentMatches.map((it) =>
 			it.type === "food" ? (
-				<FoodCard key={`f-${it.food.id}`} food={it.food} displayLogButton mealType={mealType} loggedAt={selectedDate} onLogged={handleLogged} />
+				<FoodCard key={`f-${it.food.id}`} food={it.food} displayLogButton mealType={mealType} loggedAt={selectedDate} visibility={visibility} onLogged={handleLogged} />
 			) : (
 				<RecipeLogCard
 					key={`r-${it.recipe.id}`}
@@ -116,6 +119,7 @@ export default function LogFoodModal({ visible, mealType, selectedDate, onClose,
 					displayLogButton
 					mealType={mealType}
 					loggedAt={selectedDate}
+					visibility={visibility}
 					onLogged={handleLogged}
 					onNavigateAway={onClose}
 				/>
@@ -147,6 +151,11 @@ export default function LogFoodModal({ visible, mealType, selectedDate, onClose,
 
 					<View style={styles.tabs}>
 						<SegmentedControl options={TABS} value={tab} onChange={setTab} labels={TAB_LABELS} />
+					</View>
+
+					<View style={styles.visibilityRow}>
+						<Text style={styles.visibilityLabel}>VISIBLE TO</Text>
+						<SegmentedControl options={DIARY_VISIBILITIES} value={visibility} onChange={setVisibility} labels={DIARY_VISIBILITY_LABELS} />
 					</View>
 
 					{tab !== "recent" && (
@@ -238,6 +247,16 @@ function makeStyles(theme: Theme, bottomInset: number) {
 		},
 		tabs: {
 			marginBottom: 12,
+		},
+		visibilityRow: {
+			marginBottom: 14,
+		},
+		visibilityLabel: {
+			color: theme.textMuted,
+			fontSize: 10,
+			fontWeight: "700",
+			letterSpacing: 0.8,
+			marginBottom: 6,
 		},
 		addNewButton: {
 			flexDirection: "row",

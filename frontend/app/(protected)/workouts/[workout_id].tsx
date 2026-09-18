@@ -25,8 +25,11 @@ import type { Theme } from "@/theme/colors";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
 import { toast } from "@/utils/toast";
+import { useProfile } from "@/utils/ProfileProvider";
 import Screen from "@/components/Screen";
+import Pills from "@/components/Pills";
 import * as types from "../types/workouts";
+import { CONTENT_VISIBILITIES, CONTENT_VISIBILITY_LABELS, type ContentVisibility } from "../types/visibility";
 
 const emptyWorkout: types.WorkoutData = {
 	workout_name: "",
@@ -34,6 +37,7 @@ const emptyWorkout: types.WorkoutData = {
 	notes: "",
 	finished_at: null,
 	exercises: [],
+	visibility: "private",
 };
 
 interface CatalogExercise {
@@ -57,15 +61,24 @@ function withRecomputedOrder<T extends { order_number: number }>(items: T[]): T[
 export default function Workout() {
 	const { workout_id, mode } = useLocalSearchParams<{
 		workout_id?: string;
-		mode: "new" | "edit" | "copy";
+		mode: "new" | "edit" | "copy" | "view";
 	}>();
 
 	const { theme } = useTheme();
 	const styles = useMemoStyles(theme);
+	const { profile } = useProfile();
 
 	const [workout, setWorkout] = useState<types.WorkoutData>(emptyWorkout);
-	const [loading, setLoading] = useState(mode === "edit" || mode === "copy");
+	const [loading, setLoading] = useState(mode === "edit" || mode === "copy" || mode === "view");
 	const [saving, setSaving] = useState(false);
+	const [ownerId, setOwnerId] = useState<number | null>(null);
+
+	// Explicit mode="view" (opened from Explore/a friend) always wins. Also auto-downgrades
+	// mode="edit" to read-only if it turns out this workout isn't the viewer's own - defense
+	// in depth alongside the backend's own ownership check, so a stale/incorrect route param
+	// never renders a save button that would just 403 anyway. "copy" stays editable regardless
+	// of whose workout it was copied from - it saves as a brand-new workout owned by the viewer.
+	const isViewOnly = mode === "view" || (mode === "edit" && ownerId != null && ownerId !== profile?.user_id);
 
 	const [availExercises, setAvailExercises] = useState<CatalogExercise[]>([]);
 	const [activeExerciseKey, setActiveExerciseKey] = useState<string | null>(null);
@@ -86,7 +99,7 @@ export default function Workout() {
 	}, []);
 
 	useEffect(() => {
-		if ((mode === "edit" || mode === "copy") && workout_id != null) {
+		if ((mode === "edit" || mode === "copy" || mode === "view") && workout_id != null) {
 			const getWorkoutData = async () => {
 				setLoading(true);
 				try {
@@ -98,6 +111,8 @@ export default function Workout() {
 						setWorkout(emptyWorkout);
 						return;
 					}
+
+					setOwnerId(found.user_id ?? null);
 
 					const exercises = found.exercises.map((ex: any) => ({
 						...ex,
@@ -116,6 +131,9 @@ export default function Workout() {
 						notes: found.notes ?? "",
 						finished_at: found.finished_at ?? null,
 						exercises,
+						// A copy is a brand-new workout owned by the viewer - always starts private,
+						// regardless of the source workout's visibility.
+						visibility: mode === "copy" ? "private" : ((found.visibility as ContentVisibility) ?? "private"),
 					});
 				} catch (err) {
 					log.error("Failed to load workout:", err);
@@ -242,7 +260,7 @@ export default function Workout() {
 	};
 
 	const handleSave = useCallback(async () => {
-		if (saving) return;
+		if (saving || isViewOnly) return;
 
 		// Validate before hitting the network — the backend rejects a workout with
 		// no name/date or any exercise missing a catalog_id, so catch it here with
@@ -274,7 +292,7 @@ export default function Workout() {
 			toast.error("Couldn't save. Try again.");
 			setSaving(false);
 		}
-	}, [saving, mode, workout_id, workout]);
+	}, [saving, isViewOnly, mode, workout_id, workout]);
 
 	// Hoisted + stable: all deps are useCallback([]) handlers, stable state setters,
 	// or memoized styles/theme — so ExerciseCard's React.memo actually holds.
@@ -291,38 +309,62 @@ export default function Workout() {
 				onOpenSelector={setActiveExerciseKey}
 				styles={styles}
 				theme={theme}
+				readOnly={isViewOnly}
 			/>
 		),
-		[deleteExercise, updateExercise, addSet, handleSetReorder, deleteSet, updateSet, styles, theme],
+		[deleteExercise, updateExercise, addSet, handleSetReorder, deleteSet, updateSet, styles, theme, isViewOnly],
 	);
 
 	const ListHeader = useCallback(
 		() => (
-			<TextInput
-				style={styles.titleInput}
-				value={workout.workout_name}
-				onChangeText={(text) => setWorkout((prev) => ({ ...prev, workout_name: text }))}
-				placeholder="Workout name"
-				placeholderTextColor={theme.text + "88"}
-			/>
+			<>
+				{isViewOnly && (
+					<View style={styles.viewOnlyBanner}>
+						<FontAwesome5 name="eye" size={11} color={theme.textMuted} />
+						<Text style={styles.viewOnlyBannerText}>Viewing a shared workout — read only</Text>
+					</View>
+				)}
+				<TextInput
+					style={[styles.titleInput, isViewOnly && { color: theme.textMuted }]}
+					value={workout.workout_name}
+					onChangeText={(text) => setWorkout((prev) => ({ ...prev, workout_name: text }))}
+					placeholder="Workout name"
+					placeholderTextColor={theme.text + "88"}
+					editable={!isViewOnly}
+				/>
+				{!isViewOnly && (
+					<View style={styles.visibilityRow}>
+						<Pills
+							options={CONTENT_VISIBILITIES}
+							value={workout.visibility}
+							onSelect={(v: ContentVisibility) => setWorkout((prev) => ({ ...prev, visibility: v }))}
+							labels={CONTENT_VISIBILITY_LABELS}
+						/>
+					</View>
+				)}
+			</>
 		),
-		[workout.workout_name, styles, theme],
+		[workout.workout_name, workout.visibility, isViewOnly, styles, theme],
 	);
 
 	const ListFooter = useCallback(
 		() => (
 			<>
-				<Pressable style={styles.addButton} onPress={addExercise}>
-					<Ionicons name="add-circle-outline" size={20} color={theme.text} />
-					<Text style={styles.addButtonText}>Add Exercise</Text>
-				</Pressable>
+				{!isViewOnly && (
+					<Pressable style={styles.addButton} onPress={addExercise}>
+						<Ionicons name="add-circle-outline" size={20} color={theme.text} />
+						<Text style={styles.addButtonText}>Add Exercise</Text>
+					</Pressable>
+				)}
 
-				<Pressable style={[styles.saveButton, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving}>
-					{saving ? <ActivityIndicator color={theme.textInverse} /> : <Text style={styles.saveButtonText}>Save Workout</Text>}
-				</Pressable>
+				{!isViewOnly && (
+					<Pressable style={[styles.saveButton, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving}>
+						{saving ? <ActivityIndicator color={theme.textInverse} /> : <Text style={styles.saveButtonText}>Save Workout</Text>}
+					</Pressable>
+				)}
 			</>
 		),
-		[addExercise, handleSave, saving, styles, theme],
+		[addExercise, handleSave, saving, isViewOnly, styles, theme],
 	);
 
 	if (loading) {
@@ -388,6 +430,7 @@ interface ExerciseCardProps {
 	onOpenSelector: (exerciseKey: string) => void;
 	styles: ReturnType<typeof createStyles>;
 	theme: Theme;
+	readOnly?: boolean;
 }
 
 const ExerciseCard = memo(function ExerciseCard({
@@ -401,6 +444,7 @@ const ExerciseCard = memo(function ExerciseCard({
 	onOpenSelector,
 	styles,
 	theme,
+	readOnly,
 }: ExerciseCardProps) {
 	const drag = useReorderableDrag();
 	const exKey = getExerciseKey(exercise);
@@ -415,34 +459,41 @@ const ExerciseCard = memo(function ExerciseCard({
 
 	const renderSet = useCallback(
 		({ item }: { item: types.WorkoutSet }) => (
-			<SetRow set={item} onDelete={handleDeleteSet} onUpdate={handleUpdateSet} styles={styles} theme={theme} />
+			<SetRow set={item} onDelete={handleDeleteSet} onUpdate={handleUpdateSet} styles={styles} theme={theme} readOnly={readOnly} />
 		),
-		[handleDeleteSet, handleUpdateSet, styles, theme],
+		[handleDeleteSet, handleUpdateSet, styles, theme, readOnly],
 	);
 
 	return (
 		<View style={[styles.card, { overflow: "hidden" }]}>
 			<View style={styles.cardHeader}>
-				<Pressable onLongPress={drag} hitSlop={10}>
-					<Ionicons name="reorder-three" size={22} color={theme.text} />
-				</Pressable>
+				{!readOnly && (
+					<Pressable onLongPress={drag} hitSlop={10}>
+						<Ionicons name="reorder-three" size={22} color={theme.text} />
+					</Pressable>
+				)}
 
-				<TouchableOpacity style={{ flex: 1 }} onPress={() => onOpenSelector(exKey)}>
+				<TouchableOpacity style={{ flex: 1 }} onPress={() => !readOnly && onOpenSelector(exKey)} disabled={readOnly}>
 					<Text style={[styles.exerciseTitle, !exercise.exercise_name && { color: theme.text + "66" }]}>{exercise.exercise_name || "Select Exercise..."}</Text>
 				</TouchableOpacity>
 
-				<Pressable onPress={() => onDelete(exKey)} hitSlop={10}>
-					<Ionicons name="trash-outline" size={18} color={theme.text} />
-				</Pressable>
+				{!readOnly && (
+					<Pressable onPress={() => onDelete(exKey)} hitSlop={10}>
+						<Ionicons name="trash-outline" size={18} color={theme.text} />
+					</Pressable>
+				)}
 			</View>
 
-			<TextInput
-				style={styles.notesInput}
-				value={exercise.notes}
-				onChangeText={(text) => onUpdate(exKey, { notes: text })}
-				placeholder="Exercise notes"
-				placeholderTextColor={theme.text + "88"}
-			/>
+			{(!readOnly || exercise.notes) && (
+				<TextInput
+					style={styles.notesInput}
+					value={exercise.notes}
+					onChangeText={(text) => onUpdate(exKey, { notes: text })}
+					placeholder="Exercise notes"
+					placeholderTextColor={theme.text + "88"}
+					editable={!readOnly}
+				/>
+			)}
 
 			<ReorderableList
 				data={exercise.sets}
@@ -453,10 +504,12 @@ const ExerciseCard = memo(function ExerciseCard({
 				style={{ overflow: "hidden" }}
 			/>
 
-			<Pressable style={styles.addSetButton} onPress={() => onAddSet(exKey)}>
-				<Ionicons name="add" size={16} color={theme.text} />
-				<Text style={styles.addButtonText}>Add Set</Text>
-			</Pressable>
+			{!readOnly && (
+				<Pressable style={styles.addSetButton} onPress={() => onAddSet(exKey)}>
+					<Ionicons name="add" size={16} color={theme.text} />
+					<Text style={styles.addButtonText}>Add Set</Text>
+				</Pressable>
+			)}
 		</View>
 	);
 });
@@ -467,9 +520,10 @@ interface SetRowProps {
 	onUpdate: (setKey: string, patch: Partial<types.WorkoutSet>) => void;
 	styles: ReturnType<typeof createStyles>;
 	theme: Theme;
+	readOnly?: boolean;
 }
 
-const SetRow = memo(function SetRow({ set, onDelete, onUpdate, styles, theme }: SetRowProps) {
+const SetRow = memo(function SetRow({ set, onDelete, onUpdate, styles, theme, readOnly }: SetRowProps) {
 	const drag = useReorderableDrag();
 	const setKey = getSetKey(set);
 
@@ -480,9 +534,11 @@ const SetRow = memo(function SetRow({ set, onDelete, onUpdate, styles, theme }: 
 
 	return (
 		<View style={[styles.setRow, { overflow: "hidden" }]}>
-			<Pressable onLongPress={drag} hitSlop={10}>
-				<Ionicons name="reorder-three-outline" size={18} color={theme.text} />
-			</Pressable>
+			{!readOnly && (
+				<Pressable onLongPress={drag} hitSlop={10}>
+					<Ionicons name="reorder-three-outline" size={18} color={theme.text} />
+				</Pressable>
+			)}
 
 			<Text style={styles.setLabel}>Set {set.order_number}</Text>
 
@@ -496,6 +552,7 @@ const SetRow = memo(function SetRow({ set, onDelete, onUpdate, styles, theme }: 
 				}}
 				keyboardType="numeric"
 				placeholder="reps"
+				editable={!readOnly}
 			/>
 			<TextInput
 				style={styles.numberInput}
@@ -507,11 +564,14 @@ const SetRow = memo(function SetRow({ set, onDelete, onUpdate, styles, theme }: 
 				}}
 				keyboardType="numeric"
 				placeholder="wt"
+				editable={!readOnly}
 			/>
 
-			<Pressable onPress={() => onDelete(setKey)} hitSlop={10}>
-				<Ionicons name="close-circle-outline" size={18} color={theme.error} />
-			</Pressable>
+			{!readOnly && (
+				<Pressable onPress={() => onDelete(setKey)} hitSlop={10}>
+					<Ionicons name="close-circle-outline" size={18} color={theme.error} />
+				</Pressable>
+			)}
 		</View>
 	);
 });
@@ -650,6 +710,19 @@ function createStyles(theme: Theme) {
 			padding: 16,
 			color: theme.text,
 		},
+		viewOnlyBanner: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: 8,
+			backgroundColor: theme.cardBgAlt,
+			borderRadius: 10,
+			paddingVertical: 10,
+			paddingHorizontal: 14,
+			marginHorizontal: 16,
+			marginTop: 8,
+		},
+		viewOnlyBannerText: { color: theme.textMuted, fontSize: 12, fontWeight: "600" },
+		visibilityRow: { paddingHorizontal: 16, marginBottom: 8 },
 		card: {
 			marginHorizontal: 16,
 			marginBottom: 12,

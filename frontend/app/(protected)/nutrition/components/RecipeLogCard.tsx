@@ -8,12 +8,14 @@ import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
 import { toast } from "@/utils/toast";
 import type { RecipeSummary } from "../../types/nutrition";
+import type { DiaryVisibility } from "../../types/visibility";
 
 interface RecipeLogCardProps {
 	recipe: RecipeSummary;
 	displayLogButton: boolean;
 	mealType: string;
 	loggedAt?: string;
+	visibility?: DiaryVisibility;
 	onLogged?: () => void;
 	// Called right before navigating away (so the parent can close its modal).
 	onNavigateAway?: () => void;
@@ -21,7 +23,7 @@ interface RecipeLogCardProps {
 
 // The recipe analogue of FoodCard: shows a recipe's per-serving macros and logs
 // it to the diary as `quantity` servings (unit is always "serving").
-export default function RecipeLogCard({ recipe, displayLogButton, mealType, loggedAt, onLogged, onNavigateAway }: RecipeLogCardProps) {
+export default function RecipeLogCard({ recipe, displayLogButton, mealType, loggedAt, visibility, onLogged, onNavigateAway }: RecipeLogCardProps) {
 	const { theme } = useTheme();
 	const [expanded, setExpanded] = useState(false);
 	const [quantity, setQuantity] = useState<string>("1");
@@ -49,6 +51,7 @@ export default function RecipeLogCard({ recipe, displayLogButton, mealType, logg
 				logged_at: loggedAt,
 				quantity: parsedQty,
 				unit: "serving",
+				visibility,
 			});
 			onLogged?.();
 		} catch (e) {
