@@ -6,7 +6,9 @@ import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
 import { toast } from "@/utils/toast";
+import { useProfile } from "@/utils/ProfileProvider";
 import Screen from "@/components/Screen";
+import Pills from "@/components/Pills";
 
 import AddIngredientModal from "./components/AddIngredientModal";
 import ImportRecipeModal from "./components/ImportRecipeModal";
@@ -27,6 +29,7 @@ import {
 	type FoodSearchResult,
 	type ServingSize,
 } from "../types/nutrition";
+import { CONTENT_VISIBILITIES, CONTENT_VISIBILITY_LABELS, type ContentVisibility } from "../types/visibility";
 
 // "https://www.hungryhobby.net/x/" -> "HUNGRYHOBBY.NET" (RN's URL is spotty, so parse by hand)
 function hostLabel(url: string | null): string {
@@ -38,6 +41,7 @@ function hostLabel(url: string | null): string {
 export default function CreateRecipe() {
 	const { theme } = useTheme();
 	const { recipe_id } = useLocalSearchParams<{ recipe_id?: string }>();
+	const { profile } = useProfile();
 
 	const [recipeName, setRecipeName] = useState("");
 	const [servings, setServings] = useState("1");
@@ -46,6 +50,12 @@ export default function CreateRecipe() {
 	const [addModalVisible, setAddModalVisible] = useState(false);
 	const [loading, setLoading] = useState(!!recipe_id);
 	const [saving, setSaving] = useState(false);
+	const [ownerId, setOwnerId] = useState<number | null>(null);
+	const [visibility, setVisibility] = useState<ContentVisibility>("private");
+
+	// Only true once we've actually loaded someone else's recipe - never true while
+	// creating a new one or before the fetch resolves.
+	const viewOnly = !!recipe_id && ownerId != null && ownerId !== profile?.user_id;
 
 	// Recipe imported from a URL: raw ingredient/step strings still waiting to be
 	// matched to foods in our DB. Tapping one opens the search sheet prefilled.
@@ -73,6 +83,8 @@ export default function CreateRecipe() {
 				setRecipeName(recipeData.name ?? "");
 				setServings(String(recipeData.servings ?? 1));
 				setBaseServings(String(recipeData.servings ?? 1));
+				setOwnerId(recipeData.user_id ?? null);
+				setVisibility((recipeData.visibility as ContentVisibility) ?? "private");
 
 				// Map ingredients from backend structure into frontend state
 				const mappedIngredients: RecipeIngredient[] = (recipeData.ingredients ?? []).map((ing: any) => {
@@ -123,6 +135,7 @@ export default function CreateRecipe() {
 			const payload = {
 				name: recipeName,
 				servings: parseFloat(servings) || 1,
+				visibility,
 				ingredients: ingredients.map((ing) => ({
 					food_id: ing.food.id,
 					quantity: ing.quantity,
@@ -365,6 +378,17 @@ export default function CreateRecipe() {
 				},
 				screen: { flex: 1, backgroundColor: theme.background, padding: 16 },
 				sectionLabel: { color: theme.primary, fontSize: 11, fontWeight: "700", letterSpacing: 0.5, marginBottom: 8 },
+				viewOnlyBanner: {
+					flexDirection: "row",
+					alignItems: "center",
+					gap: 8,
+					backgroundColor: theme.cardBgAlt,
+					borderRadius: 10,
+					paddingVertical: 10,
+					paddingHorizontal: 14,
+					marginBottom: 16,
+				},
+				viewOnlyBannerText: { color: theme.textMuted, fontSize: 12, fontWeight: "600" },
 				nameInput: {
 					backgroundColor: theme.inputBg,
 					borderWidth: StyleSheet.hairlineWidth,
@@ -496,19 +520,34 @@ export default function CreateRecipe() {
 				</TouchableOpacity>
 			</View>
 			<ScrollView style={styles.screen} contentContainerStyle={{ paddingBottom: 40 }}>
+				{viewOnly && (
+					<View style={styles.viewOnlyBanner}>
+						<FontAwesome5 name="eye" size={11} color={theme.textMuted} />
+						<Text style={styles.viewOnlyBannerText}>Viewing a shared recipe — read only</Text>
+					</View>
+				)}
+
 				<Text style={styles.sectionLabel}>RECIPE IDENTITY</Text>
 				<TextInput
-					style={styles.nameInput}
+					style={[styles.nameInput, viewOnly && { color: theme.textMuted }]}
 					placeholder="Enter recipe name..."
 					placeholderTextColor={theme.inputPlaceholder}
 					value={recipeName}
 					onChangeText={setRecipeName}
+					editable={!viewOnly}
 				/>
 
-				<TouchableOpacity style={styles.importBtn} onPress={() => setImportModalVisible(true)} activeOpacity={0.7}>
-					<FontAwesome5 name="link" size={12} color={theme.primary} />
-					<Text style={styles.importBtnText}>IMPORT FROM A LINK</Text>
-				</TouchableOpacity>
+				{!viewOnly && (
+					<>
+						<Text style={styles.sectionLabel}>VISIBILITY</Text>
+						<Pills options={CONTENT_VISIBILITIES} value={visibility} onSelect={setVisibility} labels={CONTENT_VISIBILITY_LABELS} />
+
+						<TouchableOpacity style={styles.importBtn} onPress={() => setImportModalVisible(true)} activeOpacity={0.7}>
+							<FontAwesome5 name="link" size={12} color={theme.primary} />
+							<Text style={styles.importBtnText}>IMPORT FROM A LINK</Text>
+						</TouchableOpacity>
+					</>
+				)}
 
 				<View style={styles.macroCards}>
 					<View style={styles.macroCard}>
@@ -525,22 +564,24 @@ export default function CreateRecipe() {
 					</View>
 				</View>
 
-				<View style={styles.scaleRow}>
-					<Text style={styles.scaleLabel}>SCALE RECIPE</Text>
-					<View style={styles.scaleButtons}>
-						{[0.25, 0.5, 1, 1.5, 2, 3].map((factor) => (
-							<TouchableOpacity key={factor} style={styles.scaleBtn} onPress={() => scaleAllIngredients(factor)} disabled={ingredients.length === 0}>
-								<Text style={styles.scaleBtnText}>{factor}x</Text>
-							</TouchableOpacity>
-						))}
+				{!viewOnly && (
+					<View style={styles.scaleRow}>
+						<Text style={styles.scaleLabel}>SCALE RECIPE</Text>
+						<View style={styles.scaleButtons}>
+							{[0.25, 0.5, 1, 1.5, 2, 3].map((factor) => (
+								<TouchableOpacity key={factor} style={styles.scaleBtn} onPress={() => scaleAllIngredients(factor)} disabled={ingredients.length === 0}>
+									<Text style={styles.scaleBtnText}>{factor}x</Text>
+								</TouchableOpacity>
+							))}
+						</View>
 					</View>
-				</View>
+				)}
 
 				{ingredients.map((ing) => (
-					<RecipeFoodCard key={ing.id} mode="edit" ingredient={ing} onChange={handleChangeIngredient} onRemove={handleRemoveIngredient} />
+					<RecipeFoodCard key={ing.id} mode="edit" ingredient={ing} onChange={handleChangeIngredient} onRemove={handleRemoveIngredient} readOnly={viewOnly} />
 				))}
 
-				{importedIngredients.length > 0 && (
+				{!viewOnly && importedIngredients.length > 0 && (
 					<View style={styles.importedCard}>
 						<View style={styles.importedHeaderRow}>
 							<Text style={styles.importedHint}>
@@ -568,10 +609,12 @@ export default function CreateRecipe() {
 					</View>
 				)}
 
-				<TouchableOpacity style={styles.addComponentBtn} onPress={openAddIngredient} activeOpacity={0.7}>
-					<FontAwesome5 name="plus" size={12} color={theme.primary} />
-					<Text style={styles.addComponentText}>ADD COMPONENT</Text>
-				</TouchableOpacity>
+				{!viewOnly && (
+					<TouchableOpacity style={styles.addComponentBtn} onPress={openAddIngredient} activeOpacity={0.7}>
+						<FontAwesome5 name="plus" size={12} color={theme.primary} />
+						<Text style={styles.addComponentText}>ADD COMPONENT</Text>
+					</TouchableOpacity>
+				)}
 
 				{importedInstructions.length > 0 && (
 					<View style={styles.importedCard}>
@@ -587,13 +630,14 @@ export default function CreateRecipe() {
 				<View style={styles.servingsRow}>
 					<Text style={styles.servingsLabel}>SERVINGS PER RECIPE</Text>
 					<TextInput
-						style={styles.servingsInput}
+						style={[styles.servingsInput, viewOnly && { color: theme.textMuted }]}
 						keyboardType="number-pad"
 						value={servings}
 						onChangeText={(serv) => {
 							setServings(serv);
 							setBaseServings(serv);
 						}}
+						editable={!viewOnly}
 					/>
 				</View>
 
@@ -621,14 +665,16 @@ export default function CreateRecipe() {
 
 				<ImportRecipeModal visible={importModalVisible} onClose={() => setImportModalVisible(false)} onImported={handleImported} />
 
-				<TouchableOpacity
-					style={[styles.saveButton, saving && { opacity: 0.6 }]}
-					onPress={handleSave}
-					disabled={saving || !recipeName || ingredients.length === 0}
-					activeOpacity={0.85}
-				>
-					{saving ? <ActivityIndicator color={theme.cardBg} /> : <Text style={styles.saveButtonText}>{recipe_id ? "Save Changes" : "Save Recipe"}</Text>}
-				</TouchableOpacity>
+				{!viewOnly && (
+					<TouchableOpacity
+						style={[styles.saveButton, saving && { opacity: 0.6 }]}
+						onPress={handleSave}
+						disabled={saving || !recipeName || ingredients.length === 0}
+						activeOpacity={0.85}
+					>
+						{saving ? <ActivityIndicator color={theme.cardBg} /> : <Text style={styles.saveButtonText}>{recipe_id ? "Save Changes" : "Save Recipe"}</Text>}
+					</TouchableOpacity>
+				)}
 			</ScrollView>
 		</Screen>
 	);

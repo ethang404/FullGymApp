@@ -48,6 +48,12 @@ const diaryEntries = sequelize.define(
 			type: DataTypes.TEXT,
 			allowNull: false,
 		},
+		visibility: {
+			// only friends/private (no "public") - diary logs are never fully public
+			type: DataTypes.ENUM("friends", "private"),
+			allowNull: false,
+			defaultValue: "private",
+		},
 	},
 	{
 		tableName: "diary_entries",

@@ -57,6 +57,13 @@ export default function ProtectedLayout() {
 				}}
 			/>
 			<Tabs.Screen
+				name="Explore"
+				options={{
+					title: "Explore",
+					tabBarIcon: ({ color, size }) => <FontAwesome5 name="compass" size={size - 2} color={color} />,
+				}}
+			/>
+			<Tabs.Screen
 				name="Workouts"
 				options={{
 					title: "Workouts",
@@ -71,6 +78,13 @@ export default function ProtectedLayout() {
 				}}
 			/>
 			<Tabs.Screen
+				name="Friends"
+				options={{
+					title: "Friends",
+					tabBarIcon: ({ color, size }) => <FontAwesome5 name="user-friends" size={size - 2} color={color} />,
+				}}
+			/>
+			<Tabs.Screen
 				name="Profile"
 				options={{
 					title: "Profile",
@@ -78,9 +92,20 @@ export default function ProtectedLayout() {
 				}}
 			/>
 			<Tabs.Screen name="workouts/[workout_id]" options={{ href: null }} />
+			<Tabs.Screen name="friends/[friend_user_id]" options={{ href: null }} />
+			<Tabs.Screen name="friends/components/FriendListRow" options={{ href: null }} />
+			<Tabs.Screen name="friends/components/FriendRequestRow" options={{ href: null }} />
+			<Tabs.Screen name="friends/components/SearchResultRow" options={{ href: null }} />
+			<Tabs.Screen name="friends/hooks/useFriendSearch" options={{ href: null }} />
+			<Tabs.Screen name="explore/components/ExploreCard" options={{ href: null }} />
+			<Tabs.Screen name="explore/components/FilterChips" options={{ href: null }} />
+			<Tabs.Screen name="explore/hooks/useExploreFeed" options={{ href: null }} />
 			<Tabs.Screen name="types/workouts" options={{ href: null }} />
 			<Tabs.Screen name="types/nutrition" options={{ href: null }} />
 			<Tabs.Screen name="types/tasks" options={{ href: null }} />
+			<Tabs.Screen name="types/friends" options={{ href: null }} />
+			<Tabs.Screen name="types/explore" options={{ href: null }} />
+			<Tabs.Screen name="types/visibility" options={{ href: null }} />
 			{/* 			<Tabs.Screen name="components/NutritionLabel" options={{ href: null }} />
 			<Tabs.Screen name="components/RecipeFoodCard" options={{ href: null }} />
 			<Tabs.Screen name="components/FoodCard" options={{ href: null }} />

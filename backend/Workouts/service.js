@@ -8,6 +8,9 @@ const { Op } = require("sequelize");
 const sequelize = require("../models/db");
 
 const { GeneralError, NotFoundError, DataError, UnauthorizedError, ForbiddenError } = require("../error");
+const { canViewContent } = require("../utils/friendship");
+
+const WORKOUT_VISIBILITIES = ["private", "friends", "public"];
 
 const exerciseInclude = {
 	model: ExercisesModel,
@@ -59,7 +62,7 @@ async function GetWorkouts(user_id, filter = "all") {
 	return workouts;
 }
 
-async function GetWorkout(workout_id) {
+async function GetWorkout(workout_id, user_id) {
 	const workout = await WorkoutsModel.findByPk(workout_id, {
 		include: [exerciseInclude],
 		order: [
@@ -68,7 +71,10 @@ async function GetWorkout(workout_id) {
 		],
 	});
 
+	// NotFoundError for both "doesn't exist" and "exists but not visible to you" -
+	// never leak existence of a private workout via a 403-vs-404 distinction.
 	if (!workout) throw new NotFoundError("No workout found with that workout ID");
+	if (!(await canViewContent(workout.user_id, user_id, workout.visibility))) throw new NotFoundError("No workout found with that workout ID");
 	return workout;
 }
 
@@ -79,6 +85,7 @@ async function CreateWorkout(data, user_id) {
 		if (!user) throw new GeneralError("No user found or authentication expired"); //this shouldn't even hit
 
 		if (!data.workout_name || !data.workout_date) throw new DataError("Workout Name and Workout Date required");
+		if (data.visibility != null && !WORKOUT_VISIBILITIES.includes(data.visibility)) throw new DataError("Invalid visibility");
 
 		var workout = await user.createWorkout(
 			{
@@ -86,6 +93,7 @@ async function CreateWorkout(data, user_id) {
 				workout_date: data.workout_date,
 				notes: data.notes,
 				finished_at: data.finished_at,
+				visibility: data.visibility ?? "private",
 			},
 			{ transaction: t },
 		);
@@ -130,10 +138,14 @@ async function CreateWorkout(data, user_id) {
 	});
 }
 
-async function EditWorkout(data, workout_id) {
+async function EditWorkout(data, workout_id, user_id) {
 	return await sequelize.transaction(async (t) => {
 		let workout_obj = await WorkoutsModel.findByPk(workout_id, { transaction: t });
 		if (!workout_obj) throw new NotFoundError("No workout found with that id"); // checked before .update() so a bad id throws this instead of a raw TypeError
+		// Pre-existing gap: this endpoint previously had no ownership check at all (any
+		// authenticated user could edit any workout by id). Enforcing it now.
+		if (workout_obj.user_id !== user_id) throw new ForbiddenError("Not your workout");
+		if (data.visibility != null && !WORKOUT_VISIBILITIES.includes(data.visibility)) throw new DataError("Invalid visibility");
 
 		let workout = await workout_obj.update(
 			{
@@ -141,6 +153,7 @@ async function EditWorkout(data, workout_id) {
 				workout_date: data.workout_date,
 				notes: data.notes,
 				finished_at: data.finished_at,
+				visibility: data.visibility ?? workout_obj.visibility,
 			},
 			{ transaction: t },
 		);
@@ -278,8 +291,12 @@ async function EditWorkout(data, workout_id) {
 	});
 }
 
-async function DeleteWorkout(workout_id) {
-	await WorkoutsModel.destroy({ where: { workout_id: workout_id } });
+async function DeleteWorkout(workout_id, user_id) {
+	const workout = await WorkoutsModel.findByPk(workout_id);
+	if (!workout) throw new NotFoundError("No workout found with that id");
+	// Pre-existing gap, same as EditWorkout: no ownership check existed here before.
+	if (workout.user_id !== user_id) throw new ForbiddenError("Not your workout");
+	await workout.destroy();
 }
 
 //Add function to add/search to exercise catalog, don't care about edit/delete right now. Don't want just any user doing that.

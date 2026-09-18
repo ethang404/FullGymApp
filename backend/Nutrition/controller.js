@@ -1,14 +1,4 @@
 const service = require("./service");
-const jwt = require("jsonwebtoken");
-
-function getUserId(req) {
-	const accessToken = req.headers.authorization.split(" ")[1];
-	const user = jwt.verify(accessToken, process.env.JWT_SECRET, {
-		audience: "my-gym-app",
-		issuer: "gym-auth-server",
-	});
-	return user.user_id;
-}
 
 function handleError(res, error) {
 	console.error(error);
@@ -33,7 +23,7 @@ async function searchFoods(req, res) {
 
 // Body needs: { name, brand?, barcode?, nutrients: [...], serving_sizes: [{label, weight_g, default_quantity?}] }
 async function createFood(req, res) {
-	const user_id = getUserId(req);
+	const user_id = req.user_id;
 	try {
 		const food = await service.CreateFood(req.body, user_id);
 		return res.status(201).json({ food });
@@ -71,7 +61,7 @@ async function addFoodServing(req, res) {
 // /diary?start_date=2024-01-01&end_date=2024-01-07&meal_type=breakfast
 async function getDiaryEntries(req, res) {
 	const { start_date, end_date, meal_type } = req.query;
-	const user_id = getUserId(req);
+	const user_id = req.user_id;
 	try {
 		const diary_entries = await service.getDiaryEntries(user_id, start_date, end_date, meal_type);
 		return res.status(200).json({ diary_entries });
@@ -80,9 +70,20 @@ async function getDiaryEntries(req, res) {
 	}
 }
 
+// GET /diary/friend/:friend_user_id?date=YYYY-MM-DD — read-only, friends-visible entries only
+async function getFriendDiary(req, res) {
+	const friend_user_id = parseInt(req.params.friend_user_id, 10);
+	try {
+		const diary_entries = await service.getFriendDiary(req.user_id, friend_user_id, req.query.date);
+		return res.status(200).json({ diary_entries });
+	} catch (error) {
+		return handleError(res, error);
+	}
+}
+
 // Body needs: { food_id, meal_type, logged_at, quantity, unit }
 async function addDiaryEntry(req, res) {
-	const user_id = getUserId(req);
+	const user_id = req.user_id;
 	try {
 		const diary_entry = await service.addDiaryEntry(req.body, user_id);
 		return res.status(201).json({ diary_entry });
@@ -94,7 +95,7 @@ async function addDiaryEntry(req, res) {
 // and id
 // Body: { quantity?, unit?, meal_type?, logged_at? }
 async function editDiaryEntry(req, res) {
-	const user_id = getUserId(req);
+	const user_id = req.user_id;
 	const entry_id = parseInt(req.params.id, 10);
 	try {
 		const diary_entry = await service.editDiaryEntry(entry_id, req.body, user_id);
@@ -105,7 +106,7 @@ async function editDiaryEntry(req, res) {
 }
 
 async function deleteDiaryEntry(req, res) {
-	const user_id = getUserId(req);
+	const user_id = req.user_id;
 	const entry_id = parseInt(req.params.id, 10);
 	try {
 		const result = await service.deleteDiaryEntry(entry_id, user_id);
@@ -117,7 +118,7 @@ async function deleteDiaryEntry(req, res) {
 
 // /recent — recently logged distinct foods + recipes, newest first
 async function getRecentLogged(req, res) {
-	const user_id = getUserId(req);
+	const user_id = req.user_id;
 	try {
 		const recent = await service.getRecentLogged(user_id);
 		return res.status(200).json({ recent });
@@ -132,7 +133,7 @@ async function getRecentLogged(req, res) {
 
 // get all recipes
 async function getRecipes(req, res) {
-	const user_id = getUserId(req);
+	const user_id = req.user_id;
 	try {
 		const recipes = await service.getRecipes(user_id);
 		return res.status(200).json({ recipes });
@@ -143,7 +144,7 @@ async function getRecipes(req, res) {
 
 //get one recipe
 async function getRecipe(req, res) {
-	const user_id = getUserId(req);
+	const user_id = req.user_id;
 	const recipe_id = parseInt(req.params.id, 10);
 	try {
 		const recipe = await service.getRecipe(recipe_id, user_id);
@@ -155,7 +156,7 @@ async function getRecipe(req, res) {
 
 // Body needs: { name, description?, ingredients: [{ food_id, quantity, unit }] }
 async function createRecipe(req, res) {
-	const user_id = getUserId(req);
+	const user_id = req.user_id;
 	try {
 		const recipe = await service.createRecipe(req.body, user_id);
 		return res.status(201).json({ recipe });
@@ -165,7 +166,7 @@ async function createRecipe(req, res) {
 }
 
 async function deleteRecipe(req, res) {
-	const user_id = getUserId(req);
+	const user_id = req.user_id;
 	const recipe_id = parseInt(req.params.id, 10);
 	try {
 		const result = await service.deleteRecipe(recipe_id, user_id);
@@ -176,7 +177,7 @@ async function deleteRecipe(req, res) {
 }
 
 async function editRecipe(req, res) {
-	const user_id = getUserId(req);
+	const user_id = req.user_id;
 	const recipe_id = parseInt(req.params.id, 10);
 	try {
 		const recipe = await service.editRecipe(recipe_id, user_id, req.body);
@@ -206,6 +207,7 @@ module.exports = {
 	addFoodServing,
 
 	getDiaryEntries,
+	getFriendDiary,
 	addDiaryEntry,
 	editDiaryEntry,
 	deleteDiaryEntry,

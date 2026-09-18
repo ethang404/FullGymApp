@@ -15,6 +15,10 @@ const {
 const { NotFoundError, DataError, ForbiddenError } = require("../error");
 const { resolveUnitWeightG } = require("./unitConversion");
 const { importRecipeFromUrl } = require("./recipeImport");
+const { canViewContent, areFriends } = require("../utils/friendship");
+
+const RECIPE_VISIBILITIES = ["private", "friends", "public"];
+const DIARY_VISIBILITIES = ["friends", "private"];
 
 //Mapping of nutrients to compare against
 const NUTRIENT_MAP = {
@@ -444,7 +448,7 @@ async function addFoodServing(food_id, label, weight_g, default_quantity) {
  * Expected: { food_id OR recipe_id, meal_type, logged_at, quantity, unit }
  */
 async function addDiaryEntry(data, user_id) {
-	const { food_id, recipe_id, meal_type, logged_at, quantity, unit } = data;
+	const { food_id, recipe_id, meal_type, logged_at, quantity, unit, visibility } = data;
 
 	if (!food_id && !recipe_id) throw new DataError("Either food_id or recipe_id is required");
 	if (food_id && recipe_id) throw new DataError("Cannot log both a food and a recipe at the same time");
@@ -454,6 +458,7 @@ async function addDiaryEntry(data, user_id) {
 	if (!logged_at || !isValidDate(logged_at)) throw new DataError("logged_at must be YYYY-MM-DD");
 	if (quantity == null || isNaN(quantity) || quantity <= 0) throw new DataError("quantity must be a positive number");
 	if (!unit) throw new DataError("unit is required");
+	if (visibility != null && !DIARY_VISIBILITIES.includes(visibility)) throw new DataError("Invalid visibility");
 
 	if (food_id) {
 		// TODO: Fetch food and validate unit via toGrams
@@ -473,6 +478,7 @@ async function addDiaryEntry(data, user_id) {
 			logged_at,
 			quantity,
 			unit,
+			visibility: visibility ?? "private",
 		});
 
 		return diary_entry;
@@ -485,38 +491,14 @@ async function addDiaryEntry(data, user_id) {
 		if (!recipe) throw new NotFoundError("Recipe not found");
 		if (recipe.user_id !== user_id) throw new ForbiddenError("Not your recipe");
 
-		const entry = await DiaryEntryModel.create({ user_id, recipe_id, meal_type, logged_at, quantity, unit });
+		const entry = await DiaryEntryModel.create({ user_id, recipe_id, meal_type, logged_at, quantity, unit, visibility: visibility ?? "private" });
 		return entry;
 	}
 }
 
-/**
- * GET /diary?start_date=...&end_date=...
- * Expected: start_date (YYYY-MM-DD), end_date?, meal_type?
- */
-async function getDiaryEntries(user_id, start_date, end_date, meal_type) {
-	if (!start_date) throw new DataError("start_date is required");
-	if (!isValidDate(start_date)) throw new DataError("start_date must be YYYY-MM-DD");
-
-	if (!end_date) end_date = start_date;
-	if (!isValidDate(end_date)) throw new DataError("end_date must be YYYY-MM-DD");
-	if (end_date < start_date) throw new DataError("end_date cannot be before start_date");
-
-	//so we need to get all diary entries + nutrition and all that
-	//meaning we need to do big boy join AND also consider it could be a food or recipe
-
-	const where = {
-		user_id,
-		logged_at: { [Op.between]: [start_date, end_date] },
-	};
-
-	if (meal_type) {
-		const validMeals = ["breakfast", "lunch", "dinner", "snack"];
-		if (!validMeals.includes(meal_type)) throw new DataError("Invalid meal_type");
-		where.meal_type = meal_type;
-	}
-
-	//obtain list of diary entries between those dates
+// Shared by getDiaryEntries (the owner's own diary) and getFriendDiary (a friend's diary,
+// pre-filtered by the caller to friends-visible entries only) - the query differs only in `where`.
+async function fetchAndSerializeDiaryEntries(where) {
 	const diary_entries = await DiaryEntryModel.findAll({
 		where,
 		include: [
@@ -563,6 +545,7 @@ async function getDiaryEntries(user_id, start_date, end_date, meal_type) {
 				logged_at: e.logged_at,
 				quantity: parseFloat(e.quantity),
 				unit: e.unit,
+				visibility: e.visibility,
 				food: {
 					id: e.food.id,
 					name: e.food.name,
@@ -581,6 +564,7 @@ async function getDiaryEntries(user_id, start_date, end_date, meal_type) {
 				logged_at: e.logged_at,
 				quantity: parseFloat(e.quantity),
 				unit: e.unit,
+				visibility: e.visibility,
 				recipe: {
 					id: e.recipe.recipe_id,
 					name: e.recipe.name,
@@ -590,9 +574,46 @@ async function getDiaryEntries(user_id, start_date, end_date, meal_type) {
 			};
 		}
 	});
+}
 
-	// TODO: Fetch DiaryEntries with joins (Food+Nutrients+ServingSizes or Recipe+Ingredients)
-	// TODO: Calculate nutrients for each entry (calcNutrients for food, scaleRecipeNutrients for recipes)
+/**
+ * GET /diary?start_date=...&end_date=...
+ * Expected: start_date (YYYY-MM-DD), end_date?, meal_type?
+ */
+async function getDiaryEntries(user_id, start_date, end_date, meal_type) {
+	if (!start_date) throw new DataError("start_date is required");
+	if (!isValidDate(start_date)) throw new DataError("start_date must be YYYY-MM-DD");
+
+	if (!end_date) end_date = start_date;
+	if (!isValidDate(end_date)) throw new DataError("end_date must be YYYY-MM-DD");
+	if (end_date < start_date) throw new DataError("end_date cannot be before start_date");
+
+	const where = {
+		user_id,
+		logged_at: { [Op.between]: [start_date, end_date] },
+	};
+
+	if (meal_type) {
+		const validMeals = ["breakfast", "lunch", "dinner", "snack"];
+		if (!validMeals.includes(meal_type)) throw new DataError("Invalid meal_type");
+		where.meal_type = meal_type;
+	}
+
+	return fetchAndSerializeDiaryEntries(where);
+}
+
+/**
+ * GET /diary/friend/:friend_user_id?date=YYYY-MM-DD
+ * Read-only: a friend's diary for one day, restricted to entries they marked
+ * visibility:"friends" - their "private" entries never appear here. Requires an
+ * accepted friendship; NotFoundError (not Forbidden) either way so a non-friend can't
+ * distinguish "not friends" from "friend has nothing logged" from "user doesn't exist".
+ */
+async function getFriendDiary(viewer_user_id, friend_user_id, date) {
+	if (!date || !isValidDate(date)) throw new DataError("date must be YYYY-MM-DD");
+	if (!(await areFriends(viewer_user_id, friend_user_id))) throw new NotFoundError("User not found");
+
+	return fetchAndSerializeDiaryEntries({ user_id: friend_user_id, logged_at: date, visibility: "friends" });
 }
 
 /**
@@ -710,13 +731,17 @@ async function deleteDiaryEntry(entry_id, user_id) {
  * Expected: { name, description?, servings?, ingredients: [{ food_id, quantity, unit }] }
  */
 async function createRecipe(data, user_id) {
-	const { name, description, servings, ingredients } = data;
+	const { name, description, servings, ingredients, visibility } = data;
 
 	if (!name?.trim()) throw new DataError("Recipe name is required");
 	if (!Array.isArray(ingredients) || ingredients.length === 0) throw new DataError("At least one ingredient is required");
+	if (visibility != null && !RECIPE_VISIBILITIES.includes(visibility)) throw new DataError("Invalid visibility");
 
 	const result = await sequelize.transaction(async (t) => {
-		const newRecipe = await RecipeModel.create({ user_id, name: name.trim(), description: description ?? null, servings: servings ?? 1 }, { transaction: t });
+		const newRecipe = await RecipeModel.create(
+			{ user_id, name: name.trim(), description: description ?? null, servings: servings ?? 1, visibility: visibility ?? "private" },
+			{ transaction: t },
+		);
 
 		const rows = await buildIngredientRows(ingredients, newRecipe.recipe_id, t);
 
@@ -758,10 +783,13 @@ async function editRecipe(recipe_id, user_id, data) {
 	const servings = data.servings != null ? parseFloat(data.servings) : parseFloat(recipe.servings);
 	if (isNaN(servings) || servings <= 0) throw new DataError("servings must be a positive number");
 
+	if (data.visibility != null && !RECIPE_VISIBILITIES.includes(data.visibility)) throw new DataError("Invalid visibility");
+	const visibility = data.visibility ?? recipe.visibility;
+
 	//const { name, description, servings } = data;
 
 	const result = await sequelize.transaction(async (t) => {
-		await recipe.update({ name, description, servings }, { transaction: t });
+		await recipe.update({ name, description, servings, visibility }, { transaction: t });
 
 		const incomingIds = new Set(data.ingredients.filter((i) => i.ingredient_id).map((i) => i.ingredient_id));
 
@@ -892,7 +920,7 @@ async function getRecentLogged(user_id, limit = 20) {
 
 async function getRecipe(recipe_id, user_id) {
 	const recipe = await RecipeModel.findOne({
-		where: { recipe_id, user_id },
+		where: { recipe_id },
 		include: [
 			{
 				model: RecipeIngredientModel,
@@ -907,7 +935,10 @@ async function getRecipe(recipe_id, user_id) {
 		],
 	});
 
+	// NotFoundError for both "doesn't exist" and "exists but not visible to you" -
+	// never leak existence of a private recipe via a 403-vs-404 distinction.
 	if (!recipe) throw new NotFoundError("Recipe not found");
+	if (!(await canViewContent(recipe.user_id, user_id, recipe.visibility))) throw new NotFoundError("Recipe not found");
 
 	const recipeIngredients = recipe.recipeIngredients ?? [];
 
@@ -984,6 +1015,7 @@ module.exports = {
 	// Diary
 	addDiaryEntry,
 	getDiaryEntries,
+	getFriendDiary,
 	editDiaryEntry,
 	deleteDiaryEntry,
 	getRecentLogged,
@@ -994,4 +1026,5 @@ module.exports = {
 	getRecipe,
 	deleteRecipe,
 	importRecipeFromUrl,
+	serializeRecipeSummary,
 };

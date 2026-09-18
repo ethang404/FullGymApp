@@ -1,3 +1,5 @@
+import type { ContentVisibility } from "./visibility";
+
 export type SetType = "warmup" | "working";
 
 export interface WorkoutSet {
@@ -26,4 +28,5 @@ export interface WorkoutData {
 	notes: string;
 	finished_at: string | null;
 	exercises: WorkoutExercise[];
+	visibility: ContentVisibility;
 }

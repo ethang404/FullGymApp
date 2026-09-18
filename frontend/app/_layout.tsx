@@ -5,6 +5,7 @@ import { useContext } from "react";
 import LoadingScreen from "@/components/LoadingScreen";
 import { AxiosInterceptorHandler } from "@/utils/AxiosInterceptorHandler";
 import { ProfileProvider } from "@/utils/ProfileProvider";
+import { FriendsProvider } from "@/utils/FriendsProvider";
 import { ToastProvider } from "@/utils/ToastProvider";
 
 function AppStack() {
@@ -38,7 +39,9 @@ export default function AppLayout() {
 				<AuthProvider>
 					<AxiosInterceptorHandler>
 						<ProfileProvider>
-							<AppStack />
+							<FriendsProvider>
+								<AppStack />
+							</FriendsProvider>
 						</ProfileProvider>
 					</AxiosInterceptorHandler>
 				</AuthProvider>

@@ -11,16 +11,18 @@ import { toast } from "@/utils/toast";
 import { COMMON_UNITS } from "../../types/nutrition";
 import { AddServingModal } from "./AddServingModal";
 import { calcMacrosFromPer100g, type ServingSize, type FoodSearchResult } from "../../types/nutrition";
+import type { DiaryVisibility } from "../../types/visibility";
 
 interface FoodCardProps {
 	food: FoodSearchResult;
 	displayLogButton: boolean;
 	mealType: string;
 	loggedAt?: string;
+	visibility?: DiaryVisibility;
 	onLogged?: () => void; //we can overload this in the parent (caller), so we close if modal or not perhaps
 }
 
-export default function FoodCard({ food, displayLogButton, mealType, loggedAt, onLogged }: FoodCardProps) {
+export default function FoodCard({ food, displayLogButton, mealType, loggedAt, visibility, onLogged }: FoodCardProps) {
 	const { theme } = useTheme();
 	const [expanded, setExpanded] = useState(false);
 	const [quantity, setQuantity] = useState<string>(String(food.default_serving.default_quantity ?? 1));
@@ -63,6 +65,7 @@ export default function FoodCard({ food, displayLogButton, mealType, loggedAt, o
 				logged_at: loggedAt,
 				quantity: parsedQty,
 				unit: selectedServing.label,
+				visibility,
 			});
 			onLogged?.(); //tell our modal that we logged food so we can re-fetch entires
 		} catch (e) {
