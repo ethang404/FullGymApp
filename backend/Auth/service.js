@@ -22,20 +22,27 @@ async function refreshToken(token) {
 		throw new UnauthorizedError("Token provided is not a refresh token");
 	}
 
-	const accessToken = jwt.sign({ user_id: payload.user_id, type: "access" }, process.env.JWT_SECRET, {
-		expiresIn: "1h",
-		audience: "my-gym-app",
-		issuer: "gym-auth-server",
-	});
-	return accessToken;
+	const user = await usersDB.findByPk(payload.user_id);
+	if (!user) throw new UnauthorizedError("User no longer exists");
+
+	// Sliding refresh - every successful refresh also reissues the refresh
+	// token itself, so an actively-used account's 30-day window never lapses.
+	return generateTokens(user.user_id, user.is_guest);
 }
 
-function generateTokens(user_id) {
-	const accessToken = jwt.sign({ user_id, type: "access" }, process.env.JWT_SECRET, {
-		expiresIn: "1h",
+function generateTokens(user_id, isGuest = false) {
+	const accessOptions = {
 		audience: "my-gym-app",
 		issuer: "gym-auth-server",
-	});
+	};
+	// Guests have no username/password to log back in with, so an expired
+	// access token with a lapsed refresh token means permanently losing the
+	// account. So make infinite
+	if (!isGuest) {
+		accessOptions.expiresIn = "1h";
+	}
+
+	const accessToken = jwt.sign({ user_id, type: "access" }, process.env.JWT_SECRET, accessOptions);
 	const refreshToken = jwt.sign({ user_id, type: "refresh" }, process.env.JWT_SECRET, {
 		expiresIn: "30 days",
 		audience: "my-gym-app",

@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useContext, useMemo, useState, useEffect } from "react";
 import { useRouter } from "expo-router";
+import * as SecureStore from "expo-secure-store";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import Pills from "@/components/Pills";
@@ -351,7 +352,11 @@ export default function Profile() {
 				visible={upgradeModalOpen}
 				onClose={() => setUpgradeModalOpen(false)}
 				onSave={async (body) => {
-					await instance.post("/auth/upgrade-guest", body);
+					const resp = await instance.post("/auth/upgrade-guest", body);
+					// The old guest access token never expires - swap it out now that
+					// the account is real, instead of leaving it valid forever.
+					if (resp.data?.accessToken) await SecureStore.setItemAsync("accessToken", resp.data.accessToken);
+					if (resp.data?.refreshToken) await SecureStore.setItemAsync("refreshToken", resp.data.refreshToken);
 					signIn(false);
 					await refresh();
 					setUpgradeModalOpen(false);

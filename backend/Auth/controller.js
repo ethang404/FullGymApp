@@ -2,8 +2,8 @@ const authService = require("./service");
 
 async function refreshToken(req, res) {
 	try {
-		const accessToken = await authService.refreshToken(req.body.refreshToken);
-		return res.status(200).json({ accessToken, message: "Successfully refreshed access token" });
+		const { accessToken, refreshToken } = await authService.refreshToken(req.body.refreshToken);
+		return res.status(200).json({ accessToken, refreshToken, message: "Successfully refreshed access token" });
 	} catch (error) {
 		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
 		return res.status(500).json({ message: error.message });
@@ -13,7 +13,7 @@ async function refreshToken(req, res) {
 async function register(req, res) {
 	try {
 		const user = await authService.register(req.body);
-		const { accessToken, refreshToken } = authService.generateTokens(user.user_id);
+		const { accessToken, refreshToken } = authService.generateTokens(user.user_id, user.is_guest);
 
 		return res.status(201).json({
 			message: "User created!",
@@ -32,7 +32,7 @@ async function login(req, res) {
 	try {
 		const { userName, password } = req.body;
 		const user = await authService.login(userName, password);
-		const { accessToken, refreshToken } = authService.generateTokens(user.user_id);
+		const { accessToken, refreshToken } = authService.generateTokens(user.user_id, user.is_guest);
 
 		return res.status(200).json({
 			message: "Login successful",
@@ -52,7 +52,7 @@ async function IsValidToken(req, res) {
 async function createGuest(req, res) {
 	try {
 		const user = await authService.createGuest();
-		const { accessToken, refreshToken } = authService.generateTokens(user.user_id);
+		const { accessToken, refreshToken } = authService.generateTokens(user.user_id, true);
 
 		return res.status(201).json({
 			message: "Guest user created!",
@@ -70,7 +70,10 @@ async function createGuest(req, res) {
 async function upgradeGuest(req, res) {
 	try {
 		const user = await authService.upgradeGuest(req.user_id, req.body);
-		return res.status(200).json({ message: "Account upgraded!", username: user.user_name });
+		// user.is_guest is now false - reissue tokens so the old non-expiring
+		// guest access token doesn't keep working forever past the upgrade.
+		const { accessToken, refreshToken } = authService.generateTokens(user.user_id, false);
+		return res.status(200).json({ message: "Account upgraded!", username: user.user_name, accessToken, refreshToken });
 	} catch (error) {
 		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
 		return res.status(500).json({ message: error.message });
