@@ -10,6 +10,8 @@ const verifyToken = require("../Middlewear/token");
 router.post("/register", authController.register);
 router.post("/refresh", authController.refreshToken);
 router.post("/login", authController.login);
+router.post("/guest", authController.createGuest);
+router.post("/upgrade-guest", verifyToken, authController.upgradeGuest);
 router.get("/validToken", verifyToken, authController.IsValidToken);
 
 module.exports = router;

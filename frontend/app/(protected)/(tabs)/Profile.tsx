@@ -20,6 +20,7 @@ import { DateField } from "@/components/DateField";
 import { themes, themeLabels, type Theme, type ThemeName } from "@/theme/colors";
 import { AuthContext } from "@/utils/AuthProvider";
 import { useProfile, type EstimateBody } from "@/utils/ProfileProvider";
+import { instance } from "@/utils/AxiosInterceptorHandler";
 import Screen from "@/components/Screen";
 import {
 	MACRO_KEYS,
@@ -52,12 +53,13 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export default function Profile() {
 	const { theme, name: activeName, setTheme } = useTheme();
-	const { signOut } = useContext(AuthContext);
-	const { profile, goals, updateProfile, estimateGoals } = useProfile();
+	const { signOut, signIn, isGuest } = useContext(AuthContext);
+	const { profile, goals, updateProfile, estimateGoals, refresh } = useProfile();
 	const router = useRouter();
 
 	const [goalsModalOpen, setGoalsModalOpen] = useState(false);
 	const [bodyModalOpen, setBodyModalOpen] = useState(false);
+	const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
 
 	const displayName =
 		[profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || profile?.user_name || "Your Name";
@@ -140,6 +142,27 @@ export default function Profile() {
 				themeSwatch: { width: 16, height: 16, borderRadius: 8 },
 				themePillText: { fontSize: 13, fontWeight: "600" },
 
+				guestBanner: {
+					marginHorizontal: 16,
+					marginTop: 16,
+					borderRadius: 14,
+					borderWidth: 1,
+					borderColor: `${theme.primary}40`,
+					backgroundColor: `${theme.primary}10`,
+					padding: 16,
+					gap: 10,
+				},
+				guestBannerTitle: { fontSize: 15, fontWeight: "700", color: theme.text },
+				guestBannerBody: { fontSize: 13, color: theme.textMuted, lineHeight: 18 },
+				guestBannerButton: {
+					backgroundColor: theme.primary,
+					borderRadius: 10,
+					paddingVertical: 10,
+					alignItems: "center",
+					marginTop: 2,
+				},
+				guestBannerButtonText: { color: theme.textInverse, fontSize: 14, fontWeight: "700" },
+
 				dangerRow: {
 					marginHorizontal: 16,
 					marginTop: 12,
@@ -172,6 +195,20 @@ export default function Profile() {
 					<Text style={styles.userName}>{displayName}</Text>
 					{memberSince && <Text style={styles.userSub}>Member since {memberSince}</Text>}
 				</View>
+
+				{isGuest && (
+					<View style={styles.guestBanner}>
+						<Text style={styles.guestBannerTitle}>You're using a guest account</Text>
+						<Text style={styles.guestBannerBody}>
+							Your workouts, food log, and recipes are saved, but Friends is unavailable and this device is the only
+							way in - there's no password yet, so losing it means losing access. Set a username and password to
+							secure your account and unlock Friends.
+						</Text>
+						<TouchableOpacity style={styles.guestBannerButton} onPress={() => setUpgradeModalOpen(true)} activeOpacity={0.8}>
+							<Text style={styles.guestBannerButtonText}>Create Account</Text>
+						</TouchableOpacity>
+					</View>
+				)}
 
 				{/* Nutrition goals */}
 				<Text style={styles.sectionLabel}>Nutrition Goals</Text>
@@ -309,6 +346,17 @@ export default function Profile() {
 					setBodyModalOpen(false);
 				}}
 			/>
+
+			<UpgradeAccountModal
+				visible={upgradeModalOpen}
+				onClose={() => setUpgradeModalOpen(false)}
+				onSave={async (body) => {
+					await instance.post("/auth/upgrade-guest", body);
+					signIn(false);
+					await refresh();
+					setUpgradeModalOpen(false);
+				}}
+			/>
 		</Screen>
 	);
 }
@@ -391,6 +439,106 @@ function GoalsModal({
 
 					<TouchableOpacity style={[s.saveButton, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving}>
 						{saving ? <ActivityIndicator color={theme.textInverse} /> : <Text style={s.saveButtonText}>Save</Text>}
+					</TouchableOpacity>
+					<TouchableOpacity style={s.cancelButton} onPress={onClose}>
+						<Text style={s.cancelButtonText}>Cancel</Text>
+					</TouchableOpacity>
+				</View>
+			</KeyboardAvoidingView>
+		</Modal>
+	);
+}
+
+// ─── Guest → real account upgrade modal ───────────────────────────────────────
+
+function UpgradeAccountModal({
+	visible,
+	onClose,
+	onSave,
+}: {
+	visible: boolean;
+	onClose: () => void;
+	onSave: (body: { firstName: string; lastName: string; userName: string; password: string }) => Promise<void>;
+}) {
+	const { theme } = useTheme();
+	const [firstName, setFirstName] = useState("");
+	const [lastName, setLastName] = useState("");
+	const [userName, setUserName] = useState("");
+	const [password, setPassword] = useState("");
+	const [saving, setSaving] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+
+	useEffect(() => {
+		if (visible) {
+			setFirstName("");
+			setLastName("");
+			setUserName("");
+			setPassword("");
+			setError(null);
+		}
+	}, [visible]);
+
+	async function handleSave() {
+		if (!firstName || !lastName || !userName || !password) {
+			setError("Please fill in every field.");
+			return;
+		}
+		setSaving(true);
+		setError(null);
+		try {
+			await onSave({ firstName, lastName, userName, password });
+		} catch (err: any) {
+			setError(err?.response?.data?.message || "Could not create your account. Try again.");
+		} finally {
+			setSaving(false);
+		}
+	}
+
+	const s = useMemo(() => modalStyles(theme), [theme]);
+	const insets = useSafeAreaInsets();
+
+	return (
+		<Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+			<KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={s.overlay}>
+				<View style={[s.sheet, { paddingBottom: insets.bottom + 24 }]}>
+					<View style={s.headerRow}>
+						<Text style={s.title}>Create your account</Text>
+						<TouchableOpacity onPress={onClose} hitSlop={10}>
+							<FontAwesome5 name="times" size={20} color={theme.primary} />
+						</TouchableOpacity>
+					</View>
+
+					<Text style={s.sectionLabel}>FIRST NAME</Text>
+					<TextInput style={s.textInput} placeholder="e.g. Alex" placeholderTextColor={theme.inputPlaceholder} value={firstName} onChangeText={setFirstName} autoCapitalize="words" />
+
+					<Text style={s.sectionLabel}>LAST NAME</Text>
+					<TextInput style={s.textInput} placeholder="e.g. Mercer" placeholderTextColor={theme.inputPlaceholder} value={lastName} onChangeText={setLastName} autoCapitalize="words" />
+
+					<Text style={s.sectionLabel}>USERNAME</Text>
+					<TextInput
+						style={s.textInput}
+						placeholder="Choose a username"
+						placeholderTextColor={theme.inputPlaceholder}
+						value={userName}
+						onChangeText={setUserName}
+						autoCapitalize="none"
+						autoCorrect={false}
+					/>
+
+					<Text style={s.sectionLabel}>PASSWORD</Text>
+					<TextInput
+						style={s.textInput}
+						placeholder="Create a strong password"
+						placeholderTextColor={theme.inputPlaceholder}
+						value={password}
+						onChangeText={setPassword}
+						secureTextEntry
+					/>
+
+					{error && <Text style={s.errorText}>{error}</Text>}
+
+					<TouchableOpacity style={[s.saveButton, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving}>
+						{saving ? <ActivityIndicator color={theme.textInverse} /> : <Text style={s.saveButtonText}>Create Account</Text>}
 					</TouchableOpacity>
 					<TouchableOpacity style={s.cancelButton} onPress={onClose}>
 						<Text style={s.cancelButtonText}>Cancel</Text>

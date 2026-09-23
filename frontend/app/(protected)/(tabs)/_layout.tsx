@@ -1,9 +1,12 @@
+import { useContext } from "react";
 import { Tabs } from "expo-router";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
+import { AuthContext } from "@/utils/AuthProvider";
 
 export default function TabsLayout() {
 	const { theme } = useTheme();
+	const { isGuest } = useContext(AuthContext);
 
 	return (
 		<Tabs
@@ -66,6 +69,7 @@ export default function TabsLayout() {
 				name="Friends"
 				options={{
 					title: "Friends",
+					href: isGuest ? null : undefined,
 					tabBarIcon: ({ color, size }) => <FontAwesome5 name="user-friends" size={size - 2} color={color} />,
 				}}
 			/>

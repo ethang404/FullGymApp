@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const controller = require("./controller");
 const verifyToken = require("../Middlewear/token");
+const blockGuest = require("../Middlewear/blockGuest");
 
 // GET    /friends                         list accepted friends
 // GET    /friends/requests?direction=...  list pending requests (incoming|outgoing)
@@ -11,14 +12,18 @@ const verifyToken = require("../Middlewear/token");
 // DELETE /friends/requests/:id            decline (addressee) or cancel (requester) a pending request
 // DELETE /friends/:id                     unfriend an accepted friendship
 
-router.get("/", verifyToken, controller.listFriends);
-router.get("/requests", verifyToken, controller.listRequests);
-router.get("/search", verifyToken, controller.searchUsers);
+// Guest accounts can't have friends - blocked after auth so we still get a
+// clean 403 instead of a confusing empty/broken response.
+router.use(verifyToken, blockGuest);
 
-router.post("/requests", verifyToken, controller.sendRequest);
-router.post("/requests/:id/accept", verifyToken, controller.acceptRequest);
-router.delete("/requests/:id", verifyToken, controller.deletePendingRequest);
+router.get("/", controller.listFriends);
+router.get("/requests", controller.listRequests);
+router.get("/search", controller.searchUsers);
 
-router.delete("/:id", verifyToken, controller.removeFriend);
+router.post("/requests", controller.sendRequest);
+router.post("/requests/:id/accept", controller.acceptRequest);
+router.delete("/requests/:id", controller.deletePendingRequest);
+
+router.delete("/:id", controller.removeFriend);
 
 module.exports = router;

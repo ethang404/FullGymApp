@@ -75,6 +75,14 @@ const users = sequelize.define(
 			allowNull: false,
 			defaultValue: false,
 		},
+
+		// guest account
+		// set to false once the user sets a real username/password.
+		is_guest: {
+			type: DataTypes.BOOLEAN,
+			allowNull: false,
+			defaultValue: false,
+		},
 	},
 	{
 		tableName: "users",

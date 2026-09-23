@@ -95,7 +95,7 @@ export function AxiosInterceptorHandler({ children }: PropsWithChildren) {
 
 				if (resp.data?.accessToken) {
 					await SecureStore.setItemAsync("accessToken", resp.data.accessToken);
-					signIn();
+					signIn(Boolean(resp.data?.isGuest));
 				}
 
 				return resp;
