@@ -32,6 +32,21 @@ const users = sequelize.define(
 			type: DataTypes.STRING,
 		},
 
+		email: {
+			type: DataTypes.STRING,
+		},
+
+		// Present only for accounts created/linked via Apple sign-in.
+		apple_user_id: {
+			type: DataTypes.STRING,
+			unique: true,
+		},
+		// Present only for accounts created/linked via Google sign-in.
+		google_user_id: {
+			type: DataTypes.STRING,
+			unique: true,
+		},
+
 		// ── Body metrics (feed the Mifflin–St Jeor calculator) ──
 		sex: {
 			type: DataTypes.ENUM("male", "female"),

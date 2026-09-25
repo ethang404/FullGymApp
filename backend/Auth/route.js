@@ -11,7 +11,11 @@ router.post("/register", authController.register);
 router.post("/refresh", authController.refreshToken);
 router.post("/login", authController.login);
 router.post("/guest", authController.createGuest);
-router.post("/upgrade-guest", verifyToken, authController.upgradeGuest);
+router.post("/upgrade-guest", verifyToken, authController.upgradeGuest); //upgrade guest to real account
 router.get("/validToken", verifyToken, authController.IsValidToken);
+
+//google/apple
+router.post("/google", authController.googleLogin);
+router.post("/apple", authController.appleLogin);
 
 module.exports = router;

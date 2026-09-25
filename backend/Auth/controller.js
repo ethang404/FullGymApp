@@ -80,4 +80,45 @@ async function upgradeGuest(req, res) {
 	}
 }
 
-module.exports = { register, refreshToken, login, IsValidToken, createGuest, upgradeGuest };
+//Functions for OAuth logins
+async function googleLogin(req, res) {
+	const { idToken } = req.body;
+
+	if (typeof idToken !== "string") {
+		return res.status(400).json({ message: "idToken is required" });
+	}
+
+	try {
+		const result = await authService.loginWithGoogle({ idToken });
+		return res.json(result);
+	} catch (error) {
+		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
+		console.error("googleLogin failed", error);
+		return res.status(500).json({ message: "Something went wrong" });
+	}
+}
+
+async function appleLogin(req, res) {
+	const { identityToken, authorizationCode, nonce, firstName, lastName } = req.body;
+
+	if (typeof identityToken !== "string" || typeof nonce !== "string") {
+		return res.status(400).json({ message: "identityToken and nonce are required" });
+	}
+
+	try {
+		const result = await authService.loginWithApple({
+			identityToken,
+			authorizationCode: typeof authorizationCode === "string" ? authorizationCode : null,
+			nonce,
+			firstName: firstName ?? null,
+			lastName: lastName ?? null,
+		});
+		return res.json(result);
+	} catch (error) {
+		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
+		console.error("appleLogin failed", error);
+		return res.status(500).json({ message: "Something went wrong" });
+	}
+}
+
+module.exports = { register, refreshToken, login, IsValidToken, createGuest, upgradeGuest, googleLogin, appleLogin };

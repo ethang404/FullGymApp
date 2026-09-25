@@ -4,6 +4,8 @@ const crypto = require("crypto");
 
 const usersDB = require("../models/modelInits").users;
 const { UnauthorizedError, GeneralError, DataError, ForbiddenError } = require("../error");
+const { verifyAppleIdentityToken } = require("./appleAuth");
+const { verifyGoogleIdToken } = require("./googleAuth");
 
 async function refreshToken(token) {
 	if (!token) throw new DataError("Missing refreshToken for refresh");
@@ -139,4 +141,112 @@ async function upgradeGuest(user_id, userData) {
 	return user;
 }
 
-module.exports = { register, refreshToken, login, generateTokens, createGuest, upgradeGuest };
+async function loginWithApple({ identityToken, authorizationCode, nonce, firstName, lastName }) {
+	if (!identityToken) throw new DataError("Missing Apple identityToken");
+
+	const payload = await verifyAppleIdentityToken(identityToken);
+
+	//frontend computes a nonce and sends to apple, returned in token val
+	//backend compares nonce frontend sends to it, vs what apple returns
+	//so no re-use of token
+	if (payload.nonce) {
+		const hashedNonce = crypto
+			.createHash("sha256")
+			.update(nonce || "")
+			.digest("hex");
+		if (payload.nonce !== hashedNonce) {
+			throw new UnauthorizedError("Apple nonce mismatch");
+		}
+	}
+
+	const appleUserId = payload.sub;
+	let user = await usersDB.findOne({ where: { apple_user_id: appleUserId } });
+
+	if (!user) {
+		const usernameBase = payload.email ? payload.email.split("@")[0] : firstName ? `${firstName}${lastName || ""}` : "apple_user";
+
+		try {
+			user = await usersDB.create({
+				first_name: firstName || null,
+				last_name: lastName || null,
+				user_name: await generateUniqueUsername(usernameBase),
+				password: await generateUnusablePassword(),
+				email: payload.email || null,
+				apple_user_id: appleUserId,
+			});
+		} catch (err) {
+			throw new GeneralError("Failed to create user from Apple sign-in");
+		}
+	}
+
+	return {
+		message: "Apple sign-in successful",
+		userId: user.user_id,
+		username: user.user_name,
+		...generateTokens(user.user_id, user.is_guest),
+	};
+}
+
+// Unlike Apple, Google resends the full profile on every login (not just the
+// first), so this always trusts the verified payload directly - no need to
+// lean on request-body fields for name/email the way loginWithApple does.
+async function loginWithGoogle({ idToken }) {
+	if (!idToken) throw new DataError("Missing Google idToken");
+
+	const payload = await verifyGoogleIdToken(idToken);
+	const googleUserId = payload.sub;
+
+	let user = await usersDB.findOne({ where: { google_user_id: googleUserId } });
+
+	if (!user) {
+		const usernameBase = payload.email ? payload.email.split("@")[0] : payload.given_name ? `${payload.given_name}${payload.family_name || ""}` : "google_user";
+
+		try {
+			user = await usersDB.create({
+				first_name: payload.given_name || null,
+				last_name: payload.family_name || null,
+				user_name: await generateUniqueUsername(usernameBase),
+				password: await generateUnusablePassword(),
+				email: payload.email || null,
+				google_user_id: googleUserId,
+			});
+		} catch (err) {
+			throw new GeneralError("Failed to create user from Google sign-in");
+		}
+	}
+
+	return {
+		message: "Google sign-in successful",
+		userId: user.user_id,
+		username: user.user_name,
+		...generateTokens(user.user_id, user.is_guest),
+	};
+}
+
+// OAuth random username
+async function generateUniqueUsername(base) {
+	const sanitizedBase =
+		(base || "user")
+			.toLowerCase()
+			.replace(/[^a-z0-9_]/g, "")
+			.slice(0, 20) || "user";
+
+	let candidate = sanitizedBase;
+	let attempts = 0;
+	while (await usersDB.findOne({ where: { user_name: candidate } })) {
+		attempts += 1;
+		if (attempts > 10) throw new GeneralError("Failed to generate a unique username");
+		candidate = `${sanitizedBase}${crypto.randomInt(1000, 9999)}`;
+	}
+	return candidate;
+}
+
+//Generate random password for OAuth ppl
+async function generateUnusablePassword() {
+	const saltRounds = 10;
+	const salt = await bcrypt.genSalt(saltRounds);
+	const randomPassword = crypto.randomBytes(24).toString("hex");
+	return bcrypt.hash(randomPassword + process.env.PEPPER, salt);
+}
+
+module.exports = { register, refreshToken, login, generateTokens, createGuest, upgradeGuest, loginWithApple, loginWithGoogle };
