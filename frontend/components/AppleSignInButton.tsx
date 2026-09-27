@@ -6,14 +6,18 @@ import { useTheme } from "@/theme/ThemeProvider";
 import { authInstance } from "../utils/AxiosInterceptorHandler";
 import { isDarkColor } from "../utils/colorContrast";
 import { log } from "../utils/log";
+import type { OAuthCredential } from "../utils/oauthCredential";
 
 type AppleSignInButtonProps = {
 	// Surfaced by the parent screen (e.g. rendered next to the existing error text in login.tsx).
 	onError?: (message: string) => void;
 	disabled?: boolean;
+	// When passed, the button hands the credential to the parent instead of logging in
+	// (e.g. the guest upgrade modal). The parent owns the request and its errors.
+	onCredential?: (credential: OAuthCredential) => Promise<void>;
 };
 
-export default function AppleSignInButton({ onError, disabled }: AppleSignInButtonProps) {
+export default function AppleSignInButton({ onError, disabled, onCredential }: AppleSignInButtonProps) {
 	const { theme } = useTheme();
 	const [available, setAvailable] = useState(false);
 
@@ -38,6 +42,20 @@ export default function AppleSignInButton({ onError, disabled }: AppleSignInButt
 
 			if (!credential.identityToken) {
 				onError?.("Apple didn't return a valid credential. Please try again.");
+				return;
+			}
+
+			if (onCredential) {
+				// Raw nonce goes to the backend, which hashes it and compares against the token's.
+				// Parent handles its own errors, so don't let them fall into the catch below.
+				const credentialBody: OAuthCredential = {
+					provider: "apple",
+					identityToken: credential.identityToken,
+					nonce: rawNonce,
+					firstName: credential.fullName?.givenName ?? null,
+					lastName: credential.fullName?.familyName ?? null,
+				};
+				await onCredential(credentialBody).catch(() => {});
 				return;
 			}
 

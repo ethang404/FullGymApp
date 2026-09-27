@@ -60,9 +60,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
 		setValidUser(true);
 		setIsGuest(guest);
 	}, []);
+	// Clear stored tokens too - otherwise verifyToken above finds them on the next
+	// launch and silently signs the user right back in.
 	const signOut = useCallback(() => {
 		setValidUser(false);
 		setIsGuest(false);
+		SecureStore.deleteItemAsync("accessToken").catch(() => {});
+		SecureStore.deleteItemAsync("refreshToken").catch(() => {});
 	}, []);
 
 	const value = useMemo(

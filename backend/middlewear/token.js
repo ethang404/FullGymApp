@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const { users } = require("../models/modelInits");
+const { isRevokedGuestToken } = require("../Auth/service");
 
 async function verifyToken(req, res, next) {
 	if (!req.headers.authorization) return res.status(401).json({ message: "Missing authorization Token" });
@@ -24,6 +25,9 @@ async function verifyToken(req, res, next) {
 		user = await users.findByPk(payload.user_id);
 		if (!user) {
 			return res.status(401).json({ message: "User no longer exists" });
+		}
+		if (isRevokedGuestToken(payload, user)) {
+			return res.status(401).json({ message: "Guest session has ended, please sign in again" });
 		}
 	} catch (err) {
 		console.log("Failed to verify user exists.");

@@ -9,6 +9,7 @@ import {
 	KeyboardAvoidingView,
 	Platform,
 	ActivityIndicator,
+	Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useContext, useMemo, useState, useEffect } from "react";
@@ -23,6 +24,9 @@ import { AuthContext } from "@/utils/AuthProvider";
 import { useProfile, type EstimateBody } from "@/utils/ProfileProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import Screen from "@/components/Screen";
+import GoogleAuthButton from "@/components/GoogleAuthButton";
+import AppleSignInButton from "@/components/AppleSignInButton";
+import type { OAuthCredential } from "@/utils/oauthCredential";
 import {
 	MACRO_KEYS,
 	MACRO_META,
@@ -61,6 +65,33 @@ export default function Profile() {
 	const [goalsModalOpen, setGoalsModalOpen] = useState(false);
 	const [bodyModalOpen, setBodyModalOpen] = useState(false);
 	const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+
+	// Shared by the password and Google/Apple upgrade paths. The old guest token
+	// is dead server-side once is_guest flips, so swap in the new pair right away.
+	async function finishUpgrade(data: { accessToken?: string; refreshToken?: string }) {
+		if (data?.accessToken) await SecureStore.setItemAsync("accessToken", data.accessToken);
+		if (data?.refreshToken) await SecureStore.setItemAsync("refreshToken", data.refreshToken);
+		signIn(false);
+		await refresh();
+		setUpgradeModalOpen(false);
+	}
+
+	// A guest has no way to log back in, so logging out loses everything - warn first.
+	function handleLogOut() {
+		if (!isGuest) {
+			signOut();
+			return;
+		}
+		Alert.alert(
+			"Log out of guest account?",
+			"Guest accounts can't be logged back into. Your workouts and nutrition data will be lost for good. Create an account to keep them.",
+			[
+				{ text: "Cancel", style: "cancel" },
+				{ text: "Create Account", onPress: () => setUpgradeModalOpen(true) },
+				{ text: "Log Out Anyway", style: "destructive", onPress: signOut },
+			],
+		);
+	}
 
 	const displayName =
 		[profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || profile?.user_name || "Your Name";
@@ -309,7 +340,7 @@ export default function Profile() {
 						<Text style={styles.rowLabel}>Privacy Policy</Text>
 						<FontAwesome5 name="external-link-alt" size={11} color={theme.textTertiary} />
 					</View>
-					<TouchableOpacity style={[styles.row, styles.rowLast]} onPress={signOut} activeOpacity={0.7}>
+					<TouchableOpacity style={[styles.row, styles.rowLast]} onPress={handleLogOut} activeOpacity={0.7}>
 						<View style={styles.rowIcon}>
 							<FontAwesome5 name="sign-out-alt" size={13} color={theme.textSecondary} />
 						</View>
@@ -353,13 +384,22 @@ export default function Profile() {
 				onClose={() => setUpgradeModalOpen(false)}
 				onSave={async (body) => {
 					const resp = await instance.post("/auth/upgrade-guest", body);
-					// The old guest access token never expires - swap it out now that
-					// the account is real, instead of leaving it valid forever.
-					if (resp.data?.accessToken) await SecureStore.setItemAsync("accessToken", resp.data.accessToken);
-					if (resp.data?.refreshToken) await SecureStore.setItemAsync("refreshToken", resp.data.refreshToken);
-					signIn(false);
-					await refresh();
-					setUpgradeModalOpen(false);
+					await finishUpgrade(resp.data);
+				}}
+				onOAuth={async (credential) => {
+					const resp = await instance.post("/auth/upgrade-guest/oauth", credential);
+
+					// That Google/Apple account already exists and the guest has data -
+					// ask before moving it over. Resend the same credential to confirm.
+					if (resp.data?.requiresConfirm) {
+						const ok = await confirmMerge(resp.data.counts);
+						if (!ok) return;
+						const confirmed = await instance.post("/auth/upgrade-guest/oauth", { ...credential, confirmed: true });
+						await finishUpgrade(confirmed.data);
+						return;
+					}
+
+					await finishUpgrade(resp.data);
 				}}
 			/>
 		</Screen>
@@ -456,14 +496,42 @@ function GoalsModal({
 
 // ─── Guest → real account upgrade modal ───────────────────────────────────────
 
+type MergeCounts = { workouts: number; diaryEntries: number; recipes: number };
+
+// Resolves true if the user agrees to move their guest data into the existing account.
+function confirmMerge(counts: MergeCounts): Promise<boolean> {
+	const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+	const summary = [
+		counts.workouts > 0 && plural(counts.workouts, "workout"),
+		counts.diaryEntries > 0 && plural(counts.diaryEntries, "diary entry").replace("entrys", "entries"),
+		counts.recipes > 0 && plural(counts.recipes, "recipe"),
+	]
+		.filter(Boolean)
+		.join(", ");
+
+	return new Promise((resolve) => {
+		Alert.alert(
+			"You already have an account",
+			`Move your guest data (${summary}) into it? Your guest account will be removed.`,
+			[
+				{ text: "Cancel", style: "cancel", onPress: () => resolve(false) },
+				{ text: "Move my data", onPress: () => resolve(true) },
+			],
+			{ cancelable: true, onDismiss: () => resolve(false) },
+		);
+	});
+}
+
 function UpgradeAccountModal({
 	visible,
 	onClose,
 	onSave,
+	onOAuth,
 }: {
 	visible: boolean;
 	onClose: () => void;
 	onSave: (body: { firstName: string; lastName: string; userName: string; password: string }) => Promise<void>;
+	onOAuth: (credential: OAuthCredential) => Promise<void>;
 }) {
 	const { theme } = useTheme();
 	const [firstName, setFirstName] = useState("");
@@ -499,6 +567,18 @@ function UpgradeAccountModal({
 		}
 	}
 
+	async function handleOAuth(credential: OAuthCredential) {
+		setSaving(true);
+		setError(null);
+		try {
+			await onOAuth(credential);
+		} catch (err: any) {
+			setError(err?.response?.data?.message || "Could not link that account. Try again.");
+		} finally {
+			setSaving(false);
+		}
+	}
+
 	const s = useMemo(() => modalStyles(theme), [theme]);
 	const insets = useSafeAreaInsets();
 
@@ -512,6 +592,13 @@ function UpgradeAccountModal({
 							<FontAwesome5 name="times" size={20} color={theme.primary} />
 						</TouchableOpacity>
 					</View>
+
+					<View style={{ gap: 10 }}>
+						<AppleSignInButton onError={setError} onCredential={handleOAuth} disabled={saving} />
+						<GoogleAuthButton onError={setError} onCredential={handleOAuth} disabled={saving} />
+					</View>
+
+					<Text style={[s.sectionLabel, { textAlign: "center" }]}>OR USE A USERNAME</Text>
 
 					<Text style={s.sectionLabel}>FIRST NAME</Text>
 					<TextInput style={s.textInput} placeholder="e.g. Alex" placeholderTextColor={theme.inputPlaceholder} value={firstName} onChangeText={setFirstName} autoCapitalize="words" />

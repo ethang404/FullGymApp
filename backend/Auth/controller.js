@@ -80,6 +80,36 @@ async function upgradeGuest(req, res) {
 	}
 }
 
+// Body: { provider: "google" | "apple", confirmed?: boolean, ...that provider's login fields }
+async function upgradeGuestWithOAuth(req, res) {
+	try {
+		//either w/ confirmation or not we call:
+		const result = await authService.upgradeGuestWithOAuth(req.user_id, req.body);
+
+		// Existing account + guest has data - frontend should ask, then resend with confirmed: true
+		if (result.status === "requiresConfirm") {
+			return res.status(200).json({ requiresConfirm: true, counts: result.counts });
+		}
+
+		// Either way we're now a real account (the guest one after upgrade, or the
+		// existing one after merge), so hand back fresh non-guest tokens.
+		const { user } = result;
+		const { accessToken, refreshToken } = authService.generateTokens(user.user_id, false);
+		return res.status(200).json({
+			message: result.status === "merged" ? "Guest data merged into your account!" : "Account upgraded!",
+			merged: result.status === "merged",
+			userId: user.user_id,
+			username: user.user_name,
+			accessToken,
+			refreshToken,
+		});
+	} catch (error) {
+		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
+		console.error("upgradeGuestWithOAuth failed", error);
+		return res.status(500).json({ message: "Something went wrong" });
+	}
+}
+
 //Functions for OAuth logins
 async function googleLogin(req, res) {
 	const { idToken } = req.body;
@@ -121,4 +151,4 @@ async function appleLogin(req, res) {
 	}
 }
 
-module.exports = { register, refreshToken, login, IsValidToken, createGuest, upgradeGuest, googleLogin, appleLogin };
+module.exports = { register, refreshToken, login, IsValidToken, createGuest, upgradeGuest, upgradeGuestWithOAuth, googleLogin, appleLogin };

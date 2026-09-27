@@ -5,6 +5,7 @@ import { useTheme } from "@/theme/ThemeProvider";
 import { authInstance } from "../utils/AxiosInterceptorHandler";
 import { isDarkColor } from "../utils/colorContrast";
 import { log } from "../utils/log";
+import type { OAuthCredential } from "../utils/oauthCredential";
 
 let configured = false;
 
@@ -22,9 +23,12 @@ type GoogleAuthButtonProps = {
 	// Surfaced by the parent screen (e.g. rendered next to the existing error text in login.tsx).
 	onError?: (message: string) => void;
 	disabled?: boolean;
+	// When passed, the button hands the credential to the parent instead of logging in
+	// (e.g. the guest upgrade modal). The parent owns the request and its errors.
+	onCredential?: (credential: OAuthCredential) => Promise<void>;
 };
 
-export default function GoogleAuthButton({ onError, disabled }: GoogleAuthButtonProps) {
+export default function GoogleAuthButton({ onError, disabled, onCredential }: GoogleAuthButtonProps) {
 	const { theme } = useTheme();
 
 	useEffect(() => {
@@ -32,6 +36,12 @@ export default function GoogleAuthButton({ onError, disabled }: GoogleAuthButton
 	}, []);
 
 	async function handleSuccess(data: OneTapSuccessData) {
+		if (onCredential) {
+			// Parent handles its own errors, so don't surface a second generic one here.
+			await onCredential({ provider: "google", idToken: data.idToken }).catch(() => {});
+			return;
+		}
+
 		try {
 			// Backend verifies idToken (sig/aud/iss/exp) and logs in or creates the user.
 			await authInstance.post("/auth/google", {
