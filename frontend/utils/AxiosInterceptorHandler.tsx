@@ -35,6 +35,11 @@ async function getRefreshedToken(): Promise<string> {
 			const resp = await axios.post(`${process.env.EXPO_PUBLIC_BACKEND_URL}/auth/refresh`, { refreshToken });
 			const newToken = resp.data.accessToken;
 			await SecureStore.setItemAsync("accessToken", newToken);
+			// Sliding refresh - the server reissues the refresh token too, so store
+			// it and reset the 30-day window instead of letting the original expire.
+			if (resp.data.refreshToken) {
+				await SecureStore.setItemAsync("refreshToken", resp.data.refreshToken);
+			}
 			return newToken;
 		})().finally(() => {
 			refreshPromise = null;
@@ -95,7 +100,7 @@ export function AxiosInterceptorHandler({ children }: PropsWithChildren) {
 
 				if (resp.data?.accessToken) {
 					await SecureStore.setItemAsync("accessToken", resp.data.accessToken);
-					signIn();
+					signIn(Boolean(resp.data?.isGuest));
 				}
 
 				return resp;

@@ -32,6 +32,21 @@ const users = sequelize.define(
 			type: DataTypes.STRING,
 		},
 
+		email: {
+			type: DataTypes.STRING,
+		},
+
+		// Present only for accounts created/linked via Apple sign-in.
+		apple_user_id: {
+			type: DataTypes.STRING,
+			unique: true,
+		},
+		// Present only for accounts created/linked via Google sign-in.
+		google_user_id: {
+			type: DataTypes.STRING,
+			unique: true,
+		},
+
 		// ── Body metrics (feed the Mifflin–St Jeor calculator) ──
 		sex: {
 			type: DataTypes.ENUM("male", "female"),
@@ -71,6 +86,14 @@ const users = sequelize.define(
 
 		// Whether the user has been through the first-run goal setup.
 		onboarding_completed: {
+			type: DataTypes.BOOLEAN,
+			allowNull: false,
+			defaultValue: false,
+		},
+
+		// guest account
+		// set to false once the user sets a real username/password.
+		is_guest: {
 			type: DataTypes.BOOLEAN,
 			allowNull: false,
 			defaultValue: false,

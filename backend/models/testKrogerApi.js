@@ -11,7 +11,8 @@
 
 require("dotenv").config({ path: "../.env" });
 
-const KROGER_BASE_URL = "https://api.kroger.com/v1";
+//const KROGER_BASE_URL = "https://api.kroger.com/v1";
+const KROGER_BASE_URL = process.env.KROGER_ENDPOINT;
 
 const searchTerm = process.argv[2] || "milk";
 

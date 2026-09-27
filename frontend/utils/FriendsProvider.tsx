@@ -42,14 +42,16 @@ const FriendsContext = createContext<FriendsContextType>({
 });
 
 export function FriendsProvider({ children }: PropsWithChildren) {
-	const { isValidUser } = useContext(AuthContext);
+	const { isValidUser, isGuest } = useContext(AuthContext);
 	const [friends, setFriends] = useState<Friend[]>([]);
 	const [incomingRequests, setIncomingRequests] = useState<FriendRequest[]>([]);
 	const [outgoingRequests, setOutgoingRequests] = useState<FriendRequest[]>([]);
 	const [loading, setLoading] = useState(true);
 
 	const refresh = useCallback(async () => {
-		if (!isValidUser) {
+		// Guests can't have friends - the backend 403s these routes, so skip the
+		// call entirely instead of firing it and logging an error every mount.
+		if (!isValidUser || isGuest) {
 			setFriends([]);
 			setIncomingRequests([]);
 			setOutgoingRequests([]);
@@ -71,7 +73,7 @@ export function FriendsProvider({ children }: PropsWithChildren) {
 		} finally {
 			setLoading(false);
 		}
-	}, [isValidUser]);
+	}, [isValidUser, isGuest]);
 
 	useEffect(() => {
 		refresh();

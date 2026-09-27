@@ -3,6 +3,8 @@ import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet 
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { useTheme } from "@/theme/ThemeProvider";
 import Screen from "@/components/Screen";
+import AppleSignInButton from "@/components/AppleSignInButton";
+import GoogleAuthButton from "@/components/GoogleAuthButton";
 import { authInstance } from "../utils/AxiosInterceptorHandler";
 
 export default function Login() {
@@ -14,6 +16,20 @@ export default function Login() {
 	const [mode, setMode] = useState<"login" | "register">("login"); //determins if I do login or register
 	const [error, setError] = useState<string | null>(null);
 	const [loading, setLoading] = useState(false);
+	const [guestLoading, setGuestLoading] = useState(false);
+
+	async function handleGuest() {
+		setGuestLoading(true);
+		setError(null);
+
+		try {
+			await authInstance.post("/auth/guest");
+		} catch (err) {
+			setError("Couldn't start a guest session. Please try again.");
+		} finally {
+			setGuestLoading(false);
+		}
+	}
 
 	async function handleAuth() {
 		setLoading(true);
@@ -165,6 +181,36 @@ export default function Login() {
 					marginTop: 10,
 					textAlign: "center",
 				},
+				guestButton: {
+					alignItems: "center",
+					marginTop: 14,
+					paddingVertical: 8,
+				},
+				guestButtonText: {
+					color: theme.authTextMuted,
+					fontSize: 13,
+					fontWeight: "600",
+					textDecorationLine: "underline",
+				},
+				dividerRow: {
+					flexDirection: "row",
+					alignItems: "center",
+					marginTop: 18,
+					marginBottom: 14,
+				},
+				dividerLine: {
+					flex: 1,
+					height: 1,
+					backgroundColor: theme.authCardBorder,
+				},
+				dividerText: {
+					color: theme.authTextHint,
+					fontSize: 12,
+					marginHorizontal: 10,
+				},
+				oauthRow: {
+					gap: 10,
+				},
 			}),
 		[theme],
 	);
@@ -210,9 +256,24 @@ export default function Login() {
 
 				{error && <Text style={styles.error}>{error}</Text>}
 
-				<TouchableOpacity style={[styles.primaryButton, loading && styles.primaryButtonDisabled]} onPress={handleAuth} disabled={loading}>
+				<TouchableOpacity style={[styles.primaryButton, loading && styles.primaryButtonDisabled]} onPress={handleAuth} disabled={loading || guestLoading}>
 					{loading ? <ActivityIndicator color={theme.textInverse} /> : <Text style={styles.primaryButtonText}>{mode === "login" ? "Sign In" : "Sign Up"}</Text>}
 				</TouchableOpacity>
+
+				<TouchableOpacity style={styles.guestButton} onPress={handleGuest} disabled={loading || guestLoading}>
+					{guestLoading ? <ActivityIndicator color={theme.authTextMuted} /> : <Text style={styles.guestButtonText}>Continue as Guest</Text>}
+				</TouchableOpacity>
+
+				<View style={styles.dividerRow}>
+					<View style={styles.dividerLine} />
+					<Text style={styles.dividerText}>or continue with</Text>
+					<View style={styles.dividerLine} />
+				</View>
+
+				<View style={styles.oauthRow}>
+					<AppleSignInButton onError={setError} disabled={loading || guestLoading} />
+					<GoogleAuthButton onError={setError} disabled={loading || guestLoading} />
+				</View>
 			</View>
 			</KeyboardAwareScrollView>
 		</Screen>

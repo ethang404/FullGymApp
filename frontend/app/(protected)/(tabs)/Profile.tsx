@@ -9,10 +9,12 @@ import {
 	KeyboardAvoidingView,
 	Platform,
 	ActivityIndicator,
+	Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useContext, useMemo, useState, useEffect } from "react";
 import { useRouter } from "expo-router";
+import * as SecureStore from "expo-secure-store";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import Pills from "@/components/Pills";
@@ -20,7 +22,11 @@ import { DateField } from "@/components/DateField";
 import { themes, themeLabels, type Theme, type ThemeName } from "@/theme/colors";
 import { AuthContext } from "@/utils/AuthProvider";
 import { useProfile, type EstimateBody } from "@/utils/ProfileProvider";
+import { instance } from "@/utils/AxiosInterceptorHandler";
 import Screen from "@/components/Screen";
+import GoogleAuthButton from "@/components/GoogleAuthButton";
+import AppleSignInButton from "@/components/AppleSignInButton";
+import type { OAuthCredential } from "@/utils/oauthCredential";
 import {
 	MACRO_KEYS,
 	MACRO_META,
@@ -52,12 +58,40 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export default function Profile() {
 	const { theme, name: activeName, setTheme } = useTheme();
-	const { signOut } = useContext(AuthContext);
-	const { profile, goals, updateProfile, estimateGoals } = useProfile();
+	const { signOut, signIn, isGuest } = useContext(AuthContext);
+	const { profile, goals, updateProfile, estimateGoals, refresh } = useProfile();
 	const router = useRouter();
 
 	const [goalsModalOpen, setGoalsModalOpen] = useState(false);
 	const [bodyModalOpen, setBodyModalOpen] = useState(false);
+	const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+
+	// Shared by the password and Google/Apple upgrade paths. The old guest token
+	// is dead server-side once is_guest flips, so swap in the new pair right away.
+	async function finishUpgrade(data: { accessToken?: string; refreshToken?: string }) {
+		if (data?.accessToken) await SecureStore.setItemAsync("accessToken", data.accessToken);
+		if (data?.refreshToken) await SecureStore.setItemAsync("refreshToken", data.refreshToken);
+		signIn(false);
+		await refresh();
+		setUpgradeModalOpen(false);
+	}
+
+	// A guest has no way to log back in, so logging out loses everything - warn first.
+	function handleLogOut() {
+		if (!isGuest) {
+			signOut();
+			return;
+		}
+		Alert.alert(
+			"Log out of guest account?",
+			"Guest accounts can't be logged back into. Your workouts and nutrition data will be lost for good. Create an account to keep them.",
+			[
+				{ text: "Cancel", style: "cancel" },
+				{ text: "Create Account", onPress: () => setUpgradeModalOpen(true) },
+				{ text: "Log Out Anyway", style: "destructive", onPress: signOut },
+			],
+		);
+	}
 
 	const displayName =
 		[profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || profile?.user_name || "Your Name";
@@ -140,6 +174,27 @@ export default function Profile() {
 				themeSwatch: { width: 16, height: 16, borderRadius: 8 },
 				themePillText: { fontSize: 13, fontWeight: "600" },
 
+				guestBanner: {
+					marginHorizontal: 16,
+					marginTop: 16,
+					borderRadius: 14,
+					borderWidth: 1,
+					borderColor: `${theme.primary}40`,
+					backgroundColor: `${theme.primary}10`,
+					padding: 16,
+					gap: 10,
+				},
+				guestBannerTitle: { fontSize: 15, fontWeight: "700", color: theme.text },
+				guestBannerBody: { fontSize: 13, color: theme.textMuted, lineHeight: 18 },
+				guestBannerButton: {
+					backgroundColor: theme.primary,
+					borderRadius: 10,
+					paddingVertical: 10,
+					alignItems: "center",
+					marginTop: 2,
+				},
+				guestBannerButtonText: { color: theme.textInverse, fontSize: 14, fontWeight: "700" },
+
 				dangerRow: {
 					marginHorizontal: 16,
 					marginTop: 12,
@@ -172,6 +227,20 @@ export default function Profile() {
 					<Text style={styles.userName}>{displayName}</Text>
 					{memberSince && <Text style={styles.userSub}>Member since {memberSince}</Text>}
 				</View>
+
+				{isGuest && (
+					<View style={styles.guestBanner}>
+						<Text style={styles.guestBannerTitle}>You're using a guest account</Text>
+						<Text style={styles.guestBannerBody}>
+							Your workouts, food log, and recipes are saved, but Friends is unavailable and this device is the only
+							way in - there's no password yet, so losing it means losing access. Set a username and password to
+							secure your account and unlock Friends.
+						</Text>
+						<TouchableOpacity style={styles.guestBannerButton} onPress={() => setUpgradeModalOpen(true)} activeOpacity={0.8}>
+							<Text style={styles.guestBannerButtonText}>Create Account</Text>
+						</TouchableOpacity>
+					</View>
+				)}
 
 				{/* Nutrition goals */}
 				<Text style={styles.sectionLabel}>Nutrition Goals</Text>
@@ -271,7 +340,7 @@ export default function Profile() {
 						<Text style={styles.rowLabel}>Privacy Policy</Text>
 						<FontAwesome5 name="external-link-alt" size={11} color={theme.textTertiary} />
 					</View>
-					<TouchableOpacity style={[styles.row, styles.rowLast]} onPress={signOut} activeOpacity={0.7}>
+					<TouchableOpacity style={[styles.row, styles.rowLast]} onPress={handleLogOut} activeOpacity={0.7}>
 						<View style={styles.rowIcon}>
 							<FontAwesome5 name="sign-out-alt" size={13} color={theme.textSecondary} />
 						</View>
@@ -307,6 +376,30 @@ export default function Profile() {
 				onSave={async (patch) => {
 					await updateProfile(patch);
 					setBodyModalOpen(false);
+				}}
+			/>
+
+			<UpgradeAccountModal
+				visible={upgradeModalOpen}
+				onClose={() => setUpgradeModalOpen(false)}
+				onSave={async (body) => {
+					const resp = await instance.post("/auth/upgrade-guest", body);
+					await finishUpgrade(resp.data);
+				}}
+				onOAuth={async (credential) => {
+					const resp = await instance.post("/auth/upgrade-guest/oauth", credential);
+
+					// That Google/Apple account already exists and the guest has data -
+					// ask before moving it over. Resend the same credential to confirm.
+					if (resp.data?.requiresConfirm) {
+						const ok = await confirmMerge(resp.data.counts);
+						if (!ok) return;
+						const confirmed = await instance.post("/auth/upgrade-guest/oauth", { ...credential, confirmed: true });
+						await finishUpgrade(confirmed.data);
+						return;
+					}
+
+					await finishUpgrade(resp.data);
 				}}
 			/>
 		</Screen>
@@ -391,6 +484,153 @@ function GoalsModal({
 
 					<TouchableOpacity style={[s.saveButton, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving}>
 						{saving ? <ActivityIndicator color={theme.textInverse} /> : <Text style={s.saveButtonText}>Save</Text>}
+					</TouchableOpacity>
+					<TouchableOpacity style={s.cancelButton} onPress={onClose}>
+						<Text style={s.cancelButtonText}>Cancel</Text>
+					</TouchableOpacity>
+				</View>
+			</KeyboardAvoidingView>
+		</Modal>
+	);
+}
+
+// ─── Guest → real account upgrade modal ───────────────────────────────────────
+
+type MergeCounts = { workouts: number; diaryEntries: number; recipes: number };
+
+// Resolves true if the user agrees to move their guest data into the existing account.
+function confirmMerge(counts: MergeCounts): Promise<boolean> {
+	const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+	const summary = [
+		counts.workouts > 0 && plural(counts.workouts, "workout"),
+		counts.diaryEntries > 0 && plural(counts.diaryEntries, "diary entry").replace("entrys", "entries"),
+		counts.recipes > 0 && plural(counts.recipes, "recipe"),
+	]
+		.filter(Boolean)
+		.join(", ");
+
+	return new Promise((resolve) => {
+		Alert.alert(
+			"You already have an account",
+			`Move your guest data (${summary}) into it? Your guest account will be removed.`,
+			[
+				{ text: "Cancel", style: "cancel", onPress: () => resolve(false) },
+				{ text: "Move my data", onPress: () => resolve(true) },
+			],
+			{ cancelable: true, onDismiss: () => resolve(false) },
+		);
+	});
+}
+
+function UpgradeAccountModal({
+	visible,
+	onClose,
+	onSave,
+	onOAuth,
+}: {
+	visible: boolean;
+	onClose: () => void;
+	onSave: (body: { firstName: string; lastName: string; userName: string; password: string }) => Promise<void>;
+	onOAuth: (credential: OAuthCredential) => Promise<void>;
+}) {
+	const { theme } = useTheme();
+	const [firstName, setFirstName] = useState("");
+	const [lastName, setLastName] = useState("");
+	const [userName, setUserName] = useState("");
+	const [password, setPassword] = useState("");
+	const [saving, setSaving] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+
+	useEffect(() => {
+		if (visible) {
+			setFirstName("");
+			setLastName("");
+			setUserName("");
+			setPassword("");
+			setError(null);
+		}
+	}, [visible]);
+
+	async function handleSave() {
+		if (!firstName || !lastName || !userName || !password) {
+			setError("Please fill in every field.");
+			return;
+		}
+		setSaving(true);
+		setError(null);
+		try {
+			await onSave({ firstName, lastName, userName, password });
+		} catch (err: any) {
+			setError(err?.response?.data?.message || "Could not create your account. Try again.");
+		} finally {
+			setSaving(false);
+		}
+	}
+
+	async function handleOAuth(credential: OAuthCredential) {
+		setSaving(true);
+		setError(null);
+		try {
+			await onOAuth(credential);
+		} catch (err: any) {
+			setError(err?.response?.data?.message || "Could not link that account. Try again.");
+		} finally {
+			setSaving(false);
+		}
+	}
+
+	const s = useMemo(() => modalStyles(theme), [theme]);
+	const insets = useSafeAreaInsets();
+
+	return (
+		<Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+			<KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={s.overlay}>
+				<View style={[s.sheet, { paddingBottom: insets.bottom + 24 }]}>
+					<View style={s.headerRow}>
+						<Text style={s.title}>Create your account</Text>
+						<TouchableOpacity onPress={onClose} hitSlop={10}>
+							<FontAwesome5 name="times" size={20} color={theme.primary} />
+						</TouchableOpacity>
+					</View>
+
+					<View style={{ gap: 10 }}>
+						<AppleSignInButton onError={setError} onCredential={handleOAuth} disabled={saving} />
+						<GoogleAuthButton onError={setError} onCredential={handleOAuth} disabled={saving} />
+					</View>
+
+					<Text style={[s.sectionLabel, { textAlign: "center" }]}>OR USE A USERNAME</Text>
+
+					<Text style={s.sectionLabel}>FIRST NAME</Text>
+					<TextInput style={s.textInput} placeholder="e.g. Alex" placeholderTextColor={theme.inputPlaceholder} value={firstName} onChangeText={setFirstName} autoCapitalize="words" />
+
+					<Text style={s.sectionLabel}>LAST NAME</Text>
+					<TextInput style={s.textInput} placeholder="e.g. Mercer" placeholderTextColor={theme.inputPlaceholder} value={lastName} onChangeText={setLastName} autoCapitalize="words" />
+
+					<Text style={s.sectionLabel}>USERNAME</Text>
+					<TextInput
+						style={s.textInput}
+						placeholder="Choose a username"
+						placeholderTextColor={theme.inputPlaceholder}
+						value={userName}
+						onChangeText={setUserName}
+						autoCapitalize="none"
+						autoCorrect={false}
+					/>
+
+					<Text style={s.sectionLabel}>PASSWORD</Text>
+					<TextInput
+						style={s.textInput}
+						placeholder="Create a strong password"
+						placeholderTextColor={theme.inputPlaceholder}
+						value={password}
+						onChangeText={setPassword}
+						secureTextEntry
+					/>
+
+					{error && <Text style={s.errorText}>{error}</Text>}
+
+					<TouchableOpacity style={[s.saveButton, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving}>
+						{saving ? <ActivityIndicator color={theme.textInverse} /> : <Text style={s.saveButtonText}>Create Account</Text>}
 					</TouchableOpacity>
 					<TouchableOpacity style={s.cancelButton} onPress={onClose}>
 						<Text style={s.cancelButtonText}>Cancel</Text>
