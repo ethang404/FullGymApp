@@ -25,7 +25,7 @@ export default function Login() {
 
 		try {
 			await authInstance.post("/auth/guest");
-		} catch (err) {
+		} catch {
 			setError("Couldn't start a guest session. Check your connection and try again.");
 		} finally {
 			setGuestLoading(false);

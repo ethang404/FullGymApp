@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo, useCallback, useEffect } from "react";
 import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Modal, FlatList } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import {
 	ServingSize,
@@ -837,7 +837,7 @@ export default function CreateFood() {
 			await instance.post(`/nutrition/foods`, payload);
 
 			router.back();
-		} catch (err) {
+		} catch {
 			Alert.alert("Food not saved", "Check your connection and try again.");
 		} finally {
 			setIsCreating(false);

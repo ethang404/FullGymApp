@@ -33,7 +33,7 @@ export default function Nutrition() {
 	//default date to today
 	const [selectedDate, setSelectedDate] = useState<string>(todayISO);
 
-	async function fetchEntries(isRefresh = false) {
+	const fetchEntries = useCallback(async (isRefresh = false) => {
 		try {
 			const res = await instance.get(`/nutrition/diary?start_date=${selectedDate}&end_date=${selectedDate}`);
 			setEntries(res.data.diary_entries ?? []);
@@ -46,15 +46,14 @@ export default function Nutrition() {
 			setLoading(false);
 			setRefreshing(false);
 		}
-	}
+	}, [selectedDate]);
 
 	// Refetch every time this tab regains focus (not just on first mount),
 	// so coming back from another tab shows fresh data instead of a stale cache.
 	useFocusEffect(
 		useCallback(() => {
 			fetchEntries();
-			// eslint-disable-next-line react-hooks/exhaustive-deps
-		}, [selectedDate]),
+		}, [fetchEntries]),
 	);
 
 	const styles = StyleSheet.create({

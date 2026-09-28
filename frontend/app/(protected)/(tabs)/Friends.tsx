@@ -30,8 +30,7 @@ export default function Friends() {
 	useFocusEffect(
 		useCallback(() => {
 			refresh();
-			// eslint-disable-next-line react-hooks/exhaustive-deps
-		}, []),
+		}, [refresh]),
 	);
 
 	const isSearching = query.trim().length > 0;

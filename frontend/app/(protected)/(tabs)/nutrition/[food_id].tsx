@@ -12,7 +12,6 @@ import { AddServingModal } from "./components/AddServingModal";
 import NutritionFactsLabel from "./components/NutritionLabel";
 
 import {
-	calcMacrosFromPer100g,
 	COMMON_UNITS,
 	type ServingSize,
 	type FoodDetail,
@@ -36,7 +35,10 @@ export default function FoodDetailScreen() {
 
 	const [quantityText, setQuantityText] = useState(quantity ?? "1");
 
-	const initialServing: ServingSize | null = serving_label && serving_weight_g ? { label: serving_label, weight_g: parseFloat(serving_weight_g) } : null;
+	const initialServing: ServingSize | null = useMemo(
+		() => (serving_label && serving_weight_g ? { label: serving_label, weight_g: parseFloat(serving_weight_g) } : null),
+		[serving_label, serving_weight_g],
+	);
 
 	const [selectedServing, setSelectedServing] = useState<ServingSize | null>(initialServing);
 	const [servingOptions, setServingOptions] = useState<ServingSize[]>(initialServing ? [initialServing] : []);
@@ -73,11 +75,11 @@ export default function FoodDetailScreen() {
 		} finally {
 			setLoading(false);
 		}
-	}, [food_id]);
+	}, [food_id, initialServing]);
 
 	useEffect(() => {
 		fetchFood();
-	}, [food_id]);
+	}, [fetchFood]);
 
 	const usedLabels = useMemo(() => new Set(servingOptions.map((s) => s.label)), [servingOptions]);
 	const availableUnits = useMemo(() => COMMON_UNITS.filter((u) => !usedLabels.has(u)), [usedLabels]);

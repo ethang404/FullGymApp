@@ -147,7 +147,7 @@ export default function Workout() {
 			};
 
 			getWorkoutData();
-		} else if (mode == "new") {
+		} else if (mode === "new") {
 			setWorkout(emptyWorkout);
 			setLoading(false);
 		}
@@ -703,7 +703,7 @@ function ExerciseSelectorModal({
 					ListFooterComponent={
 						!exactMatchExists && searchQuery.trim().length > 0 ? (
 							<TouchableOpacity style={[styles.saveButton, { margin: 16 }]} onPress={handleCreateNew}>
-								<Text style={styles.saveButtonText}>Add "{searchQuery.trim()}" as a new exercise</Text>
+								<Text style={styles.saveButtonText}>Add &quot;{searchQuery.trim()}&quot; as a new exercise</Text>
 							</TouchableOpacity>
 						) : null
 					}

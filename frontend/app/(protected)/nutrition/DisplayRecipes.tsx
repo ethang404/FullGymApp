@@ -1,7 +1,6 @@
 import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, RefreshControl } from "react-native";
 import { useCallback, useMemo, useState } from "react";
-import { router } from "expo-router";
-import { useFocusEffect } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { fonts } from "@/theme/typography";
@@ -90,7 +89,7 @@ export default function Recipes() {
 			{error ? (
 				<View style={styles.center}>
 					<FontAwesome5 name="exclamation-circle" size={28} color={theme.textMuted} />
-					<Text style={styles.emptyTitle}>Couldn't load recipes</Text>
+					<Text style={styles.emptyTitle}>Couldn&apos;t load recipes</Text>
 					<TouchableOpacity style={styles.retryBtn} onPress={fetchRecipes}>
 						<Text style={styles.retryText}>Retry</Text>
 					</TouchableOpacity>

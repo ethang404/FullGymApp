@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useLocalSearchParams, router } from "expo-router";
 import { useTheme } from "@/theme/ThemeProvider";
-import { fonts } from "@/theme/typography";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
 import { toast } from "@/utils/toast";
@@ -23,7 +22,6 @@ import {
 	parseIngredientLine,
 	isLikelyIngredientMatch,
 	NUTRIENT_NAME_TO_IDS,
-	NUTRIENT_IDS_TO_NAMES,
 	type RecipeIngredient,
 	type ImportedRecipe,
 	type ParsedIngredientLine,

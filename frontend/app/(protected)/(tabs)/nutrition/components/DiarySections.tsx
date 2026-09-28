@@ -61,7 +61,7 @@ function calculateTotalMacros(entries: DiaryEntry[]): Totals {
 function calculateMacrosPerMeal(entries: DiaryEntry[], meal_type: string): Totals {
 	const totals: Totals = { calories: 0, protein: 0, carbs: 0, fat: 0 };
 	for (const entry of entries) {
-		if (entry.meal_type != meal_type) continue;
+		if (entry.meal_type !== meal_type) continue;
 		for (const [key, value] of Object.entries(entry.nutrients)) {
 			totals[key] = (totals[key] ?? 0) + (value ?? 0);
 		}

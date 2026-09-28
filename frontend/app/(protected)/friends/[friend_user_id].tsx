@@ -30,7 +30,7 @@ export default function FriendDiary() {
 	const friend = friends.find((f) => String(f.user_id) === friend_user_id);
 	const title = friend ? displayName(friend) : "Friend's food log";
 
-	async function fetchEntries(isRefresh = false) {
+	const fetchEntries = useCallback(async (isRefresh = false) => {
 		try {
 			const res = await instance.get(`/nutrition/diary/friend/${friend_user_id}`, { params: { date: selectedDate } });
 			setEntries(res.data.diary_entries ?? []);
@@ -43,13 +43,12 @@ export default function FriendDiary() {
 			setLoading(false);
 			setRefreshing(false);
 		}
-	}
+	}, [friend_user_id, selectedDate]);
 
 	useFocusEffect(
 		useCallback(() => {
 			fetchEntries();
-			// eslint-disable-next-line react-hooks/exhaustive-deps
-		}, [friend_user_id, selectedDate]),
+		}, [fetchEntries]),
 	);
 
 	const styles = useMemo(

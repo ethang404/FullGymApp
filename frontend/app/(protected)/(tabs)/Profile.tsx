@@ -230,7 +230,7 @@ export default function Profile() {
 
 				{isGuest && (
 					<View style={styles.guestBanner}>
-						<Text style={styles.guestBannerTitle}>You're using a guest account</Text>
+						<Text style={styles.guestBannerTitle}>You&apos;re using a guest account</Text>
 						<Text style={styles.guestBannerBody}>
 							Your data is saved, but only this phone can get to it. Create an account so you can log in anywhere and
 							add friends.
