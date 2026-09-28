@@ -1,5 +1,5 @@
-import React, { useState, useRef, useMemo, useCallback, useEffect } from "react";
-import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Modal, FlatList } from "react-native";
+import React, { useState, useRef, useMemo } from "react";
+import { View, Text, TextInput, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Modal, FlatList, Dimensions, type ViewStyle, type TextStyle } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -25,7 +25,6 @@ import Screen from "@/components/Screen";
 
 //used for manipulating the image to ignore background, maybe it helps
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
-import { Dimensions } from "react-native";
 
 const SCREEN = Dimensions.get("window");
 const BOX_WIDTH = 280;
@@ -49,6 +48,139 @@ interface ServingSizeRow {
 //round to nearest hundreth, not integer
 function roundGrams(grams: number): string {
 	return (Math.round(grams * 100) / 100).toString();
+}
+
+//grams for 1 of a volume unit: derived from sibling servings if possible, else a density guess for the food
+function estimateVolumeWeightGForFood(unit: string, otherServings: ServingSize[], foodName: string, brand: string): number | null {
+	if (VOLUME_UNITS_TO_ML[unit] == null) return null;
+
+	const derived = resolveServingWeightG(unit, otherServings);
+	if (derived != null) return derived;
+
+	const gPerMl = estimateDensityForFood(foodName, brand);
+	return gPerMl != null ? gPerMl * VOLUME_UNITS_TO_ML[unit] : null;
+}
+
+//re-calc weight_g of every auto-filled/blank volume row - called whenever brand, food name, or any serving row changes.
+//repeats until stable since one derived row can feed another's estimate (bounded in case estimates never settle).
+//returns `rows` itself when nothing changed
+function recalcVolumeWeights(rows: ServingSizeRow[], foodName: string, brand: string): ServingSizeRow[] {
+	for (let pass = 0; pass < 10; pass++) {
+		const prev = rows;
+		let changed = false; //track if we change for each row
+
+		const next = prev.map((row, index) => {
+			const unit = row.name.trim();
+			if (!unit || VOLUME_UNITS_TO_ML[unit] == null) return row; //skip non volume based rows
+
+			if (row.autoFilled === false) return row; // user-typed - never touch
+
+			//this line filters by siblings (not same row, not blank, non 0 weight)
+			//divides weight/quantity to ensure weight_g for 1 quantity
+			const otherServings: ServingSize[] = prev
+				.filter((r, ri) => ri !== index && r.name.trim() && Number(r.weight_g) > 0)
+				.map((r) => ({ label: r.name.trim(), weight_g: (Number(r.weight_g) || 0) / (Number(r.qty) || 1) }));
+
+			//then estimateVolumeWeightGForFood can convert based new unit off it's siblings in theory
+			const derived = estimateVolumeWeightGForFood(unit, otherServings, foodName, brand);
+			const qty = Number(row.qty) || 1;
+			const newWeight = derived != null ? roundGrams(qty * derived) : "";
+			//we then mark autoFilled as true or undefined if we couldn't match it
+
+			if (newWeight === row.weight_g) return row; //same val, don't update
+
+			changed = true;
+			return { ...row, qty: row.qty || "1", weight_g: newWeight, autoFilled: derived != null ? true : undefined };
+		});
+
+		if (!changed) return prev;
+		rows = next;
+	}
+	return rows;
+}
+
+// Defined at module level (not inside CreateFood) so their identity is stable across renders -
+// a component recreated on every render remounts its TextInput and kicks the user out of the field.
+type FieldStyles = { field: ViewStyle; fieldLast: ViewStyle; fieldLabel: TextStyle; fieldInputRow: ViewStyle; fieldInput: TextStyle };
+
+function Field({
+	styles,
+	placeholderColor,
+	label,
+	placeholder,
+	value,
+	onChangeText,
+	isLast,
+	rightElement,
+}: {
+	styles: FieldStyles;
+	placeholderColor: string;
+	label: string;
+	placeholder: string;
+	value: string;
+	onChangeText: (v: string) => void;
+	isLast?: boolean;
+	rightElement?: React.ReactNode;
+}) {
+	return (
+		<View style={[styles.field, isLast && styles.fieldLast]}>
+			<Text style={styles.fieldLabel}>{label}</Text>
+			<View style={styles.fieldInputRow}>
+				<TextInput style={styles.fieldInput} placeholder={placeholder} placeholderTextColor={placeholderColor} value={value} onChangeText={onChangeText} />
+				{rightElement}
+			</View>
+		</View>
+	);
+}
+
+type MacroRowStyles = {
+	macroRow: ViewStyle;
+	noBorder: ViewStyle;
+	macroBar: ViewStyle;
+	macroBarSpacer: ViewStyle;
+	macroLabel: TextStyle;
+	macroValueWrap: ViewStyle;
+	macroInput: TextStyle;
+	macroUnit: TextStyle;
+};
+
+function MacroRow({
+	styles,
+	placeholderColor,
+	label,
+	value,
+	onChangeText,
+	unit,
+	barColor,
+	isLast,
+}: {
+	styles: MacroRowStyles;
+	placeholderColor: string;
+	label: string;
+	value: string;
+	onChangeText: (v: string) => void;
+	unit: string;
+	barColor?: string;
+	isLast?: boolean;
+}) {
+	return (
+		<View style={[styles.macroRow, isLast && styles.noBorder]}>
+			{barColor ? <View style={[styles.macroBar, { backgroundColor: barColor }]} /> : <View style={styles.macroBarSpacer} />}
+			<Text style={styles.macroLabel}>{label}</Text>
+			<View style={styles.macroValueWrap}>
+				<TextInput
+					style={styles.macroInput}
+					value={value}
+					onChangeText={onChangeText}
+					keyboardType="decimal-pad"
+					placeholder="0"
+					placeholderTextColor={placeholderColor}
+					textAlign="right"
+				/>
+				<Text style={styles.macroUnit}>{unit}</Text>
+			</View>
+		</View>
+	);
 }
 
 interface MicronutrientField {
@@ -463,72 +595,6 @@ export default function CreateFood() {
 		[theme],
 	);
 
-	// Defined via useCallback (not as plain nested function declarations)
-	//Otherwise it re-renders each call. Kicks us out of field.
-
-	const Field = useCallback(
-		({
-			label,
-			placeholder,
-			value,
-			onChangeText,
-			isLast,
-			rightElement,
-		}: {
-			label: string;
-			placeholder: string;
-			value: string;
-			onChangeText: (v: string) => void;
-			isLast?: boolean;
-			rightElement?: React.ReactNode;
-		}) => (
-			<View style={[styles.field, isLast && styles.fieldLast]}>
-				<Text style={styles.fieldLabel}>{label}</Text>
-				<View style={styles.fieldInputRow}>
-					<TextInput style={styles.fieldInput} placeholder={placeholder} placeholderTextColor={theme.inputPlaceholder} value={value} onChangeText={onChangeText} />
-					{rightElement}
-				</View>
-			</View>
-		),
-		[styles],
-	);
-
-	const MacroRow = useCallback(
-		({
-			label,
-			value,
-			onChangeText,
-			unit,
-			barColor,
-			isLast,
-		}: {
-			label: string;
-			value: string;
-			onChangeText: (v: string) => void;
-			unit: string;
-			barColor?: string;
-			isLast?: boolean;
-		}) => (
-			<View style={[styles.macroRow, isLast && styles.noBorder]}>
-				{barColor ? <View style={[styles.macroBar, { backgroundColor: barColor }]} /> : <View style={styles.macroBarSpacer} />}
-				<Text style={styles.macroLabel}>{label}</Text>
-				<View style={styles.macroValueWrap}>
-					<TextInput
-						style={styles.macroInput}
-						value={value}
-						onChangeText={onChangeText}
-						keyboardType="decimal-pad"
-						placeholder="0"
-						placeholderTextColor={theme.inputPlaceholder}
-						textAlign="right"
-					/>
-					<Text style={styles.macroUnit}>{unit}</Text>
-				</View>
-			</View>
-		),
-		[styles],
-	);
-
 	const handleOpenScanner = async () => {
 		if (!permission?.granted) {
 			const res = await requestPermission();
@@ -606,7 +672,8 @@ export default function CreateFood() {
 
 			setServingSizes((prev) => {
 				const first = prev[0] ?? { name: "", qty: "", weight_g: "" };
-				return [{ ...first, name, qty, weight_g: resolvedWeightG != null ? String(resolvedWeightG) : "", autoFilled: resolvedAutoFilled }, ...prev.slice(1)];
+				const next = [{ ...first, name, qty, weight_g: resolvedWeightG != null ? String(resolvedWeightG) : "", autoFilled: resolvedAutoFilled }, ...prev.slice(1)];
+				return recalcVolumeWeights(next, foodName, brand);
 			});
 		}
 
@@ -625,19 +692,23 @@ export default function CreateFood() {
 		setServingSizes((prev) => [...prev, { name: "", qty: "", weight_g: "" }]);
 	};
 
-	const estimateVolumeWeightG = (unit: string, otherServings: ServingSize[]): number | null => {
-		if (VOLUME_UNITS_TO_ML[unit] == null) return null;
+	const estimateVolumeWeightG = (unit: string, otherServings: ServingSize[]): number | null =>
+		estimateVolumeWeightGForFood(unit, otherServings, foodName, brand);
 
-		const derived = resolveServingWeightG(unit, otherServings);
-		if (derived != null) return derived;
+	//name/brand feed the density guess, so re-derive auto-filled volume weights as they're typed
+	const handleFoodNameChange = (value: string) => {
+		setFoodName(value);
+		setServingSizes((prev) => recalcVolumeWeights(prev, value, brand));
+	};
 
-		const gPerMl = estimateDensityForFood(foodName, brand);
-		return gPerMl != null ? gPerMl * VOLUME_UNITS_TO_ML[unit] : null;
+	const handleBrandChange = (value: string) => {
+		setBrand(value);
+		setServingSizes((prev) => recalcVolumeWeights(prev, foodName, value));
 	};
 
 	const updateServingSize = (index: number, field: keyof ServingSizeRow, value: string) => {
-		setServingSizes((prev) =>
-			prev.map((row, i) => {
+		setServingSizes((prev) => {
+			const next = prev.map((row, i) => {
 				if (i !== index) return row;
 
 				const updated = { ...row, [field]: value };
@@ -683,8 +754,9 @@ export default function CreateFood() {
 				}
 
 				return updated;
-			}),
-		);
+			});
+			return recalcVolumeWeights(next, foodName, brand);
+		});
 	};
 
 	//occurs when picking label (tbsp or something)
@@ -692,8 +764,8 @@ export default function CreateFood() {
 		if (openUnitPickerIndex === null) return;
 		const index = openUnitPickerIndex;
 
-		setServingSizes((prev) =>
-			prev.map((row, i) => {
+		setServingSizes((prev) => {
+			const next = prev.map((row, i) => {
 				if (i !== index) return row;
 
 				const factor = FIXED_UNIT_CONVERSIONS[unit];
@@ -725,48 +797,12 @@ export default function CreateFood() {
 					weight_g: derived != null ? roundGrams(derived) : "",
 					autoFilled: derived != null ? true : undefined,
 				};
-			}),
-		);
+			});
+			return recalcVolumeWeights(next, foodName, brand);
+		});
 
 		setOpenUnitPickerIndex(null);
 	};
-
-	//if brand, food, or any part of serving size is changed, re-calc weights
-	//servingsizeSignature is our way of tracking if the contents of servingSize changed, not just a ref + infinite loop
-	//if smth changed, loop over each serving and re-calculate weight_g
-	const servingSizesSignature = servingSizes.map((r) => `${r.name}|${r.qty}|${r.weight_g}|${r.autoFilled ?? ""}`).join(";");
-	useEffect(() => {
-		setServingSizes((prev) => {
-			let changed = false; //track if we change for each row
-
-			const next = prev.map((row, index) => {
-				const unit = row.name.trim();
-				if (!unit || VOLUME_UNITS_TO_ML[unit] == null) return row; //skip non volume based rows
-
-				if (row.autoFilled === false) return row; // user-typed - never touch
-
-				//this line filters by siblings (not same row, not blank, non 0 weight)
-				//divides weight/quantity to ensure weight_g for 1 quantity
-				const otherServings: ServingSize[] = prev
-					.filter((r, ri) => ri !== index && r.name.trim() && Number(r.weight_g) > 0)
-					.map((r) => ({ label: r.name.trim(), weight_g: (Number(r.weight_g) || 0) / (Number(r.qty) || 1) }));
-
-				//then estimateVolumeWeightG can convert based new unit off it's siblings in theory
-				const derived = estimateVolumeWeightG(unit, otherServings);
-				const qty = Number(row.qty) || 1;
-				const newWeight = derived != null ? roundGrams(qty * derived) : "";
-				//we then mark autoFilled as true or undefined if we couldn't match it
-
-				if (newWeight === row.weight_g) return row; //same val, don't update
-
-				changed = true;
-				return { ...row, qty: row.qty || "1", weight_g: newWeight, autoFilled: derived != null ? true : undefined };
-			});
-
-			return changed ? next : prev;
-		});
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [foodName, brand, servingSizesSignature]);
 
 	const updateMicronutrient = (nutrientId: number, value: string) => {
 		setMicronutrients((prev) => prev.map((m) => (m.nutrient_id === nutrientId ? { ...m, value } : m)));
@@ -866,11 +902,13 @@ export default function CreateFood() {
 						<Text style={styles.cardHeaderLabel}>Basics</Text>
 					</View>
 
-					<Field label="Food name" placeholder="e.g. Grass-fed Ribeye" value={foodName} onChangeText={setFoodName} />
-					<Field label="BRAND / CATEGORY" placeholder="e.g. Local Farmhouse" value={brand} onChangeText={setBrand} />
+					<Field styles={styles} placeholderColor={theme.inputPlaceholder} label="Food name" placeholder="e.g. Grass-fed Ribeye" value={foodName} onChangeText={handleFoodNameChange} />
+					<Field styles={styles} placeholderColor={theme.inputPlaceholder} label="BRAND / CATEGORY" placeholder="e.g. Local Farmhouse" value={brand} onChangeText={handleBrandChange} />
 
 					{/* Barcode input with custom scan button embedded */}
 					<Field
+						styles={styles}
+						placeholderColor={theme.inputPlaceholder}
 						label="Barcode"
 						placeholder="Scan or enter code"
 						value={barcode}
@@ -934,10 +972,10 @@ export default function CreateFood() {
 						<Text style={styles.cardHeaderLabel}>Nutrition per serving</Text>
 					</View>
 
-					<MacroRow label="Calories" value={calories} onChangeText={setCalories} unit="kcal" />
-					<MacroRow label="Protein" value={protein} onChangeText={setProtein} unit="g" barColor={theme.macroProtein} />
-					<MacroRow label="Carbs" value={carbs} onChangeText={setCarbs} unit="g" barColor={theme.macroCarbs} />
-					<MacroRow label="Fat" value={fats} onChangeText={setFats} unit="g" barColor={theme.macroFat} isLast />
+					<MacroRow styles={styles} placeholderColor={theme.inputPlaceholder} label="Calories" value={calories} onChangeText={setCalories} unit="kcal" />
+					<MacroRow styles={styles} placeholderColor={theme.inputPlaceholder} label="Protein" value={protein} onChangeText={setProtein} unit="g" barColor={theme.macroProtein} />
+					<MacroRow styles={styles} placeholderColor={theme.inputPlaceholder} label="Carbs" value={carbs} onChangeText={setCarbs} unit="g" barColor={theme.macroCarbs} />
+					<MacroRow styles={styles} placeholderColor={theme.inputPlaceholder} label="Fat" value={fats} onChangeText={setFats} unit="g" barColor={theme.macroFat} isLast />
 				</View>
 
 				<View style={styles.card}>

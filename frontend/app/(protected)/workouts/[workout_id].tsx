@@ -71,6 +71,8 @@ export default function Workout() {
 	const styles = useMemoStyles(theme);
 	const { profile } = useProfile();
 
+	// mode="new" needs no fetch: the screen starts on an empty workout and isn't loading. Every entry
+	// point router.push()es a fresh screen, so params never change on a mounted instance.
 	const [workout, setWorkout] = useState<types.WorkoutData>(emptyWorkout);
 	const [loading, setLoading] = useState(mode === "edit" || mode === "copy" || mode === "view");
 	const [saving, setSaving] = useState(false);
@@ -147,9 +149,6 @@ export default function Workout() {
 			};
 
 			getWorkoutData();
-		} else if (mode === "new") {
-			setWorkout(emptyWorkout);
-			setLoading(false);
 		}
 	}, [workout_id, mode]);
 
