@@ -1,16 +1,4 @@
-import {
-	View,
-	Text,
-	StyleSheet,
-	ScrollView,
-	TouchableOpacity,
-	Modal,
-	TextInput,
-	KeyboardAvoidingView,
-	Platform,
-	ActivityIndicator,
-	Alert,
-} from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useContext, useMemo, useState } from "react";
 import { useRouter } from "expo-router";
@@ -45,9 +33,7 @@ import {
 
 // ─── Theme options ─────────────────────────────────────────────────────────────
 
-const THEME_OPTIONS: { name: ThemeName; label: string; primary: string; bg: string }[] = (
-	Object.keys(themes) as ThemeName[]
-).map((name) => ({
+const THEME_OPTIONS: { name: ThemeName; label: string; primary: string; bg: string }[] = (Object.keys(themes) as ThemeName[]).map((name) => ({
 	name,
 	label: themeLabels[name],
 	primary: themes[name].primary,
@@ -95,8 +81,7 @@ export default function Profile() {
 		);
 	}
 
-	const displayName =
-		[profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || profile?.user_name || (isGuest ? "Guest" : "You");
+	const displayName = [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || profile?.user_name || (isGuest ? "Guest" : "You");
 	const memberSince = profile?.created_at ? new Date(profile.created_at).getFullYear() : null;
 
 	const styles = useMemo(
@@ -104,10 +89,6 @@ export default function Profile() {
 			StyleSheet.create({
 				scroll: { flex: 1 },
 				content: { paddingBottom: 40 },
-
-				pageHeader: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 24 },
-				pageTitle: { fontSize: 28, lineHeight: 34, fontFamily: fonts.headingHeavy, color: theme.text },
-
 				avatarSection: { alignItems: "center", paddingVertical: 24, gap: 10 },
 				avatar: {
 					width: 72,
@@ -216,10 +197,6 @@ export default function Profile() {
 	return (
 		<Screen edges={["top"]}>
 			<ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-				<View style={styles.pageHeader}>
-					<Text style={styles.pageTitle}>You</Text>
-				</View>
-
 				<View style={styles.avatarSection}>
 					<View style={styles.avatar}>
 						<FontAwesome5 name="user" size={28} color={theme.primary} />
@@ -232,8 +209,7 @@ export default function Profile() {
 					<View style={styles.guestBanner}>
 						<Text style={styles.guestBannerTitle}>You&apos;re using a guest account</Text>
 						<Text style={styles.guestBannerBody}>
-							Your data is saved, but only this phone can get to it. Create an account so you can log in anywhere and
-							add friends.
+							Your data is saved, but only this phone can get to it. Create an account so you can log in anywhere and add friends.
 						</Text>
 						<TouchableOpacity style={styles.guestBannerButton} onPress={() => setUpgradeModalOpen(true)} activeOpacity={0.8}>
 							<Text style={styles.guestBannerButtonText}>Create account</Text>
@@ -274,9 +250,7 @@ export default function Profile() {
 							<FontAwesome5 name="calculator" size={13} color={theme.textSecondary} />
 						</View>
 						<Text style={styles.rowLabel}>Height, weight &amp; activity</Text>
-						<Text style={styles.rowValue}>
-							{profile?.body?.weight_kg ? `${Math.round(Number(profile.body.weight_kg))} kg` : "Set up"}
-						</Text>
+						<Text style={styles.rowValue}>{profile?.body?.weight_kg ? `${Math.round(Number(profile.body.weight_kg))} kg` : "Set up"}</Text>
 						<FontAwesome5 name="chevron-right" size={12} color={theme.textTertiary} />
 					</TouchableOpacity>
 				</View>
@@ -299,11 +273,7 @@ export default function Profile() {
 						<Text style={styles.rowLabel}>Explore shared workouts &amp; recipes</Text>
 						<FontAwesome5 name="chevron-right" size={12} color={theme.textTertiary} />
 					</TouchableOpacity>
-					<TouchableOpacity
-						style={[styles.row, styles.rowLast]}
-						onPress={() => router.push("/(protected)/nutrition/DisplayRecipes")}
-						activeOpacity={0.7}
-					>
+					<TouchableOpacity style={[styles.row, styles.rowLast]} onPress={() => router.push("/(protected)/nutrition/DisplayRecipes")} activeOpacity={0.7}>
 						<View style={styles.rowIcon}>
 							<FontAwesome5 name="utensils" size={13} color={theme.textSecondary} />
 						</View>
@@ -621,10 +591,24 @@ function UpgradeAccountModal({
 					<Text style={[s.sectionLabel, { textAlign: "center" }]}>Or use a username</Text>
 
 					<Text style={s.sectionLabel}>First name</Text>
-					<TextInput style={s.textInput} placeholder="e.g. Alex" placeholderTextColor={theme.inputPlaceholder} value={firstName} onChangeText={setFirstName} autoCapitalize="words" />
+					<TextInput
+						style={s.textInput}
+						placeholder="e.g. Alex"
+						placeholderTextColor={theme.inputPlaceholder}
+						value={firstName}
+						onChangeText={setFirstName}
+						autoCapitalize="words"
+					/>
 
 					<Text style={s.sectionLabel}>Last name</Text>
-					<TextInput style={s.textInput} placeholder="e.g. Mercer" placeholderTextColor={theme.inputPlaceholder} value={lastName} onChangeText={setLastName} autoCapitalize="words" />
+					<TextInput
+						style={s.textInput}
+						placeholder="e.g. Mercer"
+						placeholderTextColor={theme.inputPlaceholder}
+						value={lastName}
+						onChangeText={setLastName}
+						autoCapitalize="words"
+					/>
 
 					<Text style={s.sectionLabel}>Username</Text>
 					<TextInput
