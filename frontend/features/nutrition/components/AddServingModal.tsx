@@ -1,15 +1,15 @@
-import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, KeyboardAvoidingView, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import type { Theme } from "@/theme/colors"; //for typing
 
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
 
-import type { ServingSize } from "../../../types/nutrition";
+import type { ServingSize } from "@/types/nutrition";
 
-import { FIXED_UNIT_CONVERSIONS, resolveServingWeightG } from "../../../types/nutrition";
+import { FIXED_UNIT_CONVERSIONS, resolveServingWeightG } from "@/types/nutrition";
 
 interface AddServingModalProps {
 	visible: boolean;
@@ -30,15 +30,18 @@ export function AddServingModal({ visible, foodId, foodName, availableUnits, exi
 	const [error, setError] = useState<string | null>(null);
 	const insets = useSafeAreaInsets();
 
-	// Reset the modal form each time opened
-	useEffect(() => {
+	// Reset the modal form each time it opens - done during render rather than in an effect
+	// so the sheet never paints a render with the previous values.
+	const [wasVisible, setWasVisible] = useState(visible);
+	if (visible !== wasVisible) {
+		setWasVisible(visible);
 		if (visible) {
 			setNewLabel("");
 			setNewWeight("");
 			setNewQty("1");
 			setError(null);
 		}
-	}, [visible]);
+	}
 
 	async function handleSave() {
 		const weight = parseFloat(newWeight);

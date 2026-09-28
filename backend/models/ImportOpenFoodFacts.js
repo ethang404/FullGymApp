@@ -112,7 +112,6 @@ async function importOpenFoodFacts() {
 	console.log("Streaming CSV — this will take a while (file is ~9GB)...\n");
 
 	let foodBatch = [];
-	let nutrientQueue = []; // nutrients waiting for their food's DB id
 	let totalFoods = 0;
 	let totalNutrients = 0;
 	let totalSkipped = 0;

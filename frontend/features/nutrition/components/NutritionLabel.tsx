@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet } from "react-native";
 import { useMemo } from "react";
 import { useTheme } from "@/theme/ThemeProvider";
-import { NUTRIENT_NAME_TO_IDS } from "../../../types/nutrition";
+import { NUTRIENT_NAME_TO_IDS } from "@/types/nutrition";
 
 const DV = {
 	fat: 78,
@@ -33,7 +33,7 @@ export default function NutritionFactsLabel({ nutrients, totalWeightG = 0, servi
 		const result = {} as Record<keyof typeof NUTRIENT_NAME_TO_IDS, number>;
 
 		// Iterate over key enum/map to guarantee default 0 values for all keys
-		(Object.keys(NUTRIENT_NAME_TO_IDS) as Array<keyof typeof NUTRIENT_NAME_TO_IDS>).forEach((key) => {
+		(Object.keys(NUTRIENT_NAME_TO_IDS) as (keyof typeof NUTRIENT_NAME_TO_IDS)[]).forEach((key) => {
 			result[key] = (nutrients[key] ?? 0) / divisor;
 		});
 

@@ -12,7 +12,7 @@ import {
 	Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useContext, useMemo, useState, useEffect } from "react";
+import { useContext, useMemo, useState } from "react";
 import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
@@ -230,10 +230,10 @@ export default function Profile() {
 
 				{isGuest && (
 					<View style={styles.guestBanner}>
-						<Text style={styles.guestBannerTitle}>You're using a guest account</Text>
+						<Text style={styles.guestBannerTitle}>You&apos;re using a guest account</Text>
 						<Text style={styles.guestBannerBody}>
 							Your workouts, food log, and recipes are saved, but Friends is unavailable and this device is the only
-							way in - there's no password yet, so losing it means losing access. Set a username and password to
+							way in - there&apos;s no password yet, so losing it means losing access. Set a username and password to
 							secure your account and unlock Friends.
 						</Text>
 						<TouchableOpacity style={styles.guestBannerButton} onPress={() => setUpgradeModalOpen(true)} activeOpacity={0.8}>
@@ -424,13 +424,16 @@ function GoalsModal({
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
-	useEffect(() => {
+	// Reset the form on the render where the modal opens (adjusting state during render instead of in
+	// an effect avoids an extra render with stale values - see react.dev/learn/you-might-not-need-an-effect).
+	const [wasVisible, setWasVisible] = useState(visible);
+	if (visible !== wasVisible) {
+		setWasVisible(visible);
 		if (visible) {
 			setValues(initial);
 			setError(null);
 		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [visible]);
+	}
 
 	async function handleSave() {
 		const parsed: Partial<Record<MacroKey, number>> = {};
@@ -541,7 +544,10 @@ function UpgradeAccountModal({
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
-	useEffect(() => {
+	// Reset the form on the render where the modal opens (see GoalsModal).
+	const [wasVisible, setWasVisible] = useState(visible);
+	if (visible !== wasVisible) {
+		setWasVisible(visible);
 		if (visible) {
 			setFirstName("");
 			setLastName("");
@@ -549,7 +555,7 @@ function UpgradeAccountModal({
 			setPassword("");
 			setError(null);
 		}
-	}, [visible]);
+	}
 
 	async function handleSave() {
 		if (!firstName || !lastName || !userName || !password) {
@@ -678,18 +684,21 @@ function BodyModal({
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
-	useEffect(() => {
-		if (!visible) return;
-		setSex(initialBody?.sex ?? null);
-		setBirthDate(initialBody?.birth_date ?? "");
-		setHeightCm(initialBody?.height_cm != null ? String(Math.round(Number(initialBody.height_cm) * 10) / 10) : "");
-		setWeightKg(initialBody?.weight_kg != null ? String(Math.round(Number(initialBody.weight_kg) * 10) / 10) : "");
-		setActivity(initialBody?.activity_level ?? null);
-		setGoalType(initialBody?.goal_type ?? null);
-		setGoalVals(initialGoals);
-		setError(null);
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [visible]);
+	// Load the saved metrics into the form on the render where the modal opens (see GoalsModal).
+	const [wasVisible, setWasVisible] = useState(visible);
+	if (visible !== wasVisible) {
+		setWasVisible(visible);
+		if (visible) {
+			setSex(initialBody?.sex ?? null);
+			setBirthDate(initialBody?.birth_date ?? "");
+			setHeightCm(initialBody?.height_cm != null ? String(Math.round(Number(initialBody.height_cm) * 10) / 10) : "");
+			setWeightKg(initialBody?.weight_kg != null ? String(Math.round(Number(initialBody.weight_kg) * 10) / 10) : "");
+			setActivity(initialBody?.activity_level ?? null);
+			setGoalType(initialBody?.goal_type ?? null);
+			setGoalVals(initialGoals);
+			setError(null);
+		}
+	}
 
 	function buildBody(): EstimateBody | null {
 		if (!sex || !DATE_RE.test(birthDate) || !activity || !goalType) return null;

@@ -5,7 +5,7 @@ import { randomUUID } from "expo-crypto";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { PressableScale } from "@/components/PressableScale";
-import type { Task, TaskFrequency } from "@/app/(protected)/types/tasks";
+import type { Task, TaskFrequency } from "@/types/tasks";
 
 const STORAGE_KEY = "@tasks";
 

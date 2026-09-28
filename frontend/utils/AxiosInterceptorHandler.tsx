@@ -1,10 +1,10 @@
 import React, { useContext, useEffect, type PropsWithChildren } from "react";
-import axios from "axios";
+import axios, { create } from "axios";
 import * as SecureStore from "expo-secure-store";
 import { AuthContext } from "./AuthProvider";
 import { log } from "./log";
 
-export const instance = axios.create({
+export const instance = create({
 	baseURL: process.env.EXPO_PUBLIC_BACKEND_URL,
 	headers: {
 		"Content-Type": "application/json",
@@ -12,7 +12,7 @@ export const instance = axios.create({
 	timeout: 10000,
 });
 
-export const authInstance = axios.create({
+export const authInstance = create({
 	baseURL: process.env.EXPO_PUBLIC_BACKEND_URL,
 	headers: {
 		"Content-Type": "application/json",

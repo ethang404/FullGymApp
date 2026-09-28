@@ -5,7 +5,7 @@ const sequelize = require("../models/db");
 const { userAPayload, userBPayload, userCPayload, foodPayload, recipePayload, workoutPayload } = require("./ExplorePayloads");
 
 let tokenA, tokenB, tokenC;
-let userIdA, userIdB, userIdC;
+let userIdA, userIdB;
 let foodId;
 
 // A's content across all three visibilities, plus B's/C's own content, used across the scope/type tests below.
@@ -44,7 +44,6 @@ beforeAll(async () => {
 	tokenC = respC.body.accessToken;
 	userIdA = respA.body.userId;
 	userIdB = respB.body.userId;
-	userIdC = respC.body.userId;
 
 	// A and B become friends; C stays unrelated to both.
 	const req1 = await request(app).post("/friends/requests").set("Authorization", `Bearer ${tokenA}`).send({ addressee_user_id: userIdB });

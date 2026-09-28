@@ -24,7 +24,7 @@ export default function Login() {
 
 		try {
 			await authInstance.post("/auth/guest");
-		} catch (err) {
+		} catch {
 			setError("Couldn't start a guest session. Please try again.");
 		} finally {
 			setGuestLoading(false);
@@ -61,7 +61,7 @@ export default function Login() {
 				};
 				await authInstance.post("/auth/register", registerPayload);
 			}
-		} catch (err) {
+		} catch {
 			setError(mode === "login" ? "Login failed. Check your credentials." : "Registration failed.");
 		} finally {
 			setLoading(false);

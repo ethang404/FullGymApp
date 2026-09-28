@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { formatRelativeDate } from "@/utils/date";
-import type { ExploreItem } from "../../../types/explore";
+import type { ExploreItem } from "@/types/explore";
 
 const VISIBILITY_ICON = { public: "globe-americas", friends: "user-friends", private: "lock" } as const;
 

@@ -7,7 +7,6 @@ const sequelize = require("../models/db");
 const WorkoutsModel = require("../models/modelInits").workouts;
 const ExercisesModel = require("../models/modelInits").exercises;
 const SetsModel = require("../models/modelInits").sets;
-const UsersModel = require("../models/modelInits").users;
 const ExerciseCatalogModel = require("../models/modelInits").exercise_catalog;
 
 const { addUserPayload, editWorkoutPayloads, addWorkoutPayload } = require("./WorkoutPayloads");

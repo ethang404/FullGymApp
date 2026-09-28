@@ -1,12 +1,12 @@
-import { View, Text, StyleSheet, TextInput, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
-import { useMemo, useState, useEffect } from "react";
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator } from "react-native";
+import { useMemo, useState } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { log } from "@/utils/log";
 
-import { COMMON_UNITS, calcMacrosFromPer100g, type ServingSize, type FoodSearchResult, type RecipeIngredient } from "../../../types/nutrition";
+import { COMMON_UNITS, calcMacrosFromPer100g, type ServingSize, type FoodSearchResult, type RecipeIngredient } from "@/types/nutrition";
 import { AddServingModal } from "./AddServingModal";
-import { getFullFood } from "../hooks/useFoodSearch";
+import { getFullFood } from "@/features/nutrition/hooks/useFoodSearch";
 
 //This component will give us 2 options, used in creating a new recipe
 //we either add a new ingrediant and pass data to main component
@@ -65,12 +65,15 @@ export default function RecipeFoodCard(props: RecipeFoodCardProps) {
 	const [isAdding, setIsAdding] = useState(false);
 
 	//we use this to handle changing quantity of recipes ingrediants.
-	//So if we double recipe ingrediant amounts for a recipe, it will update the individual food cards display too
-	useEffect(() => {
-		if (props.mode !== "edit") return;
+	//So if we double recipe ingrediant amounts for a recipe, it will update the individual food cards display too.
+	//Synced during render (not in an effect) and only when the parent's values change, so local
+	//state like `expanded` and added servings survive.
+	const [syncedFrom, setSyncedFrom] = useState({ quantity: props.ingredient?.quantity, serving: props.ingredient?.serving });
+	if (props.mode === "edit" && (props.ingredient.quantity !== syncedFrom.quantity || props.ingredient.serving !== syncedFrom.serving)) {
+		setSyncedFrom({ quantity: props.ingredient.quantity, serving: props.ingredient.serving });
 		setQuantity(String(props.ingredient.quantity));
 		setSelectedServing(props.ingredient.serving);
-	}, [props.ingredient?.quantity, props.ingredient?.serving]);
+	}
 
 	function handleServingAdded(created: ServingSize) {
 		const newQty = created.default_quantity ?? 1;

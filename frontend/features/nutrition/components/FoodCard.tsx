@@ -8,10 +8,10 @@ import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
 import { toast } from "@/utils/toast";
 
-import { COMMON_UNITS } from "../../../types/nutrition";
+import { COMMON_UNITS } from "@/types/nutrition";
 import { AddServingModal } from "./AddServingModal";
-import { calcMacrosFromPer100g, type ServingSize, type FoodSearchResult } from "../../../types/nutrition";
-import type { DiaryVisibility } from "../../../types/visibility";
+import { calcMacrosFromPer100g, type ServingSize, type FoodSearchResult } from "@/types/nutrition";
+import type { DiaryVisibility } from "@/types/visibility";
 
 interface FoodCardProps {
 	food: FoodSearchResult;

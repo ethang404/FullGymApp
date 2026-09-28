@@ -10,8 +10,8 @@ import { todayISO } from "@/utils/date";
 import { useFriends } from "@/utils/FriendsProvider";
 import { ScreenState } from "@/components/ScreenState";
 import Screen from "@/components/Screen";
-import DiarySections, { type DiaryEntry } from "../(tabs)/nutrition/components/DiarySections";
-import { displayName } from "../types/friends";
+import DiarySections, { type DiaryEntry } from "@/features/nutrition/components/DiarySections";
+import { displayName } from "@/types/friends";
 
 export default function FriendDiary() {
 	const { friend_user_id } = useLocalSearchParams<{ friend_user_id: string }>();
@@ -29,7 +29,7 @@ export default function FriendDiary() {
 	const friend = friends.find((f) => String(f.user_id) === friend_user_id);
 	const title = friend ? displayName(friend) : "Friend's Diary";
 
-	async function fetchEntries(isRefresh = false) {
+	const fetchEntries = useCallback(async (isRefresh = false) => {
 		try {
 			const res = await instance.get(`/nutrition/diary/friend/${friend_user_id}`, { params: { date: selectedDate } });
 			setEntries(res.data.diary_entries ?? []);
@@ -42,13 +42,12 @@ export default function FriendDiary() {
 			setLoading(false);
 			setRefreshing(false);
 		}
-	}
+	}, [friend_user_id, selectedDate]);
 
 	useFocusEffect(
 		useCallback(() => {
 			fetchEntries();
-			// eslint-disable-next-line react-hooks/exhaustive-deps
-		}, [friend_user_id, selectedDate]),
+		}, [fetchEntries]),
 	);
 
 	const styles = useMemo(

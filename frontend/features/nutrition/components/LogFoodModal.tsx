@@ -7,11 +7,11 @@ import { useTheme } from "@/theme/ThemeProvider";
 import type { Theme } from "@/theme/colors"; //for typing
 
 import SegmentedControl from "@/components/SegmentedControl";
-import FoodCard from "./components/FoodCard";
-import RecipeLogCard from "./components/RecipeLogCard";
-import { useFoodSearch } from "./hooks/useFoodSearch";
-import { useRecipes, useRecentLogged } from "./hooks/useRecentLogged";
-import { DIARY_VISIBILITIES, DIARY_VISIBILITY_LABELS, type DiaryVisibility } from "../../types/visibility";
+import FoodCard from "./FoodCard";
+import RecipeLogCard from "./RecipeLogCard";
+import { useFoodSearch } from "@/features/nutrition/hooks/useFoodSearch";
+import { useRecipes, useRecentLogged } from "@/features/nutrition/hooks/useRecentLogged";
+import { DIARY_VISIBILITIES, DIARY_VISIBILITY_LABELS, type DiaryVisibility } from "@/types/visibility";
 
 type MealType = "breakfast" | "lunch" | "dinner" | "snack";
 

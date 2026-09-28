@@ -10,11 +10,11 @@ import { useProfile } from "@/utils/ProfileProvider";
 import Screen from "@/components/Screen";
 import Pills from "@/components/Pills";
 
-import AddIngredientModal from "../(tabs)/nutrition/components/AddIngredientModal";
-import ImportRecipeModal from "../(tabs)/nutrition/components/ImportRecipeModal";
-import RecipeFoodCard from "../(tabs)/nutrition/components/RecipeFoodCard";
-import NutritionFactsLabel from "../(tabs)/nutrition/components/NutritionLabel";
-import { getFullFood, searchFoods } from "../(tabs)/nutrition/hooks/useFoodSearch";
+import AddIngredientModal from "@/features/nutrition/components/AddIngredientModal";
+import ImportRecipeModal from "@/features/nutrition/components/ImportRecipeModal";
+import RecipeFoodCard from "@/features/nutrition/components/RecipeFoodCard";
+import NutritionFactsLabel from "@/features/nutrition/components/NutritionLabel";
+import { getFullFood, searchFoods } from "@/features/nutrition/hooks/useFoodSearch";
 import {
 	calcNutrientsFromPer100g,
 	calcMacrosFromPer100g,
@@ -22,14 +22,13 @@ import {
 	parseIngredientLine,
 	isLikelyIngredientMatch,
 	NUTRIENT_NAME_TO_IDS,
-	NUTRIENT_IDS_TO_NAMES,
 	type RecipeIngredient,
 	type ImportedRecipe,
 	type ParsedIngredientLine,
 	type FoodSearchResult,
 	type ServingSize,
-} from "../types/nutrition";
-import { CONTENT_VISIBILITIES, CONTENT_VISIBILITY_LABELS, type ContentVisibility } from "../types/visibility";
+} from "@/types/nutrition";
+import { CONTENT_VISIBILITIES, CONTENT_VISIBILITY_LABELS, type ContentVisibility } from "@/types/visibility";
 
 // "https://www.hungryhobby.net/x/" -> "HUNGRYHOBBY.NET" (RN's URL is spotty, so parse by hand)
 function hostLabel(url: string | null): string {

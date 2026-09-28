@@ -80,13 +80,6 @@ export default function TabsLayout() {
 					tabBarIcon: ({ color, size }) => <FontAwesome5 name="user" size={size - 2} color={color} />,
 				}}
 			/>
-			<Tabs.Screen name="friends/components/FriendListRow" options={{ href: null }} />
-			<Tabs.Screen name="friends/components/FriendRequestRow" options={{ href: null }} />
-			<Tabs.Screen name="friends/components/SearchResultRow" options={{ href: null }} />
-			<Tabs.Screen name="friends/hooks/useFriendSearch" options={{ href: null }} />
-			<Tabs.Screen name="explore/components/ExploreCard" options={{ href: null }} />
-			<Tabs.Screen name="explore/components/FilterChips" options={{ href: null }} />
-			<Tabs.Screen name="explore/hooks/useExploreFeed" options={{ href: null }} />
 		</Tabs>
 	);
 }

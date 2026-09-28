@@ -5,8 +5,8 @@ import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 
 import RecipeFoodCard from "./RecipeFoodCard";
-import { useFoodSearch } from "../hooks/useFoodSearch";
-import type { RecipeIngredient } from "../../../types/nutrition";
+import { useFoodSearch } from "@/features/nutrition/hooks/useFoodSearch";
+import type { RecipeIngredient } from "@/types/nutrition";
 
 interface AddIngredientModalProps {
 	visible: boolean;

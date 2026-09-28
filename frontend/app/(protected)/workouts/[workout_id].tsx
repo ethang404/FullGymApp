@@ -28,8 +28,8 @@ import { toast } from "@/utils/toast";
 import { useProfile } from "@/utils/ProfileProvider";
 import Screen from "@/components/Screen";
 import Pills from "@/components/Pills";
-import * as types from "../types/workouts";
-import { CONTENT_VISIBILITIES, CONTENT_VISIBILITY_LABELS, type ContentVisibility } from "../types/visibility";
+import * as types from "@/types/workouts";
+import { CONTENT_VISIBILITIES, CONTENT_VISIBILITY_LABELS, type ContentVisibility } from "@/types/visibility";
 
 const emptyWorkout: types.WorkoutData = {
 	workout_name: "",
@@ -68,6 +68,8 @@ export default function Workout() {
 	const styles = useMemoStyles(theme);
 	const { profile } = useProfile();
 
+	// mode="new" needs no fetch: the screen starts on an empty workout and isn't loading. Every entry
+	// point router.push()es a fresh screen, so params never change on a mounted instance.
 	const [workout, setWorkout] = useState<types.WorkoutData>(emptyWorkout);
 	const [loading, setLoading] = useState(mode === "edit" || mode === "copy" || mode === "view");
 	const [saving, setSaving] = useState(false);
@@ -143,9 +145,6 @@ export default function Workout() {
 			};
 
 			getWorkoutData();
-		} else if (mode == "new") {
-			setWorkout(emptyWorkout);
-			setLoading(false);
 		}
 	}, [workout_id, mode]);
 
@@ -680,7 +679,7 @@ function ExerciseSelectorModal({
 					ListFooterComponent={
 						!exactMatchExists && searchQuery.trim().length > 0 ? (
 							<TouchableOpacity style={[styles.saveButton, { margin: 16 }]} onPress={handleCreateNew}>
-								<Text style={styles.saveButtonText}>Add "{searchQuery.trim()}" to Catalog</Text>
+								<Text style={styles.saveButtonText}>Add &quot;{searchQuery.trim()}&quot; to Catalog</Text>
 							</TouchableOpacity>
 						) : null
 					}

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
-import type { ExploreItem, ExploreScope, ExploreType } from "../../../types/explore";
+import type { ExploreItem, ExploreScope, ExploreType } from "@/types/explore";
 
 interface Options {
 	type: ExploreType;

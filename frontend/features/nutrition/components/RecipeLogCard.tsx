@@ -7,8 +7,8 @@ import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
 import { toast } from "@/utils/toast";
-import type { RecipeSummary } from "../../../types/nutrition";
-import type { DiaryVisibility } from "../../../types/visibility";
+import type { RecipeSummary } from "@/types/nutrition";
+import type { DiaryVisibility } from "@/types/visibility";
 
 interface RecipeLogCardProps {
 	recipe: RecipeSummary;

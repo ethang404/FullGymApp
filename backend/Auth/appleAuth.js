@@ -51,7 +51,7 @@ async function verifyAppleIdentityToken(identityToken) {
 			audience: process.env.APPLE_BUNDLE_ID, //meant for my app
 			issuer: "https://appleid.apple.com",
 		});
-	} catch (err) {
+	} catch {
 		throw new UnauthorizedError("Invalid or expired Apple identityToken");
 	}
 }

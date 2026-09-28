@@ -5,7 +5,7 @@ import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
-import type { ImportedRecipe } from "../../../types/nutrition";
+import type { ImportedRecipe } from "@/types/nutrition";
 
 interface ImportRecipeModalProps {
 	visible: boolean;
@@ -117,7 +117,7 @@ export default function ImportRecipeModal({ visible, onClose, onImported }: Impo
 							<FontAwesome5 name="times" size={20} color={theme.primary} />
 						</TouchableOpacity>
 					</View>
-					<Text style={styles.subtitle}>Paste a recipe page URL and we'll pull out the ingredients and steps.</Text>
+					<Text style={styles.subtitle}>Paste a recipe page URL and we&apos;ll pull out the ingredients and steps.</Text>
 
 					<View style={styles.inputRow}>
 						<FontAwesome5 name="link" size={13} color={theme.inputPlaceholder} />

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
-import DateTimePicker, { DateTimePickerAndroid, type DateTimePickerEvent } from "@react-native-community/datetimepicker";
+import DateTimePicker, { DateTimePickerAndroid } from "@react-native-community/datetimepicker";
 import { useTheme } from "@/theme/ThemeProvider";
 import { formatMediumDate, parseISODate, toISODate } from "@/utils/date";
 
@@ -26,13 +26,12 @@ export function DateField({ value, onChange, placeholder = "Select date", fieldS
 	const current = parseISODate(value) ?? FALLBACK;
 	const today = new Date();
 
-	const commit = (event: DateTimePickerEvent, picked?: Date) => {
-		if (event.type === "set" && picked) onChange(toISODate(picked));
-	};
+	// onValueChange only fires when a date is actually picked (dismissing doesn't call it).
+	const commit = (_event: unknown, picked: Date) => onChange(toISODate(picked));
 
 	const open = () => {
 		if (Platform.OS === "android") {
-			DateTimePickerAndroid.open({ value: current, mode: "date", maximumDate: today, minimumDate: MIN_DATE, onChange: commit });
+			DateTimePickerAndroid.open({ value: current, mode: "date", maximumDate: today, minimumDate: MIN_DATE, onValueChange: commit });
 		} else {
 			setIosOpen((v) => !v);
 		}
@@ -52,7 +51,7 @@ export function DateField({ value, onChange, placeholder = "Select date", fieldS
 						display="spinner"
 						maximumDate={today}
 						minimumDate={MIN_DATE}
-						onChange={commit}
+						onValueChange={commit}
 					/>
 					<Pressable onPress={() => setIosOpen(false)} hitSlop={10} style={styles.doneBtn}>
 						<Text style={[styles.doneText, { color: theme.primary }]}>Done</Text>
