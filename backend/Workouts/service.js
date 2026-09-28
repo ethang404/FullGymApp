@@ -7,7 +7,7 @@ const ExerciseCatalogModel = require("../models/modelInits").exercise_catalog;
 const { Op } = require("sequelize");
 const sequelize = require("../models/db");
 
-const { GeneralError, NotFoundError, DataError, UnauthorizedError, ForbiddenError } = require("../error");
+const { GeneralError, NotFoundError, DataError, ForbiddenError } = require("../error");
 const { canViewContent } = require("../utils/friendship");
 
 const WORKOUT_VISIBILITIES = ["private", "friends", "public"];
@@ -147,7 +147,7 @@ async function EditWorkout(data, workout_id, user_id) {
 		if (workout_obj.user_id !== user_id) throw new ForbiddenError("Not your workout");
 		if (data.visibility != null && !WORKOUT_VISIBILITIES.includes(data.visibility)) throw new DataError("Invalid visibility");
 
-		let workout = await workout_obj.update(
+		await workout_obj.update(
 			{
 				name: data.workout_name,
 				workout_date: data.workout_date,
@@ -241,7 +241,7 @@ async function EditWorkout(data, workout_id, user_id) {
 					updateData.catalog_id = exercise.catalog_id;
 				}
 
-				let updatedExercise = await exercise_obj.update(updateData, { transaction: t });
+				await exercise_obj.update(updateData, { transaction: t });
 
 				//loop over data exercise's sets to update/add
 				for (let set of exercise.sets) {
