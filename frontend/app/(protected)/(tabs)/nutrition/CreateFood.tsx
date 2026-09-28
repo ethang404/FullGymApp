@@ -16,6 +16,7 @@ import { instance } from "@/utils/AxiosInterceptorHandler";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 
 import { useTheme } from "@/theme/ThemeProvider";
+import { fonts } from "@/theme/typography";
 
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { recognizeText, type OcrResult } from "expo-ocr-kit"; //Need to do proper build for this, so delay
@@ -164,16 +165,15 @@ export default function CreateFood() {
 				},
 				eyebrow: {
 					color: theme.textMuted,
-					fontSize: 11,
-					letterSpacing: 1,
+					fontSize: 14,
 					marginTop: 24,
 					fontWeight: "600",
 				},
 				pageTitle: {
 					color: theme.text,
 					fontSize: 34,
-					fontWeight: "800",
-					letterSpacing: 1,
+					lineHeight: 40,
+					fontFamily: fonts.headingHeavy,
 					marginTop: 4,
 					marginBottom: 8,
 				},
@@ -199,13 +199,11 @@ export default function CreateFood() {
 				cardHeaderLabel: {
 					color: theme.primary,
 					fontSize: 11,
-					letterSpacing: 0.5,
 					fontWeight: "600",
 				},
 				addSize: {
 					color: theme.primary,
 					fontSize: 11,
-					letterSpacing: 0.5,
 					fontWeight: "700",
 				},
 				noBorder: {
@@ -224,7 +222,6 @@ export default function CreateFood() {
 				fieldLabel: {
 					color: theme.textMuted,
 					fontSize: 11,
-					letterSpacing: 0.5,
 					fontWeight: "600",
 					marginBottom: 8,
 				},
@@ -250,7 +247,6 @@ export default function CreateFood() {
 				servingHeaderText: {
 					color: theme.textMuted,
 					fontSize: 10,
-					letterSpacing: 0.5,
 					fontWeight: "600",
 				},
 				servingRow: {
@@ -305,7 +301,6 @@ export default function CreateFood() {
 				modalTitle: {
 					color: theme.textMuted,
 					fontSize: 11,
-					letterSpacing: 0.5,
 					fontWeight: "600",
 					paddingBottom: 12,
 				},
@@ -420,7 +415,6 @@ export default function CreateFood() {
 					color: theme.textInverse,
 					fontSize: 14,
 					fontWeight: "700",
-					letterSpacing: 1,
 				},
 
 				// Camera scanner styles
@@ -539,7 +533,7 @@ export default function CreateFood() {
 		if (!permission?.granted) {
 			const res = await requestPermission();
 			if (!res.granted) {
-				Alert.alert("Permission Required", "Camera access is required to scan barcodes.");
+				Alert.alert("Camera access needed", "Allow camera access in Settings to scan barcodes.");
 				return;
 			}
 		}
@@ -550,7 +544,7 @@ export default function CreateFood() {
 		if (!permission?.granted) {
 			const res = await requestPermission();
 			if (!res.granted) {
-				Alert.alert("Permission Required", "Camera access is required to scan the label.");
+				Alert.alert("Camera access needed", "Allow camera access in Settings to scan nutrition labels.");
 				return;
 			}
 		}
@@ -619,7 +613,7 @@ export default function CreateFood() {
 		//Ingredients/allergens are intentionally not auto-filled into any field
 		//they're returned as raw text (parsed.ingredientsRawText / parsed.allergensRawText)
 
-		Alert.alert("Label scanned", "Review the pre-filled values below. OCR reads can be off, especially on garbled or curved labels.");
+		Alert.alert("Label scanned", "Check the numbers below. Scans can misread curved or blurry labels.");
 	};
 
 	const handleBarcodeScanned = ({ data }: { data: string }) => {
@@ -800,7 +794,7 @@ export default function CreateFood() {
 			.filter((s): s is { label: string; weight_g: number; qty: number } => s !== null);
 
 		if (normalizedRows.length === 0) {
-			Alert.alert("Serving size required", "Enter a valid name, quantity, and gram equivalent for at least one serving size.");
+			Alert.alert("Serving size required", "Add at least one serving size with a name, amount and weight in grams.");
 			return;
 		}
 
@@ -844,7 +838,7 @@ export default function CreateFood() {
 
 			router.back();
 		} catch (err) {
-			Alert.alert("Something went wrong", "Could not create this food item.");
+			Alert.alert("Food not saved", "Check your connection and try again.");
 		} finally {
 			setIsCreating(false);
 		}
@@ -859,9 +853,9 @@ export default function CreateFood() {
 			</View>
 
 			<ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-				<Text style={styles.eyebrow}>ENTRY CREATION</Text>
+				<Text style={styles.eyebrow}>Add your own food</Text>
 				<View style={styles.headerArea}>
-					<Text style={styles.pageTitle}>NEW FOOD</Text>
+					<Text style={styles.pageTitle}>New food</Text>
 					<TouchableOpacity style={styles.scanButton} onPress={handleOpenCamera} hitSlop={8}>
 						<FontAwesome5 name="nutritionix" size={24} color={theme.primary} />
 					</TouchableOpacity>
@@ -869,15 +863,15 @@ export default function CreateFood() {
 
 				<View style={styles.card}>
 					<View style={styles.cardHeaderRow}>
-						<Text style={styles.cardHeaderLabel}>GENERAL INFO</Text>
+						<Text style={styles.cardHeaderLabel}>Basics</Text>
 					</View>
 
-					<Field label="FOOD NAME" placeholder="e.g. Grass-fed Ribeye" value={foodName} onChangeText={setFoodName} />
+					<Field label="Food name" placeholder="e.g. Grass-fed Ribeye" value={foodName} onChangeText={setFoodName} />
 					<Field label="BRAND / CATEGORY" placeholder="e.g. Local Farmhouse" value={brand} onChangeText={setBrand} />
 
 					{/* Barcode input with custom scan button embedded */}
 					<Field
-						label="BARCODE"
+						label="Barcode"
 						placeholder="Scan or enter code"
 						value={barcode}
 						onChangeText={setBarcode}
@@ -892,7 +886,7 @@ export default function CreateFood() {
 
 				<View style={styles.card}>
 					<View style={styles.cardHeaderRow}>
-						<Text style={styles.cardHeaderLabel}>SERVING SIZES</Text>
+						<Text style={styles.cardHeaderLabel}>Serving sizes</Text>
 						<TouchableOpacity onPress={addServingSize} hitSlop={8}>
 							<Text style={styles.addSize}>+ ADD SIZE</Text>
 						</TouchableOpacity>
@@ -901,7 +895,7 @@ export default function CreateFood() {
 					<View style={styles.servingHeaderRow}>
 						<Text style={[styles.servingHeaderText, { flex: 1.6 }]}>Name</Text>
 						<Text style={[styles.servingHeaderText, { flex: 1, textAlign: "right" }]}>Qty</Text>
-						<Text style={[styles.servingHeaderText, { flex: 1.5, textAlign: "right" }]}>Gram Equiv.</Text>
+						<Text style={[styles.servingHeaderText, { flex: 1.5, textAlign: "right" }]}>Weight (g)</Text>
 					</View>
 
 					{servingSizes.map((row, index) => (
@@ -937,26 +931,26 @@ export default function CreateFood() {
 
 				<View style={styles.card}>
 					<View style={styles.cardHeaderRow}>
-						<Text style={styles.cardHeaderLabel}>NUTRITIONAL CALIBRATION</Text>
+						<Text style={styles.cardHeaderLabel}>Nutrition per serving</Text>
 					</View>
 
-					<MacroRow label="CALORIES" value={calories} onChangeText={setCalories} unit="kcal" />
-					<MacroRow label="PROTEIN" value={protein} onChangeText={setProtein} unit="g" barColor={theme.macroProtein} />
-					<MacroRow label="CARBOHYDRATES" value={carbs} onChangeText={setCarbs} unit="g" barColor={theme.macroCarbs} />
-					<MacroRow label="FATS" value={fats} onChangeText={setFats} unit="g" barColor={theme.macroFat} isLast />
+					<MacroRow label="Calories" value={calories} onChangeText={setCalories} unit="kcal" />
+					<MacroRow label="Protein" value={protein} onChangeText={setProtein} unit="g" barColor={theme.macroProtein} />
+					<MacroRow label="Carbs" value={carbs} onChangeText={setCarbs} unit="g" barColor={theme.macroCarbs} />
+					<MacroRow label="Fat" value={fats} onChangeText={setFats} unit="g" barColor={theme.macroFat} isLast />
 				</View>
 
 				<View style={styles.card}>
 					<View style={styles.cardHeaderRow}>
-						<Text style={styles.cardHeaderLabel}>MICRONUTRIENTS & VITAMINS</Text>
+						<Text style={styles.cardHeaderLabel}>Vitamins &amp; minerals</Text>
 						<TouchableOpacity hitSlop={8}>
-							<Text style={styles.addSize}>EDIT LIST</Text>
+							<Text style={styles.addSize}>Edit list</Text>
 						</TouchableOpacity>
 					</View>
 
 					{micronutrients.map((m, i) => (
 						<View key={m.nutrient_id} style={[styles.microRow, i === micronutrients.length - 1 && styles.noBorder]}>
-							<Text style={styles.microLabel}>{m.label.toUpperCase()}</Text>
+							<Text style={styles.microLabel}>{m.label}</Text>
 							<View style={styles.microValueWrap}>
 								<TextInput
 									style={styles.microInput}
@@ -972,7 +966,7 @@ export default function CreateFood() {
 				</View>
 
 				<TouchableOpacity style={styles.createButton} onPress={handleCreateItem} disabled={isCreating} activeOpacity={0.85}>
-					{isCreating ? <ActivityIndicator color={theme.textInverse} /> : <Text style={styles.createButtonText}>CREATE ITEM</Text>}
+					{isCreating ? <ActivityIndicator color={theme.textInverse} /> : <Text style={styles.createButtonText}>Save food</Text>}
 				</TouchableOpacity>
 			</ScrollView>
 
@@ -981,7 +975,7 @@ export default function CreateFood() {
 				<View style={styles.modalBackdrop}>
 					<TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={closeUnitPicker} />
 					<View style={styles.modalSheet}>
-						<Text style={styles.modalTitle}>SELECT UNIT</Text>
+						<Text style={styles.modalTitle}>Pick a unit</Text>
 						<FlatList
 							data={SERVING_UNIT_OPTIONS}
 							keyExtractor={(item) => item}
@@ -1055,7 +1049,7 @@ export default function CreateFood() {
 							onPress={handleCaptureLabel}
 							disabled={!isOcrCameraReady}
 						>
-							<Text style={styles.createButtonText}>{isOcrCameraReady ? "CAPTURE LABEL" : "LOADING..."}</Text>
+							<Text style={styles.createButtonText}>{isOcrCameraReady ? "Scan label" : "Starting camera…"}</Text>
 						</TouchableOpacity>
 					</SafeAreaView>
 				</View>

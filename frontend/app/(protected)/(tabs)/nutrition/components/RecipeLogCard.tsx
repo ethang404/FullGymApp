@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { router } from "expo-router";
 import { useTheme } from "@/theme/ThemeProvider";
+import { haptics } from "@/utils/haptics";
 
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
@@ -53,6 +54,7 @@ export default function RecipeLogCard({ recipe, displayLogButton, mealType, logg
 				unit: "serving",
 				visibility,
 			});
+			haptics.success();
 			onLogged?.();
 		} catch (e) {
 			log.error("Failed to log recipe:", e);
@@ -90,7 +92,7 @@ export default function RecipeLogCard({ recipe, displayLogButton, mealType, logg
 				servings: { color: theme.textTertiary, fontSize: 12, marginTop: 2 },
 				rightCol: { flexDirection: "row", alignItems: "center", gap: 10 },
 				viewButton: { flexDirection: "row", alignItems: "center", gap: 4 },
-				viewLabel: { color: theme.textMuted, fontSize: 10, fontWeight: "700", letterSpacing: 0.5 },
+				viewLabel: { color: theme.textMuted, fontSize: 10, fontWeight: "700" },
 				calories: { color: theme.text, fontSize: 22, fontWeight: "700", minWidth: 34, textAlign: "right" },
 				infoRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 10 },
 				macrosRow: { flexDirection: "row", gap: 14 },
@@ -132,7 +134,7 @@ export default function RecipeLogCard({ recipe, displayLogButton, mealType, logg
 
 				<View style={styles.rightCol}>
 					<TouchableOpacity style={styles.viewButton} onPress={openRecipe} hitSlop={8}>
-						<Text style={styles.viewLabel}>VIEW</Text>
+						<Text style={styles.viewLabel}>View</Text>
 						<FontAwesome5 name="chevron-right" size={8} color={theme.primary} />
 					</TouchableOpacity>
 					<Text style={styles.calories}>{cals}</Text>
@@ -153,7 +155,7 @@ export default function RecipeLogCard({ recipe, displayLogButton, mealType, logg
 			{expanded && (
 				<View>
 					<View style={styles.quantityRow}>
-						<Text style={styles.quantityLabel}>SERVINGS</Text>
+						<Text style={styles.quantityLabel}>Servings</Text>
 						<View style={styles.stepperRow}>
 							<TouchableOpacity onPress={() => stepQuantity(-1)} hitSlop={10}>
 								<FontAwesome5 name="minus-circle" size={20} color={theme.primary} />

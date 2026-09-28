@@ -3,6 +3,7 @@ import { useMemo, useState, useCallback } from "react";
 import { useLocalSearchParams, router, useFocusEffect } from "expo-router";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
+import { fonts } from "@/theme/typography";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
 import { toast } from "@/utils/toast";
@@ -27,7 +28,7 @@ export default function FriendDiary() {
 	// The Friends tab already has this loaded, so this is usually a free lookup - falls
 	// back to a generic title if navigated here directly without that context.
 	const friend = friends.find((f) => String(f.user_id) === friend_user_id);
-	const title = friend ? displayName(friend) : "Friend's Diary";
+	const title = friend ? displayName(friend) : "Friend's food log";
 
 	async function fetchEntries(isRefresh = false) {
 		try {
@@ -63,7 +64,7 @@ export default function FriendDiary() {
 					paddingBottom: 6,
 				},
 				iconButton: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
-				headerTitle: { color: theme.text, fontSize: 18, fontWeight: "700" },
+				headerTitle: { color: theme.text, fontSize: 22, lineHeight: 28, fontFamily: fonts.heading },
 				headerSubtitle: { color: theme.textMuted, fontSize: 12 },
 			}),
 		[theme],
@@ -79,7 +80,7 @@ export default function FriendDiary() {
 					<Text style={styles.headerTitle} numberOfLines={1}>
 						{title}
 					</Text>
-					<Text style={styles.headerSubtitle}>Diary — friends-visible entries only</Text>
+					<Text style={styles.headerSubtitle}>Only the meals they&apos;ve shared with friends</Text>
 				</View>
 			</View>
 

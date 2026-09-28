@@ -3,6 +3,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useEffect, useMemo, useState } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
+import { fonts } from "@/theme/typography";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
 import type { ImportedRecipe } from "../../../types/nutrition";
@@ -78,7 +79,7 @@ export default function ImportRecipeModal({ visible, onClose, onImported }: Impo
 					padding: 20,
 				},
 				headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
-				title: { color: theme.text, fontSize: 18, fontWeight: "700" },
+				title: { color: theme.text, fontSize: 20, lineHeight: 26, fontFamily: fonts.heading },
 				subtitle: { color: theme.textMuted, fontSize: 13, marginBottom: 16 },
 				inputRow: {
 					flexDirection: "row",

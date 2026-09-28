@@ -3,6 +3,7 @@ import { useMemo, useEffect, useState } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { LineChart, BarChart, PieChart } from "react-native-gifted-charts";
 import { useTheme } from "@/theme/ThemeProvider";
+import { fonts } from "@/theme/typography";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
 import { toast } from "@/utils/toast";
@@ -123,9 +124,18 @@ const ENDPOINTS: { url: string; key: keyof ProgressData; params?: Record<string,
 
 const formatDate = (dateStr: string) => formatShortDate(dateStr, "Unknown date");
 
+// Plain-language names for the weekly set-count buckets.
+const CLASSIFICATION_LABELS: Record<string, string> = { high: "Plenty", moderate: "Some", low: "Not much" };
+
+// "full_body" → "Full body"
+const muscleLabel = (mg: string) => {
+	const s = mg.replace(/_/g, " ");
+	return s.charAt(0).toUpperCase() + s.slice(1);
+};
+
 function classificationColor(classification: string, theme: ReturnType<typeof useTheme>["theme"]) {
-	if (classification === "high") return theme.macroProtein;
-	if (classification === "moderate") return theme.macroFat;
+	if (classification === "high") return theme.primary;
+	if (classification === "moderate") return theme.macroCarbs;
 	return theme.textTertiary;
 }
 
@@ -187,8 +197,9 @@ export default function Progress() {
 				content: { padding: 16, paddingBottom: 32, gap: 20 },
 
 				pageTitle: {
-					fontSize: 22,
-					fontWeight: "800",
+					fontSize: 28,
+					lineHeight: 34,
+					fontFamily: fonts.headingHeavy,
 					color: theme.text,
 				},
 
@@ -269,7 +280,7 @@ export default function Progress() {
 				weekRowRight: { flexDirection: "row", alignItems: "center", gap: 8 },
 				weekRowCount: { fontSize: 12, color: theme.textMuted },
 				pill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
-				pillText: { fontSize: 10, fontWeight: "700", textTransform: "uppercase" },
+				pillText: { fontSize: 10, fontWeight: "700" },
 
 				chartLabel: { fontSize: 11, fontWeight: "700", color: theme.textMuted, marginBottom: 10 },
 			}),
@@ -325,7 +336,7 @@ export default function Progress() {
 
 				{/* Biggest Changes */}
 				<ChartCard
-					title="Biggest Changes"
+					title="Biggest changes"
 					isEmpty={data.changes.length === 0}
 					emptyIcon="chart-line"
 					emptyTitle="No lift changes yet"
@@ -345,7 +356,7 @@ export default function Progress() {
 								</View>
 								<View style={{ flex: 1 }}>
 									<Text style={styles.rowTitle}>{c.name}</Text>
-									<Text style={styles.rowSubtitle}>{c.muscle_group}</Text>
+									<Text style={styles.rowSubtitle}>{muscleLabel(c.muscle_group)}</Text>
 									<View style={styles.rowValueLine}>
 										<Text style={styles.rowValueText}>{Math.round(c.first_value)}</Text>
 										<FontAwesome5 name="arrow-right" size={8} color={theme.textTertiary} />
@@ -366,11 +377,11 @@ export default function Progress() {
 
 				{/* Reps by Muscle Group (backend sums working-set reps) */}
 				<ChartCard
-					title="Reps by Muscle Group"
+					title="Reps by muscle group"
 					isEmpty={!data.volumeByMuscleGroup || data.volumeByMuscleGroup.total_volume === 0}
 					emptyIcon="chart-pie"
 					emptyTitle="No reps logged yet"
-					emptySubtitle="Log some working sets to see how your reps split across muscle groups"
+					emptySubtitle="Log some sets to see which muscle groups you're training most"
 				>
 					{data.volumeByMuscleGroup && (
 						<>
@@ -396,7 +407,7 @@ export default function Progress() {
 								{data.volumeByMuscleGroup.breakdown.map((b) => (
 									<View key={b.muscle_group} style={styles.legendItem}>
 										<View style={[styles.legendDot, { backgroundColor: getMuscleGroupColor(b.muscle_group) }]} />
-										<Text style={styles.legendLabel}>{b.muscle_group.replace("_", " ")}</Text>
+										<Text style={styles.legendLabel}>{muscleLabel(b.muscle_group)}</Text>
 										<Text style={styles.legendPercent}>{Math.round(b.percent)}%</Text>
 									</View>
 								))}
@@ -407,11 +418,11 @@ export default function Progress() {
 
 				{/* Fatigue Curve */}
 				<ChartCard
-					title="Fatigue Curve"
+					title="How you hold up through a workout"
 					isEmpty={data.fatigueCurves.length === 0}
 					emptyIcon="bolt"
-					emptyTitle="No fatigue data yet"
-					emptySubtitle="Log a few sessions with more than one exercise to see performance drop-off by position"
+					emptyTitle="Not enough data yet"
+					emptySubtitle="Log a few workouts with more than one exercise to see how your strength holds up from first exercise to last"
 				>
 					{data.fatigueCurves.length > 0 && (
 						<>
@@ -455,19 +466,19 @@ export default function Progress() {
 
 				{/* This Week's Volume Landmarks */}
 				<ChartCard
-					title="This Week's Volume"
+					title="Sets this week"
 					isEmpty={!latestWeek}
 					emptyIcon="layer-group"
 					emptyTitle="No sets logged this week"
-					emptySubtitle="Log some working sets to see how your weekly volume stacks up per muscle group"
+					emptySubtitle="Log some sets to see how many each muscle group got this week"
 				>
 					{latestWeek?.muscle_groups.map((mg, i) => (
 						<View key={mg.muscle_group} style={[styles.weekRow, i === latestWeek.muscle_groups.length - 1 && styles.rowLast]}>
-							<Text style={styles.weekRowLabel}>{mg.muscle_group.replace("_", " ")}</Text>
+							<Text style={styles.weekRowLabel}>{muscleLabel(mg.muscle_group)}</Text>
 							<View style={styles.weekRowRight}>
 								<Text style={styles.weekRowCount}>{mg.set_count} sets</Text>
 								<View style={[styles.pill, { backgroundColor: classificationColor(mg.classification, theme) + "30" }]}>
-									<Text style={[styles.pillText, { color: classificationColor(mg.classification, theme) }]}>{mg.classification}</Text>
+									<Text style={[styles.pillText, { color: classificationColor(mg.classification, theme) }]}>{CLASSIFICATION_LABELS[mg.classification] ?? mg.classification}</Text>
 								</View>
 							</View>
 						</View>
@@ -476,11 +487,11 @@ export default function Progress() {
 
 				{/* Personal Records */}
 				<ChartCard
-					title="Personal Records"
+					title="Personal bests"
 					isEmpty={data.personalRecords.length === 0}
 					emptyIcon="trophy"
-					emptyTitle="No PRs yet"
-					emptySubtitle="Beat a previous best e1RM on any lift to see it show up here"
+					emptyTitle="No personal bests yet"
+					emptySubtitle="Beat your previous best on any lift and it'll show up here"
 				>
 					{data.personalRecords.slice(0, 10).map((r, i) => (
 						<Pressable
@@ -494,7 +505,7 @@ export default function Progress() {
 							<View style={{ flex: 1 }}>
 								<Text style={styles.rowTitle}>{r.name}</Text>
 								<Text style={styles.rowSubtitle}>
-									{r.muscle_group} • {formatDate(r.workout_date)}
+									{muscleLabel(r.muscle_group)}, {formatDate(r.workout_date)}
 								</Text>
 							</View>
 							<Text style={[styles.percentText, { color: theme.text }]}>{Math.round(r.value)}</Text>
@@ -504,11 +515,11 @@ export default function Progress() {
 
 				{/* Training Frequency */}
 				<ChartCard
-					title="Training Frequency"
+					title="Workouts per week"
 					isEmpty={data.trainingFrequency.length === 0}
 					emptyIcon="calendar-check"
-					emptyTitle="No sessions yet"
-					emptySubtitle="Log a few workouts to see how many sessions you're logging per week"
+					emptyTitle="No workouts yet"
+					emptySubtitle="Log a few workouts to see how often you train each week"
 				>
 					<BarChart
 						data={data.trainingFrequency.map((w) => ({
@@ -532,11 +543,11 @@ export default function Progress() {
 
 				{/* Session Trends */}
 				<ChartCard
-					title="Session Volume"
+					title="Weight lifted per workout"
 					isEmpty={data.sessionTrends.length === 0}
 					emptyIcon="chart-area"
-					emptyTitle="No session trends yet"
-					emptySubtitle="Log a few weeks of sessions to see your average volume trend over time"
+					emptyTitle="No trend yet"
+					emptySubtitle="Log a few weeks of workouts to see how much you lift per workout over time"
 				>
 					{data.sessionTrends.length > 0 && (
 						<LineChart
@@ -563,11 +574,11 @@ export default function Progress() {
 				</ChartCard>
 
 				<ChartCard
-					title="Session Duration"
+					title="Workout length"
 					isEmpty={data.sessionTrends.length === 0}
 					emptyIcon="clock"
-					emptyTitle="No session durations yet"
-					emptySubtitle="Finish a few logged workouts to see your average session length trend"
+					emptyTitle="No workout lengths yet"
+					emptySubtitle="Finish a few workouts to see how long they usually take"
 				>
 					{data.sessionTrends.length > 0 && (
 						<LineChart
@@ -592,22 +603,23 @@ export default function Progress() {
 
 				{/* Rep Range Distribution */}
 				<ChartCard
-					title="Rep Range Distribution"
+					title="Reps per set"
 					isEmpty={sortedRepRanges.every((b) => b.set_count === 0)}
 					emptyIcon="sort-numeric-up"
-					emptyTitle="No working sets yet"
-					emptySubtitle="Log some working sets to see how your reps split across rep ranges"
+					emptyTitle="No sets yet"
+					emptySubtitle="Log some sets to see how many were heavy (few reps) or light (many reps)"
 				>
 					<BarChart
 						data={sortedRepRanges.map((b, i) => ({
 							value: b.set_count,
-							label: b.range,
+							label: `${b.range} reps`,
 							frontColor: [theme.macroProtein, theme.macroCarbs, theme.macroFat][i],
 						}))}
 						width={chartWidth}
 						height={160}
 						barWidth={40}
 						spacing={30}
+						labelWidth={70}
 						barBorderRadius={4}
 						noOfSections={4}
 						yAxisTextStyle={{ color: theme.textTertiary, fontSize: 10 }}

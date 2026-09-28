@@ -3,6 +3,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useEffect, useMemo, useRef } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
+import { fonts } from "@/theme/typography";
 
 import RecipeFoodCard from "./RecipeFoodCard";
 import { useFoodSearch } from "../hooks/useFoodSearch";
@@ -36,7 +37,7 @@ export default function AddIngredientModal({ visible, onClose, onAdd, initialQue
 				overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: theme.overlay },
 				card: { backgroundColor: theme.cardBg, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: insets.bottom + 20, height: "90%" },
 				headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
-				title: { color: theme.text, fontSize: 18, fontWeight: "700" },
+				title: { color: theme.text, fontSize: 20, lineHeight: 26, fontFamily: fonts.heading },
 				searchBar: {
 					flexDirection: "row",
 					alignItems: "center",

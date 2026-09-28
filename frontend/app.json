@@ -1,6 +1,6 @@
 {
 	"expo": {
-		"name": "Kratos",
+		"name": "Hearty",
 		"slug": "gym-app",
 		"version": "1.0.0",
 		"orientation": "portrait",
@@ -10,7 +10,7 @@
 		"ios": {
 			"supportsTablet": true,
 			"infoPlist": {
-				"NSCameraUsageDescription": "Used to scan food barcodes"
+				"NSCameraUsageDescription": "Hearty uses your camera to scan barcodes and nutrition labels."
 			},
 			"bundleIdentifier": "com.ethan.forge"
 		},
@@ -42,7 +42,7 @@
 			[
 				"expo-camera",
 				{
-					"cameraPermission": "Allow Kratos to access your camera."
+					"cameraPermission": "Allow Hearty to use your camera to scan barcodes and nutrition labels."
 				}
 			],
 			"@react-native-community/datetimepicker",

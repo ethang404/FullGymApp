@@ -4,6 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { randomUUID } from "expo-crypto";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
+import { fonts } from "@/theme/typography";
 import { PressableScale } from "@/components/PressableScale";
 import type { Task, TaskFrequency } from "@/app/(protected)/types/tasks";
 
@@ -27,14 +28,14 @@ const FREQUENCY_MS: Record<TaskFrequency, number> = {
 const defaultTasks: Task[] = [
 	{
 		id: randomUUID(),
-		title: "Take Creatine",
+		title: "Drink a glass of water",
 		frequency: "daily",
 		done: false,
 		completedAt: null,
 	},
 	{
 		id: randomUUID(),
-		title: "Drink 32oz + water",
+		title: "Go for a 10-minute walk",
 		frequency: "daily",
 		done: false,
 		completedAt: null,
@@ -125,8 +126,9 @@ export function Tasks() {
 					marginBottom: 12,
 				},
 				sectionTitle: {
-					fontSize: 17,
-					fontWeight: "700",
+					fontSize: 20,
+					lineHeight: 26,
+					fontFamily: fonts.heading,
 					color: theme.text,
 				},
 				card: {
@@ -246,7 +248,7 @@ export function Tasks() {
 
 			<View style={styles.card}>
 				{tasks.length === 0 ? (
-					<Text style={styles.emptyText}>No tasks yet. Add one below.</Text>
+					<Text style={styles.emptyText}>Nothing on your list yet. Add a habit below.</Text>
 				) : (
 					tasks.map((task, i) => (
 						<View key={task.id} style={[styles.row, i === tasks.length - 1 && styles.lastRow]}>
@@ -267,7 +269,7 @@ export function Tasks() {
 				<View style={styles.addRow}>
 					<TextInput
 						style={styles.input}
-						placeholder="Add a task..."
+						placeholder="Add a habit"
 						placeholderTextColor={theme.inputPlaceholder}
 						value={newTitle}
 						onChangeText={setNewTitle}

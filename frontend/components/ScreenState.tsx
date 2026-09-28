@@ -69,7 +69,7 @@ export function ScreenState({
 				<Text style={styles.subtitle}>{errorSubtitle}</Text>
 				{onRetry && (
 					<TouchableOpacity style={styles.retryBtn} onPress={onRetry} activeOpacity={0.85}>
-						<Text style={styles.retryText}>Retry</Text>
+						<Text style={styles.retryText}>Try again</Text>
 					</TouchableOpacity>
 				)}
 			</View>

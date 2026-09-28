@@ -2,6 +2,7 @@ import { View, Text, StyleSheet } from "react-native";
 import { useMemo, type ReactNode, type ComponentProps } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
+import { fonts } from "@/theme/typography";
 
 type IconName = ComponentProps<typeof FontAwesome5>["name"];
 
@@ -26,11 +27,10 @@ export function ChartCard({ title, isEmpty, emptyIcon, emptyTitle, emptySubtitle
 			StyleSheet.create({
 				wrap: { marginTop: 4 },
 				sectionLabel: {
-					fontSize: 11,
-					fontWeight: "700",
-					color: theme.textMuted,
-					letterSpacing: 1.5,
-					textTransform: "uppercase",
+					fontSize: 20,
+					lineHeight: 26,
+					fontFamily: fonts.heading,
+					color: theme.text,
 					marginBottom: 8,
 				},
 				card: {

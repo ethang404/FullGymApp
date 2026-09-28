@@ -143,7 +143,7 @@ export default function RecipeFoodCard(props: RecipeFoodCardProps) {
 				topRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
 				nameCol: { flex: 1, paddingRight: 10 },
 				name: { color: theme.text, fontSize: 15, fontWeight: "700" },
-				nameEdit: { textTransform: "uppercase", fontSize: 14 },
+				nameEdit: { fontSize: 14 },
 				brand: { color: theme.textTertiary, fontSize: 12, marginTop: 2 },
 				removeBtn: { padding: 2 },
 				calories: { color: theme.text, fontSize: 22, fontWeight: "700", minWidth: 34, textAlign: "right" },
@@ -242,7 +242,7 @@ export default function RecipeFoodCard(props: RecipeFoodCardProps) {
 
 				{expanded && readOnly && (
 					<View style={styles.quantityRow}>
-						<Text style={styles.quantityLabel}>QUANTITY</Text>
+						<Text style={styles.quantityLabel}>Amount</Text>
 						<Text style={styles.quantityInput}>
 							{quantity} {selectedServing.label}
 						</Text>
@@ -252,7 +252,7 @@ export default function RecipeFoodCard(props: RecipeFoodCardProps) {
 				{expanded && !readOnly && (
 					<View>
 						<View style={styles.quantityRow}>
-							<Text style={styles.quantityLabel}>QUANTITY</Text>
+							<Text style={styles.quantityLabel}>Amount</Text>
 							<View style={styles.stepperRow}>
 								<TouchableOpacity onPress={() => stepQuantity(-1)} hitSlop={10}>
 									<FontAwesome5 name="minus-circle" size={20} color={theme.primary} />

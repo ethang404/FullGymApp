@@ -18,6 +18,8 @@ import * as SecureStore from "expo-secure-store";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import Pills from "@/components/Pills";
+import { HeightField, WeightField } from "@/components/MeasurementFields";
+import { fonts } from "@/theme/typography";
 import { DateField } from "@/components/DateField";
 import { themes, themeLabels, type Theme, type ThemeName } from "@/theme/colors";
 import { AuthContext } from "@/utils/AuthProvider";
@@ -84,17 +86,17 @@ export default function Profile() {
 		}
 		Alert.alert(
 			"Log out of guest account?",
-			"Guest accounts can't be logged back into. Your workouts and nutrition data will be lost for good. Create an account to keep them.",
+			"Guest accounts can't be logged back into, so your workouts and food log will be gone for good. Create an account to keep them.",
 			[
 				{ text: "Cancel", style: "cancel" },
-				{ text: "Create Account", onPress: () => setUpgradeModalOpen(true) },
-				{ text: "Log Out Anyway", style: "destructive", onPress: signOut },
+				{ text: "Create account", onPress: () => setUpgradeModalOpen(true) },
+				{ text: "Log out anyway", style: "destructive", onPress: signOut },
 			],
 		);
 	}
 
 	const displayName =
-		[profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || profile?.user_name || "Your Name";
+		[profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || profile?.user_name || (isGuest ? "Guest" : "You");
 	const memberSince = profile?.created_at ? new Date(profile.created_at).getFullYear() : null;
 
 	const styles = useMemo(
@@ -104,7 +106,7 @@ export default function Profile() {
 				content: { paddingBottom: 40 },
 
 				pageHeader: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 24 },
-				pageTitle: { fontSize: 22, fontWeight: "800", color: theme.text },
+				pageTitle: { fontSize: 28, lineHeight: 34, fontFamily: fonts.headingHeavy, color: theme.text },
 
 				avatarSection: { alignItems: "center", paddingVertical: 24, gap: 10 },
 				avatar: {
@@ -117,15 +119,13 @@ export default function Profile() {
 					borderWidth: 2,
 					borderColor: theme.primary,
 				},
-				userName: { fontSize: 20, fontWeight: "800", color: theme.text },
+				userName: { fontSize: 22, lineHeight: 28, fontFamily: fonts.heading, color: theme.text },
 				userSub: { fontSize: 13, color: theme.textMuted },
 
 				sectionLabel: {
-					fontSize: 11,
+					fontSize: 15,
 					fontWeight: "700",
-					color: theme.textMuted,
-					letterSpacing: 1.5,
-					textTransform: "uppercase",
+					color: theme.textSecondary,
 					paddingHorizontal: 20,
 					marginBottom: 8,
 					marginTop: 24,
@@ -217,7 +217,7 @@ export default function Profile() {
 		<Screen edges={["top"]}>
 			<ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 				<View style={styles.pageHeader}>
-					<Text style={styles.pageTitle}>Profile</Text>
+					<Text style={styles.pageTitle}>You</Text>
 				</View>
 
 				<View style={styles.avatarSection}>
@@ -232,18 +232,17 @@ export default function Profile() {
 					<View style={styles.guestBanner}>
 						<Text style={styles.guestBannerTitle}>You're using a guest account</Text>
 						<Text style={styles.guestBannerBody}>
-							Your workouts, food log, and recipes are saved, but Friends is unavailable and this device is the only
-							way in - there's no password yet, so losing it means losing access. Set a username and password to
-							secure your account and unlock Friends.
+							Your data is saved, but only this phone can get to it. Create an account so you can log in anywhere and
+							add friends.
 						</Text>
 						<TouchableOpacity style={styles.guestBannerButton} onPress={() => setUpgradeModalOpen(true)} activeOpacity={0.8}>
-							<Text style={styles.guestBannerButtonText}>Create Account</Text>
+							<Text style={styles.guestBannerButtonText}>Create account</Text>
 						</TouchableOpacity>
 					</View>
 				)}
 
 				{/* Nutrition goals */}
-				<Text style={styles.sectionLabel}>Nutrition Goals</Text>
+				<Text style={styles.sectionLabel}>Daily goals</Text>
 				<View style={styles.group}>
 					{MACRO_KEYS.map((k, i) => {
 						const stored = profile?.goals?.[k] ?? null;
@@ -268,13 +267,13 @@ export default function Profile() {
 					})}
 				</View>
 
-				<Text style={styles.sectionLabel}>Body &amp; Calculator</Text>
+				<Text style={styles.sectionLabel}>Your body</Text>
 				<View style={styles.group}>
 					<TouchableOpacity style={[styles.row, styles.rowLast]} onPress={() => setBodyModalOpen(true)} activeOpacity={0.7}>
 						<View style={styles.rowIcon}>
 							<FontAwesome5 name="calculator" size={13} color={theme.textSecondary} />
 						</View>
-						<Text style={styles.rowLabel}>Body metrics &amp; TDEE</Text>
+						<Text style={styles.rowLabel}>Height, weight &amp; activity</Text>
 						<Text style={styles.rowValue}>
 							{profile?.body?.weight_kg ? `${Math.round(Number(profile.body.weight_kg))} kg` : "Set up"}
 						</Text>
@@ -282,8 +281,24 @@ export default function Profile() {
 					</TouchableOpacity>
 				</View>
 
-				<Text style={styles.sectionLabel}>Nutrition</Text>
+				<Text style={styles.sectionLabel}>Community &amp; recipes</Text>
 				<View style={styles.group}>
+					{!isGuest && (
+						<TouchableOpacity style={styles.row} onPress={() => router.push("/Friends")} activeOpacity={0.7}>
+							<View style={styles.rowIcon}>
+								<FontAwesome5 name="user-friends" size={13} color={theme.textSecondary} />
+							</View>
+							<Text style={styles.rowLabel}>Friends</Text>
+							<FontAwesome5 name="chevron-right" size={12} color={theme.textTertiary} />
+						</TouchableOpacity>
+					)}
+					<TouchableOpacity style={styles.row} onPress={() => router.push("/Explore")} activeOpacity={0.7}>
+						<View style={styles.rowIcon}>
+							<FontAwesome5 name="compass" size={13} color={theme.textSecondary} />
+						</View>
+						<Text style={styles.rowLabel}>Explore shared workouts &amp; recipes</Text>
+						<FontAwesome5 name="chevron-right" size={12} color={theme.textTertiary} />
+					</TouchableOpacity>
 					<TouchableOpacity
 						style={[styles.row, styles.rowLast]}
 						onPress={() => router.push("/(protected)/nutrition/DisplayRecipes")}
@@ -292,7 +307,7 @@ export default function Profile() {
 						<View style={styles.rowIcon}>
 							<FontAwesome5 name="utensils" size={13} color={theme.textSecondary} />
 						</View>
-						<Text style={styles.rowLabel}>My Recipes</Text>
+						<Text style={styles.rowLabel}>My recipes</Text>
 						<FontAwesome5 name="chevron-right" size={12} color={theme.textTertiary} />
 					</TouchableOpacity>
 				</View>
@@ -337,22 +352,21 @@ export default function Profile() {
 						<View style={styles.rowIcon}>
 							<FontAwesome5 name="shield-alt" size={13} color={theme.textSecondary} />
 						</View>
-						<Text style={styles.rowLabel}>Privacy Policy</Text>
+						<Text style={styles.rowLabel}>Privacy policy</Text>
 						<FontAwesome5 name="external-link-alt" size={11} color={theme.textTertiary} />
 					</View>
 					<TouchableOpacity style={[styles.row, styles.rowLast]} onPress={handleLogOut} activeOpacity={0.7}>
 						<View style={styles.rowIcon}>
 							<FontAwesome5 name="sign-out-alt" size={13} color={theme.textSecondary} />
 						</View>
-						<Text style={styles.rowLabel}>Log Out</Text>
+						<Text style={styles.rowLabel}>Log out</Text>
 					</TouchableOpacity>
 				</View>
 
-				{/* Danger */}
-				<Text style={styles.sectionLabel}>Danger Zone</Text>
-				<TouchableOpacity style={styles.dangerRow} activeOpacity={0.7}>
+				{/* Delete account — set apart from the other rows so it isn't hit by accident */}
+				<TouchableOpacity style={[styles.dangerRow, { marginTop: 32 }]} activeOpacity={0.7}>
 					<FontAwesome5 name="trash-alt" size={15} color={theme.error} />
-					<Text style={styles.dangerText}>Delete Account</Text>
+					<Text style={styles.dangerText}>Delete account</Text>
 					<FontAwesome5 name="chevron-right" size={12} color={theme.error} />
 				</TouchableOpacity>
 			</ScrollView>
@@ -461,8 +475,8 @@ function GoalsModal({
 			<KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={s.overlay}>
 				<View style={[s.sheet, { paddingBottom: insets.bottom + 24 }]}>
 					<View style={s.headerRow}>
-						<Text style={s.title}>Edit nutrition goals</Text>
-						<TouchableOpacity onPress={onClose} hitSlop={10}>
+						<Text style={s.title}>Edit daily goals</Text>
+						<TouchableOpacity onPress={onClose} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close">
 							<FontAwesome5 name="times" size={20} color={theme.primary} />
 						</TouchableOpacity>
 					</View>
@@ -588,7 +602,7 @@ function UpgradeAccountModal({
 				<View style={[s.sheet, { paddingBottom: insets.bottom + 24 }]}>
 					<View style={s.headerRow}>
 						<Text style={s.title}>Create your account</Text>
-						<TouchableOpacity onPress={onClose} hitSlop={10}>
+						<TouchableOpacity onPress={onClose} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close">
 							<FontAwesome5 name="times" size={20} color={theme.primary} />
 						</TouchableOpacity>
 					</View>
@@ -598,15 +612,15 @@ function UpgradeAccountModal({
 						<GoogleAuthButton onError={setError} onCredential={handleOAuth} disabled={saving} />
 					</View>
 
-					<Text style={[s.sectionLabel, { textAlign: "center" }]}>OR USE A USERNAME</Text>
+					<Text style={[s.sectionLabel, { textAlign: "center" }]}>Or use a username</Text>
 
-					<Text style={s.sectionLabel}>FIRST NAME</Text>
+					<Text style={s.sectionLabel}>First name</Text>
 					<TextInput style={s.textInput} placeholder="e.g. Alex" placeholderTextColor={theme.inputPlaceholder} value={firstName} onChangeText={setFirstName} autoCapitalize="words" />
 
-					<Text style={s.sectionLabel}>LAST NAME</Text>
+					<Text style={s.sectionLabel}>Last name</Text>
 					<TextInput style={s.textInput} placeholder="e.g. Mercer" placeholderTextColor={theme.inputPlaceholder} value={lastName} onChangeText={setLastName} autoCapitalize="words" />
 
-					<Text style={s.sectionLabel}>USERNAME</Text>
+					<Text style={s.sectionLabel}>Username</Text>
 					<TextInput
 						style={s.textInput}
 						placeholder="Choose a username"
@@ -617,7 +631,7 @@ function UpgradeAccountModal({
 						autoCorrect={false}
 					/>
 
-					<Text style={s.sectionLabel}>PASSWORD</Text>
+					<Text style={s.sectionLabel}>Password</Text>
 					<TextInput
 						style={s.textInput}
 						placeholder="Create a strong password"
@@ -630,7 +644,7 @@ function UpgradeAccountModal({
 					{error && <Text style={s.errorText}>{error}</Text>}
 
 					<TouchableOpacity style={[s.saveButton, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving}>
-						{saving ? <ActivityIndicator color={theme.textInverse} /> : <Text style={s.saveButtonText}>Create Account</Text>}
+						{saving ? <ActivityIndicator color={theme.textInverse} /> : <Text style={s.saveButtonText}>Create account</Text>}
 					</TouchableOpacity>
 					<TouchableOpacity style={s.cancelButton} onPress={onClose}>
 						<Text style={s.cancelButtonText}>Cancel</Text>
@@ -702,7 +716,7 @@ function BodyModal({
 	async function handleRecalc() {
 		const body = buildBody();
 		if (!body) {
-			setError("Fill in every field first. Birth date must be YYYY-MM-DD.");
+			setError("Fill in every field above first, then we can suggest goals.");
 			return;
 		}
 		setBusy(true);
@@ -711,7 +725,7 @@ function BodyModal({
 			const est = await estimateGoals(body);
 			setGoalVals(Object.fromEntries(MACRO_KEYS.map((k) => [k, String(est.goals[k])])) as Record<MacroKey, string>);
 		} catch {
-			setError("Could not calculate an estimate.");
+			setError("Couldn't suggest goals right now. Check your connection and try again.");
 		} finally {
 			setBusy(false);
 		}
@@ -747,16 +761,16 @@ function BodyModal({
 				<ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: "flex-end" }} keyboardShouldPersistTaps="handled">
 					<View style={[s.sheet, { paddingBottom: insets.bottom + 24 }]}>
 						<View style={s.headerRow}>
-							<Text style={s.title}>Body metrics &amp; calculator</Text>
-							<TouchableOpacity onPress={onClose} hitSlop={10}>
+							<Text style={s.title}>Your body</Text>
+							<TouchableOpacity onPress={onClose} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close">
 								<FontAwesome5 name="times" size={20} color={theme.primary} />
 							</TouchableOpacity>
 						</View>
 
-						<Text style={s.sectionLabel}>SEX</Text>
+						<Text style={s.sectionLabel}>Sex</Text>
 						<Pills options={SEXES} value={sex} onSelect={setSex} labels={{ male: "Male", female: "Female" }} />
 
-						<Text style={s.sectionLabel}>DATE OF BIRTH</Text>
+						<Text style={s.sectionLabel}>Date of birth</Text>
 						<DateField
 							value={birthDate}
 							onChange={setBirthDate}
@@ -765,29 +779,24 @@ function BodyModal({
 							textStyle={{ color: theme.text, fontSize: 16 }}
 						/>
 
-						<View style={s.row}>
-							<View style={s.grow}>
-								<Text style={s.sectionLabel}>HEIGHT (CM)</Text>
-								<TextInput style={s.textInput} placeholder="175" placeholderTextColor={theme.inputPlaceholder} value={heightCm} onChangeText={setHeightCm} keyboardType="decimal-pad" />
-							</View>
-							<View style={s.grow}>
-								<Text style={s.sectionLabel}>WEIGHT (KG)</Text>
-								<TextInput style={s.textInput} placeholder="70" placeholderTextColor={theme.inputPlaceholder} value={weightKg} onChangeText={setWeightKg} keyboardType="decimal-pad" />
-							</View>
-						</View>
+						<Text style={s.sectionLabel}>Height</Text>
+						<HeightField key={`h-${visible}`} value={heightCm} onChange={setHeightCm} inputStyle={s.textInput} placeholderColor={theme.inputPlaceholder} />
 
-						<Text style={s.sectionLabel}>ACTIVITY LEVEL</Text>
+						<Text style={s.sectionLabel}>Weight</Text>
+						<WeightField key={`w-${visible}`} value={weightKg} onChange={setWeightKg} inputStyle={s.textInput} placeholderColor={theme.inputPlaceholder} />
+
+						<Text style={s.sectionLabel}>How active are you?</Text>
 						<Pills options={ACTIVITY_LEVELS} value={activity} onSelect={setActivity} labels={ACTIVITY_LABELS} />
 
-						<Text style={s.sectionLabel}>GOAL</Text>
+						<Text style={s.sectionLabel}>Your goal</Text>
 						<Pills options={GOAL_TYPES} value={goalType} onSelect={setGoalType} labels={GOAL_TYPE_LABELS} />
 
 						<TouchableOpacity style={s.secondaryButton} onPress={handleRecalc} disabled={busy}>
 							<FontAwesome5 name="calculator" size={13} color={theme.primary} />
-							<Text style={s.secondaryButtonText}>Recalculate goals from metrics</Text>
+							<Text style={s.secondaryButtonText}>Suggest goals for me</Text>
 						</TouchableOpacity>
 
-						<Text style={s.sectionLabel}>GOALS</Text>
+						<Text style={s.sectionLabel}>Daily goals</Text>
 						{MACRO_KEYS.map((k) => (
 							<View key={k} style={s.fieldRow}>
 								<Text style={s.fieldLabel}>{MACRO_META[k].label}</Text>
@@ -828,8 +837,8 @@ function modalStyles(theme: Theme) {
 			gap: 4,
 		},
 		headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-		title: { color: theme.text, fontSize: 17, fontWeight: "700", flex: 1 },
-		sectionLabel: { color: theme.textMuted, fontSize: 11, fontWeight: "700", letterSpacing: 0.5, marginTop: 14, marginBottom: 8 },
+		title: { color: theme.text, fontSize: 20, lineHeight: 26, fontFamily: fonts.heading, flex: 1 },
+		sectionLabel: { color: theme.textSecondary, fontSize: 13, fontWeight: "600", marginTop: 14, marginBottom: 8 },
 		row: { flexDirection: "row", gap: 12 },
 		grow: { flex: 1 },
 		textInput: {

@@ -6,6 +6,8 @@ import { useTheme } from "@/theme/ThemeProvider";
 import Pills from "@/components/Pills";
 import Screen from "@/components/Screen";
 import { DateField } from "@/components/DateField";
+import { HeightField, WeightField } from "@/components/MeasurementFields";
+import { fonts, APP_NAME } from "@/theme/typography";
 import { useProfile, type EstimateBody } from "@/utils/ProfileProvider";
 import {
 	SEXES,
@@ -34,8 +36,7 @@ export default function Onboarding() {
 	const [sex, setSex] = useState<Sex | null>(null);
 	const [birthDate, setBirthDate] = useState("");
 	const [heightCm, setHeightCm] = useState("");
-	const [weightUnit, setWeightUnit] = useState<"kg" | "lb">("kg");
-	const [weightVal, setWeightVal] = useState("");
+	const [weightKgText, setWeightKgText] = useState("");
 	const [activity, setActivity] = useState<ActivityLevel | null>(null);
 	const [goalType, setGoalType] = useState<GoalType | null>(null);
 
@@ -55,16 +56,13 @@ export default function Onboarding() {
 		}
 	}, [loading, profile?.onboarding_completed]);
 
-	const weightKg = useMemo(() => {
-		const n = parseFloat(weightVal);
-		if (!n || n <= 0) return null;
-		return weightUnit === "kg" ? n : n * 0.45359237;
-	}, [weightVal, weightUnit]);
+	
 
 	function buildBody(): EstimateBody | null {
 		if (!sex || !DATE_RE.test(birthDate) || !activity || !goalType) return null;
 		const h = parseFloat(heightCm);
-		if (!h || h <= 0 || !weightKg) return null;
+		const weightKg = parseFloat(weightKgText);
+		if (!h || h <= 0 || !weightKg || weightKg <= 0) return null;
 		return {
 			sex,
 			birth_date: birthDate,
@@ -78,7 +76,7 @@ export default function Onboarding() {
 	async function goToReview() {
 		const body = buildBody();
 		if (!body) {
-			setError("Fill in every field to continue. Birth date must be YYYY-MM-DD.");
+			setError("Fill in every field to continue, or tap Skip for now.");
 			return;
 		}
 		setError(null);
@@ -88,7 +86,7 @@ export default function Onboarding() {
 			setGoals(Object.fromEntries(MACRO_KEYS.map((k) => [k, String(est.goals[k])])));
 		} catch {
 			// fall back to defaults already in state
-			setError("Could not calculate an estimate — using default goals, adjust as needed.");
+			setError("Couldn't work out your goals, so we've filled in standard ones. Change any number you like.");
 		} finally {
 			setEstimating(false);
 			setStep(2);
@@ -116,7 +114,7 @@ export default function Onboarding() {
 			});
 			router.replace("/Home");
 		} catch {
-			setError("Something went wrong saving your goals. Try again.");
+			setError("Your goals didn't save. Check your connection and try again.");
 			setSaving(false);
 		}
 	}
@@ -127,7 +125,7 @@ export default function Onboarding() {
 			await updateProfile({ onboarding_completed: true });
 			router.replace("/Home");
 		} catch {
-			setError("Something went wrong. Try again.");
+			setError("Couldn't skip right now. Check your connection and try again.");
 			setSaving(false);
 		}
 	}
@@ -136,7 +134,10 @@ export default function Onboarding() {
 		() =>
 			StyleSheet.create({
 				container: { flexGrow: 1, backgroundColor: theme.authBackground, padding: 20 },
-				title: { fontSize: 26, fontWeight: "800", color: theme.authText, marginBottom: 4 },
+				title: { fontSize: 30, lineHeight: 36, fontFamily: fonts.headingHeavy, color: theme.authText, marginBottom: 4 },
+				stepText: { fontSize: 13, fontWeight: "600", color: theme.primary, marginBottom: 6 },
+				stepTrack: { flexDirection: "row", gap: 6, marginBottom: 18 },
+				stepDot: { flex: 1, height: 4, borderRadius: 2 },
 				subtitle: { fontSize: 14, color: theme.authTextMuted, marginBottom: 24 },
 				label: { fontSize: 13, color: theme.authLabel, marginBottom: 6, marginTop: 14, fontWeight: "600" },
 				input: {
@@ -179,6 +180,17 @@ export default function Onboarding() {
 		[theme],
 	);
 
+	const stepHeader = (n: 1 | 2) => (
+		<>
+			<Text style={styles.stepText}>Step {n} of 2</Text>
+			<View style={styles.stepTrack}>
+				{[1, 2].map((i) => (
+					<View key={i} style={[styles.stepDot, { backgroundColor: i <= n ? theme.primary : theme.authCardBorder }]} />
+				))}
+			</View>
+		</>
+	);
+
 	if (loading) {
 		return (
 			<Screen edges={["top", "bottom"]} background={theme.authBackground} style={{ alignItems: "center", justifyContent: "center" }}>
@@ -192,9 +204,11 @@ export default function Onboarding() {
 			<KeyboardAwareScrollView style={{ flex: 1 }} contentContainerStyle={styles.container} enableOnAndroid extraScrollHeight={40} keyboardShouldPersistTaps="handled">
 			{step === 1 ? (
 				<>
-					<Text style={styles.title}>Set your targets</Text>
+					{stepHeader(1)}
+					<Text style={styles.title}>Welcome to {APP_NAME}</Text>
 					<Text style={styles.subtitle}>
-						A few details let us estimate your daily calories and macros. You can change everything later in Profile.
+						Tell us a little about yourself and we&apos;ll suggest how much to eat each day. You can change anything
+						later under You.
 					</Text>
 
 					<Text style={styles.label}>Sex</Text>
@@ -209,33 +223,16 @@ export default function Onboarding() {
 						textStyle={{ color: theme.authInputText, fontSize: 15 }}
 					/>
 
-					<Text style={styles.label}>Height (cm)</Text>
-					<TextInput
-						style={styles.input}
-						placeholder="175"
-						placeholderTextColor={theme.authTextHint}
-						value={heightCm}
-						onChangeText={setHeightCm}
-						keyboardType="decimal-pad"
-					/>
+					<Text style={styles.label}>Height</Text>
+					<HeightField value={heightCm} onChange={setHeightCm} inputStyle={styles.input} placeholderColor={theme.authTextHint} />
 
 					<Text style={styles.label}>Weight</Text>
-					<View style={styles.row}>
-						<TextInput
-							style={[styles.input, styles.grow]}
-							placeholder={weightUnit === "kg" ? "70" : "154"}
-							placeholderTextColor={theme.authTextHint}
-							value={weightVal}
-							onChangeText={setWeightVal}
-							keyboardType="decimal-pad"
-						/>
-						<Pills options={["kg", "lb"] as const} value={weightUnit} onSelect={setWeightUnit} />
-					</View>
+					<WeightField value={weightKgText} onChange={setWeightKgText} inputStyle={styles.input} placeholderColor={theme.authTextHint} />
 
-					<Text style={styles.label}>Activity level</Text>
+					<Text style={styles.label}>How active are you day to day?</Text>
 					<Pills options={ACTIVITY_LEVELS} value={activity} onSelect={setActivity} labels={ACTIVITY_LABELS} />
 
-					<Text style={styles.label}>Goal</Text>
+					<Text style={styles.label}>What are you aiming for?</Text>
 					<Pills options={GOAL_TYPES} value={goalType} onSelect={setGoalType} labels={GOAL_TYPE_LABELS} />
 
 					{error && <Text style={styles.error}>{error}</Text>}
@@ -249,8 +246,9 @@ export default function Onboarding() {
 				</>
 			) : (
 				<>
+					{stepHeader(2)}
 					<Text style={styles.title}>Your daily goals</Text>
-					<Text style={styles.subtitle}>Based on your details. Tweak any number that doesn&apos;t feel right.</Text>
+					<Text style={styles.subtitle}>Here&apos;s what we suggest. Change any number that doesn&apos;t feel right.</Text>
 
 					{MACRO_KEYS.map((k) => (
 						<View key={k} style={styles.goalRow}>
@@ -268,7 +266,7 @@ export default function Onboarding() {
 					{error && <Text style={styles.error}>{error}</Text>}
 
 					<TouchableOpacity style={styles.primaryButton} onPress={handleSave} disabled={saving}>
-						{saving ? <ActivityIndicator color={theme.textInverse} /> : <Text style={styles.primaryButtonText}>Save &amp; get started</Text>}
+						{saving ? <ActivityIndicator color={theme.textInverse} /> : <Text style={styles.primaryButtonText}>Save and start</Text>}
 					</TouchableOpacity>
 					<TouchableOpacity style={styles.skip} onPress={() => setStep(1)} disabled={saving}>
 						<Text style={styles.skipText}>Back</Text>

@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import { useFocusEffect } from "expo-router";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
+import { fonts } from "@/theme/typography";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
 import Screen from "@/components/Screen";
@@ -50,7 +51,7 @@ export default function Recipes() {
 					gap: 16,
 				},
 				backBtn: { padding: 4 },
-				headerTitle: { color: theme.text, fontSize: 18, fontWeight: "700" },
+				headerTitle: { color: theme.text, fontSize: 22, lineHeight: 28, fontFamily: fonts.heading },
 				listContent: { paddingHorizontal: 16, paddingBottom: 40, flexGrow: 1 },
 				center: { flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 32 },
 				emptyTitle: { color: theme.text, fontSize: 16, fontWeight: "700", marginTop: 12 },
@@ -114,7 +115,7 @@ export default function Recipes() {
 						<View style={styles.center}>
 							<FontAwesome5 name="utensils" size={28} color={theme.textMuted} />
 							<Text style={styles.emptyTitle}>No recipes yet</Text>
-							<Text style={styles.emptySubtitle}>Recipes you create will show up here.</Text>
+							<Text style={styles.emptySubtitle}>Recipes you make or import will show up here.</Text>
 						</View>
 					}
 				/>

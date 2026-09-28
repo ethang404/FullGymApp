@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { router } from "expo-router";
 import { useTheme } from "@/theme/ThemeProvider";
+import { fonts } from "@/theme/typography";
 import type { Theme } from "@/theme/colors"; //for typing
 
 import SegmentedControl from "@/components/SegmentedControl";
@@ -154,7 +155,7 @@ export default function LogFoodModal({ visible, mealType, selectedDate, onClose,
 					</View>
 
 					<View style={styles.visibilityRow}>
-						<Text style={styles.visibilityLabel}>VISIBLE TO</Text>
+						<Text style={styles.visibilityLabel}>Who can see this</Text>
 						<SegmentedControl options={DIARY_VISIBILITIES} value={visibility} onChange={setVisibility} labels={DIARY_VISIBILITY_LABELS} />
 					</View>
 
@@ -224,8 +225,9 @@ function makeStyles(theme: Theme, bottomInset: number) {
 		},
 		title: {
 			color: theme.text,
-			fontSize: 18,
-			fontWeight: "700",
+			fontSize: 20,
+			lineHeight: 26,
+			fontFamily: fonts.heading,
 			textTransform: "capitalize",
 		},
 		searchBar: {
@@ -255,7 +257,6 @@ function makeStyles(theme: Theme, bottomInset: number) {
 			color: theme.textMuted,
 			fontSize: 10,
 			fontWeight: "700",
-			letterSpacing: 0.8,
 			marginBottom: 6,
 		},
 		addNewButton: {

@@ -142,8 +142,8 @@ export default function FoodDetailScreen() {
 					paddingBottom: 6,
 				},
 				headerCenter: { flex: 1, alignItems: "center" },
-				foodName: { color: theme.text, fontSize: 16, fontWeight: "800", letterSpacing: 0.3, textTransform: "uppercase" },
-				foodMeta: { color: theme.textMuted, fontSize: 11, letterSpacing: 0.5, marginTop: 2, textTransform: "uppercase" },
+				foodName: { color: theme.text, fontSize: 16, fontWeight: "800", letterSpacing: 0.3 },
+				foodMeta: { color: theme.textMuted, fontSize: 11, marginTop: 2 },
 				iconButton: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
 
 				card: {
@@ -155,7 +155,7 @@ export default function FoodDetailScreen() {
 					marginHorizontal: 16,
 				},
 				energyRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
-				eyebrow: { color: theme.textMuted, fontSize: 10.5, fontWeight: "700", letterSpacing: 1 },
+				eyebrow: { color: theme.textMuted, fontSize: 10.5, fontWeight: "700" },
 				energyValueRow: { flexDirection: "row", alignItems: "baseline", gap: 6, marginTop: 4 },
 				energyValue: { color: theme.text, fontSize: 40, fontWeight: "800" },
 				energyUnit: { color: theme.textMuted, fontSize: 14 },
@@ -227,14 +227,14 @@ export default function FoodDetailScreen() {
 				<View style={styles.card}>
 					<View style={styles.energyRow}>
 						<View>
-							<Text style={styles.eyebrow}>TOTAL ENERGY</Text>
+							<Text style={styles.eyebrow}>Calories</Text>
 							<View style={styles.energyValueRow}>
 								<Text style={styles.energyValue}>{cals != null ? Math.round(cals) : "—"}</Text>
 								<Text style={styles.energyUnit}>kcal</Text>
 							</View>
 						</View>
 						<View>
-							<Text style={[styles.eyebrow, { textAlign: "right" }]}>QUANTITY</Text>
+							<Text style={[styles.eyebrow, { textAlign: "right" }]}>Amount</Text>
 							<View style={styles.stepperRow}>
 								<TouchableOpacity onPress={() => stepQuantity(-0.5)} hitSlop={8}>
 									<FontAwesome5 name="minus-circle" size={18} color={theme.primary} />

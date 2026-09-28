@@ -92,7 +92,7 @@ function MacroBar({
 	const pct = goal > 0 ? Math.min((current / goal) * 100, 100) : 0;
 	return (
 		<View style={{ flex: 1, gap: 6 }}>
-			<Text style={{ fontSize: 10, fontWeight: "700", color, letterSpacing: 0.8, textTransform: "uppercase" }}>{label}</Text>
+			<Text style={{ fontSize: 10, fontWeight: "700", color }}>{label}</Text>
 			<Text style={{ fontSize: 17, fontWeight: "800", color: valueColor }}>
 				{Math.round(current)}
 				<Text style={{ fontSize: 12, fontWeight: "600", color: textColor }}> g</Text>
@@ -109,7 +109,7 @@ function MacroBar({
 function MacroStat({ label, current, color, textColor }: { label: string; current: number; color: string; textColor: string }) {
 	return (
 		<View style={{ flex: 1, gap: 6 }}>
-			<Text style={{ fontSize: 10, fontWeight: "700", color, letterSpacing: 0.8, textTransform: "uppercase" }}>{label}</Text>
+			<Text style={{ fontSize: 10, fontWeight: "700", color }}>{label}</Text>
 			<Text style={{ fontSize: 17, fontWeight: "800", color: textColor }}>
 				{Math.round(current)}
 				<Text style={{ fontSize: 12, fontWeight: "600" }}> g</Text>
@@ -188,7 +188,6 @@ export default function DiarySections({ entries, selectedDate, onDateChange, goa
 					color: theme.textSecondary,
 					fontWeight: "700",
 					fontSize: 13,
-					letterSpacing: 1.2,
 				},
 				summaryCard: {
 					paddingHorizontal: 20,
@@ -199,8 +198,6 @@ export default function DiarySections({ entries, selectedDate, onDateChange, goa
 					fontSize: 11,
 					fontWeight: "700",
 					color: theme.textMuted,
-					letterSpacing: 1.2,
-					textTransform: "uppercase",
 				},
 				remainingRow: {
 					flexDirection: "row",
@@ -392,7 +389,7 @@ export default function DiarySections({ entries, selectedDate, onDateChange, goa
 					<View style={styles.summaryCard}>
 						{goals ? (
 							<>
-								<Text style={styles.remainingLabel}>Calories Consumed</Text>
+								<Text style={styles.remainingLabel}>Calories eaten</Text>
 								<View style={styles.remainingRow}>
 									<View>
 										<Text style={styles.remainingValue}>{Math.round(totals.calories).toLocaleString()}</Text>
@@ -410,7 +407,7 @@ export default function DiarySections({ entries, selectedDate, onDateChange, goa
 							</>
 						) : (
 							<>
-								<Text style={styles.remainingLabel}>Calories Logged</Text>
+								<Text style={styles.remainingLabel}>Calories eaten</Text>
 								<Text style={styles.remainingValue}>{Math.round(totals.calories).toLocaleString()}</Text>
 
 								<View style={styles.macroRow}>

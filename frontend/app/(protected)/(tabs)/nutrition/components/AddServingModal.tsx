@@ -3,6 +3,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMemo, useState, useEffect } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import type { Theme } from "@/theme/colors"; //for typing
+import { fonts } from "@/theme/typography";
 
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
@@ -121,8 +122,9 @@ export function AddServingModal({ visible, foodId, foodName, availableUnits, exi
 				},
 				title: {
 					color: theme.text,
-					fontSize: 17,
-					fontWeight: "700",
+					fontSize: 20,
+					lineHeight: 26,
+					fontFamily: fonts.heading,
 					flex: 1,
 				},
 				subtitle: {
@@ -131,10 +133,9 @@ export function AddServingModal({ visible, foodId, foodName, availableUnits, exi
 					marginBottom: 20,
 				},
 				sectionLabel: {
-					color: theme.textMuted,
-					fontSize: 11,
+					color: theme.textSecondary,
+					fontSize: 13,
 					fontWeight: "700",
-					letterSpacing: 0.5,
 					marginBottom: 8,
 				},
 				unitRow: {
@@ -221,7 +222,7 @@ export function AddServingModal({ visible, foodId, foodName, availableUnits, exi
 					</View>
 					<Text style={styles.subtitle}>for {foodName}</Text>
 
-					<Text style={styles.sectionLabel}>UNIT</Text>
+					<Text style={styles.sectionLabel}>Unit</Text>
 					<View style={styles.unitRow}>
 						{availableUnits.map((unit) => {
 							const isSelected = unit === newLabel;
@@ -237,7 +238,7 @@ export function AddServingModal({ visible, foodId, foodName, availableUnits, exi
 						<>
 							{FIXED_UNIT_CONVERSIONS[newLabel] == null && (
 								<>
-									<Text style={styles.sectionLabel}>WEIGHT</Text>
+									<Text style={styles.sectionLabel}>Weight</Text>
 									<TextInput
 										style={styles.weightInput}
 										placeholder="0"
@@ -249,7 +250,7 @@ export function AddServingModal({ visible, foodId, foodName, availableUnits, exi
 									<Text style={styles.hint}>How many grams is in 1 {newLabel}?</Text>
 								</>
 							)}
-							<Text style={styles.sectionLabel}>QUANTITY ON PACKAGE</Text>
+							<Text style={styles.sectionLabel}>Amount on the package</Text>
 							<TextInput
 								style={styles.weightInput}
 								placeholder="1"

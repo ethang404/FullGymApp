@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { LineChart } from "react-native-gifted-charts";
 import { useTheme } from "@/theme/ThemeProvider";
+import { fonts } from "@/theme/typography";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
 import { formatShortDate } from "@/utils/date";
@@ -87,8 +88,9 @@ export function ExerciseHistoryModal({ visible, onClose, catalogId, name, filter
 					marginBottom: 12,
 				},
 				title: {
-					fontSize: 17,
-					fontWeight: "800",
+					fontSize: 20,
+					lineHeight: 26,
+					fontFamily: fonts.heading,
 					color: theme.text,
 					flexShrink: 1,
 				},
@@ -137,7 +139,7 @@ export function ExerciseHistoryModal({ visible, onClose, catalogId, name, filter
 						) : chartData.length === 0 ? (
 							<View style={styles.emptyState}>
 								<FontAwesome5 name="chart-line" size={26} color={theme.textTertiary} />
-								<Text style={styles.emptyText}>Not enough logged sets yet to chart this exercise.</Text>
+								<Text style={styles.emptyText}>Log this exercise a couple more times to see a chart.</Text>
 							</View>
 						) : (
 							<LineChart

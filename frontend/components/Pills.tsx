@@ -25,6 +25,8 @@ export default function Pills<T extends string>({
 						key={opt}
 						onPress={() => onSelect(opt)}
 						activeOpacity={0.7}
+						accessibilityRole="button"
+						accessibilityState={{ selected: active }}
 						style={{
 							paddingHorizontal: 14,
 							paddingVertical: 9,

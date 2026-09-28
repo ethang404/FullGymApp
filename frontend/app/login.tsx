@@ -6,6 +6,7 @@ import Screen from "@/components/Screen";
 import AppleSignInButton from "@/components/AppleSignInButton";
 import GoogleAuthButton from "@/components/GoogleAuthButton";
 import { authInstance } from "../utils/AxiosInterceptorHandler";
+import { fonts, APP_NAME } from "@/theme/typography";
 
 export default function Login() {
 	const { theme } = useTheme();
@@ -25,7 +26,7 @@ export default function Login() {
 		try {
 			await authInstance.post("/auth/guest");
 		} catch (err) {
-			setError("Couldn't start a guest session. Please try again.");
+			setError("Couldn't start a guest session. Check your connection and try again.");
 		} finally {
 			setGuestLoading(false);
 		}
@@ -37,7 +38,7 @@ export default function Login() {
 
 		try {
 			if (!userName || !password) {
-				setError("Please enter a username and password");
+				setError("Enter your username and password.");
 				return;
 			}
 
@@ -49,7 +50,7 @@ export default function Login() {
 				await authInstance.post("/auth/login", loginPayload);
 			} else {
 				if (!firstName || !lastName) {
-					setError("Please enter your first and last name");
+					setError("Enter your first and last name.");
 					return;
 				}
 
@@ -61,8 +62,9 @@ export default function Login() {
 				};
 				await authInstance.post("/auth/register", registerPayload);
 			}
-		} catch (err) {
-			setError(mode === "login" ? "Login failed. Check your credentials." : "Registration failed.");
+		} catch (err: any) {
+			if (!err?.response) setError("Couldn't reach the server. Check your connection and try again.");
+			else setError(mode === "login" ? "That username and password don't match. Try again." : "Couldn't create your account. Try a different username.");
 		} finally {
 			setLoading(false);
 		}
@@ -92,10 +94,10 @@ export default function Login() {
 					borderColor: theme.authCardBorder,
 				},
 				title: {
-					fontSize: 28,
-					fontWeight: "700",
-					color: theme.authText,
-					marginBottom: 4,
+					fontSize: 40,
+					lineHeight: 46,
+					fontFamily: fonts.headingHeavy,
+					color: theme.primary,
 					textAlign: "center",
 				},
 				subtitle: {
@@ -131,7 +133,7 @@ export default function Login() {
 					color: theme.authTextMuted,
 				},
 				switchTextActive: {
-					color: theme.authText,
+					color: theme.textInverse,
 					fontWeight: "600",
 				},
 				label: {
@@ -219,16 +221,26 @@ export default function Login() {
 		<Screen edges={["top", "bottom"]} background={theme.authBackground}>
 			<KeyboardAwareScrollView style={{ flex: 1 }} contentContainerStyle={styles.container} enableOnAndroid extraScrollHeight={40} keyboardShouldPersistTaps="handled">
 			<View style={styles.card}>
-				<Text style={styles.title}>Kratos</Text>
-				<Text style={styles.subtitle}>{mode === "login" ? "Sign in to your account" : "Create a new account"}</Text>
-				<Text style={styles.helperText}>Use a unique username and a strong password. We will use your name to personalize your dashboard.</Text>
+				<Text style={styles.title}>{APP_NAME}</Text>
+				<Text style={styles.subtitle}>Track what you eat and how you train, all in one place.</Text>
+				<Text style={styles.helperText}>{mode === "login" ? "Welcome back." : "It takes about a minute."}</Text>
 
 				<View style={styles.switchRow}>
-					<TouchableOpacity style={[styles.switchButton, mode === "login" && styles.switchButtonActive]} onPress={() => setMode("login")}>
-						<Text style={[styles.switchText, mode === "login" && styles.switchTextActive]}>Login</Text>
+					<TouchableOpacity
+						style={[styles.switchButton, mode === "login" && styles.switchButtonActive]}
+						onPress={() => setMode("login")}
+						accessibilityRole="tab"
+						accessibilityState={{ selected: mode === "login" }}
+					>
+						<Text style={[styles.switchText, mode === "login" && styles.switchTextActive]}>Log in</Text>
 					</TouchableOpacity>
-					<TouchableOpacity style={[styles.switchButton, mode === "register" && styles.switchButtonActive]} onPress={() => setMode("register")}>
-						<Text style={[styles.switchText, mode === "register" && styles.switchTextActive]}>Register</Text>
+					<TouchableOpacity
+						style={[styles.switchButton, mode === "register" && styles.switchButtonActive]}
+						onPress={() => setMode("register")}
+						accessibilityRole="tab"
+						accessibilityState={{ selected: mode === "register" }}
+					>
+						<Text style={[styles.switchText, mode === "register" && styles.switchTextActive]}>Create account</Text>
 					</TouchableOpacity>
 				</View>
 
@@ -242,13 +254,13 @@ export default function Login() {
 				)}
 
 				<Text style={styles.label}>Username</Text>
-				<TextInput style={styles.input} placeholder="Choose a username" value={userName} onChangeText={setUserName} autoCapitalize="none" autoCorrect={false} />
-				{mode === "register" ? <Text style={styles.fieldHint}>This is what you will use to log in.</Text> : null}
+				<TextInput style={styles.input} placeholder={mode === "login" ? "Your username" : "Choose a username"} value={userName} onChangeText={setUserName} autoCapitalize="none" autoCorrect={false} />
+				{mode === "register" ? <Text style={styles.fieldHint}>You&apos;ll use this to log in.</Text> : null}
 
 				<Text style={styles.label}>Password</Text>
 				<TextInput
 					style={styles.input}
-					placeholder={mode === "login" ? "Enter your password" : "Create a strong password"}
+					placeholder={mode === "login" ? "Your password" : "Create a password"}
 					value={password}
 					onChangeText={setPassword}
 					secureTextEntry
@@ -257,16 +269,16 @@ export default function Login() {
 				{error && <Text style={styles.error}>{error}</Text>}
 
 				<TouchableOpacity style={[styles.primaryButton, loading && styles.primaryButtonDisabled]} onPress={handleAuth} disabled={loading || guestLoading}>
-					{loading ? <ActivityIndicator color={theme.textInverse} /> : <Text style={styles.primaryButtonText}>{mode === "login" ? "Sign In" : "Sign Up"}</Text>}
+					{loading ? <ActivityIndicator color={theme.textInverse} /> : <Text style={styles.primaryButtonText}>{mode === "login" ? "Log in" : "Create account"}</Text>}
 				</TouchableOpacity>
 
 				<TouchableOpacity style={styles.guestButton} onPress={handleGuest} disabled={loading || guestLoading}>
-					{guestLoading ? <ActivityIndicator color={theme.authTextMuted} /> : <Text style={styles.guestButtonText}>Continue as Guest</Text>}
+					{guestLoading ? <ActivityIndicator color={theme.authTextMuted} /> : <Text style={styles.guestButtonText}>Try it without an account</Text>}
 				</TouchableOpacity>
 
 				<View style={styles.dividerRow}>
 					<View style={styles.dividerLine} />
-					<Text style={styles.dividerText}>or continue with</Text>
+					<Text style={styles.dividerText}>or</Text>
 					<View style={styles.dividerLine} />
 				</View>
 

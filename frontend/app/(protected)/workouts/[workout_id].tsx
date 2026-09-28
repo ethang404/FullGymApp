@@ -21,12 +21,15 @@ import { randomUUID } from "expo-crypto";
 import ReorderableList, { reorderItems, useReorderableDrag, ReorderableListReorderEvent } from "react-native-reorderable-list";
 
 import { useTheme } from "@/theme/ThemeProvider";
+import { fonts } from "@/theme/typography";
 import type { Theme } from "@/theme/colors";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
 import { toast } from "@/utils/toast";
 import { useProfile } from "@/utils/ProfileProvider";
 import Screen from "@/components/Screen";
+import { WorkoutCelebration } from "@/components/WorkoutCelebration";
+import { haptics } from "@/utils/haptics";
 import Pills from "@/components/Pills";
 import * as types from "../types/workouts";
 import { CONTENT_VISIBILITIES, CONTENT_VISIBILITY_LABELS, type ContentVisibility } from "../types/visibility";
@@ -71,6 +74,7 @@ export default function Workout() {
 	const [workout, setWorkout] = useState<types.WorkoutData>(emptyWorkout);
 	const [loading, setLoading] = useState(mode === "edit" || mode === "copy" || mode === "view");
 	const [saving, setSaving] = useState(false);
+	const [celebrating, setCelebrating] = useState(false);
 	const [ownerId, setOwnerId] = useState<number | null>(null);
 
 	// Explicit mode="view" (opened from Explore/a friend) always wins. Also auto-downgrades
@@ -200,6 +204,7 @@ export default function Workout() {
 	}, []);
 
 	const addSet = useCallback((exerciseKey: string) => {
+		haptics.tap();
 		setWorkout((prev) => ({
 			...prev,
 			exercises: prev.exercises.map((ex) =>
@@ -285,11 +290,17 @@ export default function Workout() {
 			} else {
 				await instance.post(`/workouts`, workout);
 			}
-			toast.success(mode === "edit" ? "Workout updated." : "Workout saved.");
-			router.back();
+			haptics.success();
+			if (mode === "edit") {
+				toast.success("Workout updated.");
+				router.back();
+			} else {
+				// New workouts get the celebration; it navigates back when dismissed.
+				setCelebrating(true);
+			}
 		} catch (err) {
 			log.error("Failed to save workout:", err);
-			toast.error("Couldn't save. Try again.");
+			toast.error("Workout not saved. Check your connection and try again.");
 			setSaving(false);
 		}
 	}, [saving, isViewOnly, mode, workout_id, workout]);
@@ -321,7 +332,7 @@ export default function Workout() {
 				{isViewOnly && (
 					<View style={styles.viewOnlyBanner}>
 						<FontAwesome5 name="eye" size={11} color={theme.textMuted} />
-						<Text style={styles.viewOnlyBannerText}>Viewing a shared workout — read only</Text>
+						<Text style={styles.viewOnlyBannerText}>This is someone else&apos;s workout. You can look but not edit.</Text>
 					</View>
 				)}
 				<TextInput
@@ -351,15 +362,15 @@ export default function Workout() {
 		() => (
 			<>
 				{!isViewOnly && (
-					<Pressable style={styles.addButton} onPress={addExercise}>
+					<Pressable style={styles.addButton} onPress={addExercise} accessibilityRole="button">
 						<Ionicons name="add-circle-outline" size={20} color={theme.text} />
-						<Text style={styles.addButtonText}>Add Exercise</Text>
+						<Text style={styles.addButtonText}>Add exercise</Text>
 					</Pressable>
 				)}
 
 				{!isViewOnly && (
-					<Pressable style={[styles.saveButton, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving}>
-						{saving ? <ActivityIndicator color={theme.textInverse} /> : <Text style={styles.saveButtonText}>Save Workout</Text>}
+					<Pressable style={[styles.saveButton, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving} accessibilityRole="button">
+						{saving ? <ActivityIndicator color={theme.textInverse} /> : <Text style={styles.saveButtonText}>Save workout</Text>}
 					</Pressable>
 				)}
 			</>
@@ -371,7 +382,7 @@ export default function Workout() {
 		return (
 			<Screen edges={["top"]} style={styles.centered}>
 				<View style={styles.headerRow}>
-					<TouchableOpacity style={styles.iconButton} onPress={() => router.back()} hitSlop={10}>
+					<TouchableOpacity style={styles.iconButton} onPress={() => router.back()} hitSlop={10} accessibilityRole="button" accessibilityLabel="Back">
 						<FontAwesome5 name="chevron-left" size={18} color={theme.text} />
 					</TouchableOpacity>
 				</View>
@@ -384,7 +395,7 @@ export default function Workout() {
 		<GestureHandlerRootView style={{ flex: 1 }}>
 			<Screen edges={["top"]}>
 				<View style={styles.headerRow}>
-					<TouchableOpacity style={styles.iconButton} onPress={() => router.back()} hitSlop={10}>
+					<TouchableOpacity style={styles.iconButton} onPress={() => router.back()} hitSlop={10} accessibilityRole="button" accessibilityLabel="Back">
 						<FontAwesome5 name="chevron-left" size={18} color={theme.text} />
 					</TouchableOpacity>
 				</View>
@@ -396,6 +407,16 @@ export default function Workout() {
 					ListHeaderComponent={ListHeader}
 					ListFooterComponent={ListFooter}
 					contentContainerStyle={{ paddingBottom: 40 }}
+				/>
+
+				<WorkoutCelebration
+					visible={celebrating}
+					exerciseCount={workout.exercises.length}
+					setCount={workout.exercises.reduce((n, ex) => n + ex.sets.length, 0)}
+					onDone={() => {
+						setCelebrating(false);
+						router.back();
+					}}
 				/>
 
 				<ExerciseSelectorModal
@@ -468,17 +489,17 @@ const ExerciseCard = memo(function ExerciseCard({
 		<View style={[styles.card, { overflow: "hidden" }]}>
 			<View style={styles.cardHeader}>
 				{!readOnly && (
-					<Pressable onLongPress={drag} hitSlop={10}>
+					<Pressable onLongPress={drag} hitSlop={10} accessibilityLabel="Reorder exercise" accessibilityHint="Press and hold, then drag">
 						<Ionicons name="reorder-three" size={22} color={theme.text} />
 					</Pressable>
 				)}
 
 				<TouchableOpacity style={{ flex: 1 }} onPress={() => !readOnly && onOpenSelector(exKey)} disabled={readOnly}>
-					<Text style={[styles.exerciseTitle, !exercise.exercise_name && { color: theme.text + "66" }]}>{exercise.exercise_name || "Select Exercise..."}</Text>
+					<Text style={[styles.exerciseTitle, !exercise.exercise_name && { color: theme.text + "66" }]}>{exercise.exercise_name || "Choose an exercise"}</Text>
 				</TouchableOpacity>
 
 				{!readOnly && (
-					<Pressable onPress={() => onDelete(exKey)} hitSlop={10}>
+					<Pressable onPress={() => onDelete(exKey)} hitSlop={10} accessibilityRole="button" accessibilityLabel="Remove exercise">
 						<Ionicons name="trash-outline" size={18} color={theme.text} />
 					</Pressable>
 				)}
@@ -489,7 +510,7 @@ const ExerciseCard = memo(function ExerciseCard({
 					style={styles.notesInput}
 					value={exercise.notes}
 					onChangeText={(text) => onUpdate(exKey, { notes: text })}
-					placeholder="Exercise notes"
+					placeholder="Notes (optional)"
 					placeholderTextColor={theme.text + "88"}
 					editable={!readOnly}
 				/>
@@ -505,9 +526,9 @@ const ExerciseCard = memo(function ExerciseCard({
 			/>
 
 			{!readOnly && (
-				<Pressable style={styles.addSetButton} onPress={() => onAddSet(exKey)}>
+				<Pressable style={styles.addSetButton} onPress={() => onAddSet(exKey)} accessibilityRole="button">
 					<Ionicons name="add" size={16} color={theme.text} />
-					<Text style={styles.addButtonText}>Add Set</Text>
+					<Text style={styles.addButtonText}>Add set</Text>
 				</Pressable>
 			)}
 		</View>
@@ -535,7 +556,7 @@ const SetRow = memo(function SetRow({ set, onDelete, onUpdate, styles, theme, re
 	return (
 		<View style={[styles.setRow, { overflow: "hidden" }]}>
 			{!readOnly && (
-				<Pressable onLongPress={drag} hitSlop={10}>
+				<Pressable onLongPress={drag} hitSlop={10} accessibilityLabel="Reorder set" accessibilityHint="Press and hold, then drag">
 					<Ionicons name="reorder-three-outline" size={18} color={theme.text} />
 				</Pressable>
 			)}
@@ -551,7 +572,8 @@ const SetRow = memo(function SetRow({ set, onDelete, onUpdate, styles, theme, re
 					onUpdate(setKey, { reps: Number(next) || 0 });
 				}}
 				keyboardType="numeric"
-				placeholder="reps"
+				placeholder="Reps"
+				accessibilityLabel={`Set ${set.order_number} reps`}
 				editable={!readOnly}
 			/>
 			<TextInput
@@ -563,12 +585,13 @@ const SetRow = memo(function SetRow({ set, onDelete, onUpdate, styles, theme, re
 					onUpdate(setKey, { weight: Number(next) || 0 });
 				}}
 				keyboardType="numeric"
-				placeholder="wt"
+				placeholder="kg"
+				accessibilityLabel={`Set ${set.order_number} weight in kilograms`}
 				editable={!readOnly}
 			/>
 
 			{!readOnly && (
-				<Pressable onPress={() => onDelete(setKey)} hitSlop={10}>
+				<Pressable onPress={() => onDelete(setKey)} hitSlop={10} accessibilityRole="button" accessibilityLabel={`Remove set ${set.order_number}`}>
 					<Ionicons name="close-circle-outline" size={18} color={theme.error} />
 				</Pressable>
 			)}
@@ -626,15 +649,15 @@ function ExerciseSelectorModal({
 			<SafeAreaView style={styles.modalContainer} edges={["top", "bottom"]}>
 				<KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
 				<View style={styles.modalHeader}>
-					<Text style={styles.modalTitle}>Select Exercise</Text>
-					<TouchableOpacity onPress={onClose} hitSlop={10}>
+					<Text style={styles.modalTitle}>Choose an exercise</Text>
+					<TouchableOpacity onPress={onClose} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close">
 						<Ionicons name="close" size={24} color={theme.text} />
 					</TouchableOpacity>
 				</View>
 
 				<TextInput
 					style={styles.modalSearchInput}
-					placeholder="Search exercise..."
+					placeholder="Search exercises"
 					placeholderTextColor={theme.text + "88"}
 					value={searchQuery}
 					onChangeText={setSearchQuery}
@@ -674,13 +697,13 @@ function ExerciseSelectorModal({
 					)}
 					ListEmptyComponent={() => (
 						<View style={styles.emptyContainer}>
-							<Text style={{ color: theme.text }}>No exercises found.</Text>
+							<Text style={{ color: theme.text }}>No exercises match that search.</Text>
 						</View>
 					)}
 					ListFooterComponent={
 						!exactMatchExists && searchQuery.trim().length > 0 ? (
 							<TouchableOpacity style={[styles.saveButton, { margin: 16 }]} onPress={handleCreateNew}>
-								<Text style={styles.saveButtonText}>Add "{searchQuery.trim()}" to Catalog</Text>
+								<Text style={styles.saveButtonText}>Add "{searchQuery.trim()}" as a new exercise</Text>
 							</TouchableOpacity>
 						) : null
 					}
@@ -789,7 +812,7 @@ function createStyles(theme: Theme) {
 
 		modalContainer: { flex: 1, backgroundColor: theme.background, padding: 16 },
 		modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-		modalTitle: { fontSize: 18, fontWeight: "600", color: theme.text },
+		modalTitle: { fontSize: 20, lineHeight: 26, fontFamily: fonts.heading, color: theme.text },
 		modalSearchInput: {
 			borderWidth: 1,
 			borderColor: theme.text + "33",
