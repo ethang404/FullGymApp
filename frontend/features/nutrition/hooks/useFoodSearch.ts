@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
-import type { FoodSearchResult } from "../../../types/nutrition";
+import type { FoodSearchResult } from "@/types/nutrition";
 
 // Search results only carry the 4 macro nutrients (see SearchFoods' MACRO_IDS
 // in backend/Nutrition/service.js) - fetching one food by id returns the full

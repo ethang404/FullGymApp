@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { useMemo } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
-import { displayName, type UserSearchResult } from "../../../types/friends";
+import { displayName, type UserSearchResult } from "@/types/friends";
 
 interface Props {
 	result: UserSearchResult;

@@ -8,9 +8,9 @@ import { fonts } from "@/theme/typography";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
 
-import type { ServingSize } from "../../../types/nutrition";
+import type { ServingSize } from "@/types/nutrition";
 
-import { FIXED_UNIT_CONVERSIONS, resolveServingWeightG } from "../../../types/nutrition";
+import { FIXED_UNIT_CONVERSIONS, resolveServingWeightG } from "@/types/nutrition";
 
 interface AddServingModalProps {
 	visible: boolean;

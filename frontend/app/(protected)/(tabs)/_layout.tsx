@@ -63,13 +63,6 @@ export default function TabsLayout() {
 			{/* Five tabs max. Friends and Explore live under You → Community (hidden from the bar, still tab routes). */}
 			<Tabs.Screen name="Explore" options={{ href: null }} />
 			<Tabs.Screen name="Friends" options={{ href: null }} />
-			<Tabs.Screen name="friends/components/FriendListRow" options={{ href: null }} />
-			<Tabs.Screen name="friends/components/FriendRequestRow" options={{ href: null }} />
-			<Tabs.Screen name="friends/components/SearchResultRow" options={{ href: null }} />
-			<Tabs.Screen name="friends/hooks/useFriendSearch" options={{ href: null }} />
-			<Tabs.Screen name="explore/components/ExploreCard" options={{ href: null }} />
-			<Tabs.Screen name="explore/components/FilterChips" options={{ href: null }} />
-			<Tabs.Screen name="explore/hooks/useExploreFeed" options={{ href: null }} />
 		</Tabs>
 	);
 }

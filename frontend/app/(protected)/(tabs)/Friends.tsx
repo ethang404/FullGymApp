@@ -11,11 +11,11 @@ import Screen from "@/components/Screen";
 import { BackLink } from "@/components/BackLink";
 import SegmentedControl from "@/components/SegmentedControl";
 import { useFriends } from "@/utils/FriendsProvider";
-import { useFriendSearch } from "./friends/hooks/useFriendSearch";
-import FriendRequestRow from "./friends/components/FriendRequestRow";
-import FriendListRow from "./friends/components/FriendListRow";
-import SearchResultRow from "./friends/components/SearchResultRow";
-import type { Friend, RequestDirection, UserSearchResult } from "../types/friends";
+import { useFriendSearch } from "@/features/friends/hooks/useFriendSearch";
+import FriendRequestRow from "@/features/friends/components/FriendRequestRow";
+import FriendListRow from "@/features/friends/components/FriendListRow";
+import SearchResultRow from "@/features/friends/components/SearchResultRow";
+import type { Friend, RequestDirection, UserSearchResult } from "@/types/friends";
 
 export default function Friends() {
 	const { theme } = useTheme();

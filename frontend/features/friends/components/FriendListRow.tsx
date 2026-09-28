@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { formatRelativeDate } from "@/utils/date";
-import { displayName, type Friend } from "../../../types/friends";
+import { displayName, type Friend } from "@/types/friends";
 
 interface Props {
 	friend: Friend;

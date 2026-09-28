@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet } from "react-native";
 import { useMemo } from "react";
 import { useTheme } from "@/theme/ThemeProvider";
-import { NUTRIENT_NAME_TO_IDS } from "../../../types/nutrition";
+import { NUTRIENT_NAME_TO_IDS } from "@/types/nutrition";
 
 const DV = {
 	fat: 78,

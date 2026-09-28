@@ -31,8 +31,8 @@ import Screen from "@/components/Screen";
 import { WorkoutCelebration } from "@/components/WorkoutCelebration";
 import { haptics } from "@/utils/haptics";
 import Pills from "@/components/Pills";
-import * as types from "../types/workouts";
-import { CONTENT_VISIBILITIES, CONTENT_VISIBILITY_LABELS, type ContentVisibility } from "../types/visibility";
+import * as types from "@/types/workouts";
+import { CONTENT_VISIBILITIES, CONTENT_VISIBILITY_LABELS, type ContentVisibility } from "@/types/visibility";
 
 const emptyWorkout: types.WorkoutData = {
 	workout_name: "",

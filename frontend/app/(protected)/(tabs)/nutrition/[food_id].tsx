@@ -8,8 +8,8 @@ import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
 import Screen from "@/components/Screen";
 
-import { AddServingModal } from "./components/AddServingModal";
-import NutritionFactsLabel from "./components/NutritionLabel";
+import { AddServingModal } from "@/features/nutrition/components/AddServingModal";
+import NutritionFactsLabel from "@/features/nutrition/components/NutritionLabel";
 
 import {
 	COMMON_UNITS,
@@ -18,7 +18,7 @@ import {
 	NUTRIENT_NAME_TO_IDS,
 	NUTRIENT_IDS_TO_NAMES,
 	calcNutrientsFromPer100g,
-} from "../../types/nutrition";
+} from "@/types/nutrition";
 
 export default function FoodDetailScreen() {
 	const { theme } = useTheme();

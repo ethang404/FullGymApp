@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useMemo, useState, useCall
 import { instance } from "./AxiosInterceptorHandler";
 import { AuthContext } from "./AuthProvider";
 import { log } from "./log";
-import type { Friend, FriendRequest, UserSearchResult } from "@/app/(protected)/types/friends";
+import type { Friend, FriendRequest, UserSearchResult } from "@/types/friends";
 
 interface FriendsContextType {
 	friends: Friend[];

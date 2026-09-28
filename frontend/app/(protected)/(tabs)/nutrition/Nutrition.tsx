@@ -11,8 +11,8 @@ import { useProfile } from "@/utils/ProfileProvider";
 import { ScreenState } from "@/components/ScreenState";
 import Screen from "@/components/Screen";
 
-import LogFoodModal from "./LogFoodModal";
-import DiarySections, { type MealType, type DiaryEntry } from "./components/DiarySections";
+import LogFoodModal from "@/features/nutrition/components/LogFoodModal";
+import DiarySections, { type MealType, type DiaryEntry } from "@/features/nutrition/components/DiarySections";
 
 export default function Nutrition() {
 	const { theme } = useTheme();

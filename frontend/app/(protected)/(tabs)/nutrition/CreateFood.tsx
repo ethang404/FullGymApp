@@ -11,7 +11,7 @@ import {
 	SERVING_UNIT_OPTIONS,
 	resolveServingWeightG,
 	estimateDensityForFood,
-} from "../../types/nutrition";
+} from "@/types/nutrition";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 

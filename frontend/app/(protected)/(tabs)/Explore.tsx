@@ -8,10 +8,10 @@ import { ScreenState } from "@/components/ScreenState";
 import Screen from "@/components/Screen";
 import { BackLink } from "@/components/BackLink";
 import SegmentedControl from "@/components/SegmentedControl";
-import FilterChips from "./explore/components/FilterChips";
-import ExploreCard from "./explore/components/ExploreCard";
-import { useExploreFeed } from "./explore/hooks/useExploreFeed";
-import { EXPLORE_TYPES, EXPLORE_SCOPES, type ExploreItem } from "../types/explore";
+import FilterChips from "@/features/explore/components/FilterChips";
+import ExploreCard from "@/features/explore/components/ExploreCard";
+import { useExploreFeed } from "@/features/explore/hooks/useExploreFeed";
+import { EXPLORE_TYPES, EXPLORE_SCOPES, type ExploreItem } from "@/types/explore";
 
 const TYPE_LABELS = { all: "All", recipe: "Recipes", workout: "Workouts" };
 const SCOPE_LABELS = { all: "Everyone", friends: "Friends", public: "Public", mine: "Mine" };

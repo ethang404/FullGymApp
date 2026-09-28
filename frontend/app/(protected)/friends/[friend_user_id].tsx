@@ -11,8 +11,8 @@ import { todayISO } from "@/utils/date";
 import { useFriends } from "@/utils/FriendsProvider";
 import { ScreenState } from "@/components/ScreenState";
 import Screen from "@/components/Screen";
-import DiarySections, { type DiaryEntry } from "../(tabs)/nutrition/components/DiarySections";
-import { displayName } from "../types/friends";
+import DiarySections, { type DiaryEntry } from "@/features/nutrition/components/DiarySections";
+import { displayName } from "@/types/friends";
 
 export default function FriendDiary() {
 	const { friend_user_id } = useLocalSearchParams<{ friend_user_id: string }>();

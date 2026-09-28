@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { useMemo } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
-import type { RecipeSummary } from "../../../types/nutrition";
+import type { RecipeSummary } from "@/types/nutrition";
 
 // Kept as a local alias for existing importers; canonical shape lives in types/nutrition.
 export type Recipe = RecipeSummary;

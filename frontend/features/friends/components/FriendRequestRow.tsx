@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { useMemo } from "react";
 import { useTheme } from "@/theme/ThemeProvider";
 import { formatRelativeDate } from "@/utils/date";
-import { displayName, type FriendRequest, type RequestDirection } from "../../../types/friends";
+import { displayName, type FriendRequest, type RequestDirection } from "@/types/friends";
 
 interface Props {
 	request: FriendRequest;

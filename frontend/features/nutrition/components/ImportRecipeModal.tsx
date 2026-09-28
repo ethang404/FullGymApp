@@ -6,7 +6,7 @@ import { useTheme } from "@/theme/ThemeProvider";
 import { fonts } from "@/theme/typography";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
-import type { ImportedRecipe } from "../../../types/nutrition";
+import type { ImportedRecipe } from "@/types/nutrition";
 
 interface ImportRecipeModalProps {
 	visible: boolean;

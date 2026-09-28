@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
-import type { UserSearchResult } from "../../../types/friends";
+import type { UserSearchResult } from "@/types/friends";
 
 // Debounced user search against /friends/search?query= — same debounce + stale-response
 // guard shape as useFoodSearch.

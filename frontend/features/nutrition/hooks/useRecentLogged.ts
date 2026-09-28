@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
-import type { RecentLoggedItem, RecipeSummary } from "../../../types/nutrition";
+import type { RecentLoggedItem, RecipeSummary } from "@/types/nutrition";
 
 // GET /nutrition/recent — recently logged distinct foods + recipes, newest first.
 // `enabled` gates the fetch so the log sheet only loads it while open.
