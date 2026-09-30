@@ -148,7 +148,7 @@ export default function ImportRecipeModal({ visible, onClose, onImported }: Impo
 						disabled={loading || !url.trim()}
 						activeOpacity={0.85}
 					>
-						{loading ? <ActivityIndicator color={theme.textInverse} /> : <Text style={styles.importBtnText}>Import Recipe</Text>}
+						{loading ? <ActivityIndicator color={theme.textInverse} /> : <Text style={styles.importBtnText}>Import recipe</Text>}
 					</TouchableOpacity>
 				</View>
 			</View>

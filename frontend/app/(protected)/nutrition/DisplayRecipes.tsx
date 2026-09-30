@@ -83,7 +83,7 @@ export default function Recipes() {
 				<TouchableOpacity style={styles.backBtn} onPress={() => router.back()} hitSlop={10}>
 					<FontAwesome5 name="arrow-left" size={18} color={theme.text} />
 				</TouchableOpacity>
-				<Text style={styles.headerTitle}>My Recipes</Text>
+				<Text style={styles.headerTitle}>My recipes</Text>
 			</View>
 
 			{error ? (

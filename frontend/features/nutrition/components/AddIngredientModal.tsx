@@ -60,7 +60,7 @@ export default function AddIngredientModal({ visible, onClose, onAdd, initialQue
 			<KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.overlay}>
 				<View style={styles.card}>
 					<View style={styles.headerRow}>
-						<Text style={styles.title}>Add Ingredient</Text>
+						<Text style={styles.title}>Add ingredient</Text>
 						<TouchableOpacity onPress={onClose} hitSlop={10}>
 							<FontAwesome5 name="times" size={20} color={theme.primary} />
 						</TouchableOpacity>

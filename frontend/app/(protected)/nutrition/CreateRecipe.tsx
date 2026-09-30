@@ -671,7 +671,7 @@ export default function CreateRecipe() {
 						disabled={saving || !recipeName || ingredients.length === 0}
 						activeOpacity={0.85}
 					>
-						{saving ? <ActivityIndicator color={theme.cardBg} /> : <Text style={styles.saveButtonText}>{recipe_id ? "Save Changes" : "Save Recipe"}</Text>}
+						{saving ? <ActivityIndicator color={theme.cardBg} /> : <Text style={styles.saveButtonText}>{recipe_id ? "Save changes" : "Save recipe"}</Text>}
 					</TouchableOpacity>
 				)}
 			</ScrollView>

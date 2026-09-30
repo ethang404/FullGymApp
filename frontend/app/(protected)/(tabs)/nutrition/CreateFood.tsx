@@ -195,11 +195,11 @@ const DEFAULT_MICRONUTRIENTS: MicronutrientField[] = [
 	// ── Carb & Fat Breakdown ───────────────────────────────
 	{ nutrient_name: "fiber", nutrient_id: NUTRIENT_NAME_TO_IDS.FIBER, label: "Fiber", unit: "g", value: "0" },
 	{ nutrient_name: "sugar", nutrient_id: NUTRIENT_NAME_TO_IDS.SUGAR, label: "Sugar", unit: "g", value: "0" },
-	{ nutrient_name: "added_sugar", nutrient_id: NUTRIENT_NAME_TO_IDS.ADDED_SUGAR, label: "Added Sugar", unit: "g", value: "0" },
-	{ nutrient_name: "saturated_fat", nutrient_id: NUTRIENT_NAME_TO_IDS.SATURATED_FAT, label: "Saturated Fat", unit: "g", value: "0" },
-	{ nutrient_name: "trans_fat", nutrient_id: NUTRIENT_NAME_TO_IDS.TRANS_FAT, label: "Trans Fat", unit: "g", value: "0" },
-	{ nutrient_name: "polyunsaturated_fat", nutrient_id: NUTRIENT_NAME_TO_IDS.POLYUNSATURATED_FAT, label: "Polyunsaturated Fat", unit: "g", value: "0" },
-	{ nutrient_name: "monounsaturated_fat", nutrient_id: NUTRIENT_NAME_TO_IDS.MONOUNSATURATED_FAT, label: "Monounsaturated Fat", unit: "g", value: "0" },
+	{ nutrient_name: "added_sugar", nutrient_id: NUTRIENT_NAME_TO_IDS.ADDED_SUGAR, label: "Added sugar", unit: "g", value: "0" },
+	{ nutrient_name: "saturated_fat", nutrient_id: NUTRIENT_NAME_TO_IDS.SATURATED_FAT, label: "Saturated fat", unit: "g", value: "0" },
+	{ nutrient_name: "trans_fat", nutrient_id: NUTRIENT_NAME_TO_IDS.TRANS_FAT, label: "Trans fat", unit: "g", value: "0" },
+	{ nutrient_name: "polyunsaturated_fat", nutrient_id: NUTRIENT_NAME_TO_IDS.POLYUNSATURATED_FAT, label: "Polyunsaturated fat", unit: "g", value: "0" },
+	{ nutrient_name: "monounsaturated_fat", nutrient_id: NUTRIENT_NAME_TO_IDS.MONOUNSATURATED_FAT, label: "Monounsaturated fat", unit: "g", value: "0" },
 
 	// ── Minerals ─────────────────────────────────────────────
 	{ nutrient_name: "sodium", nutrient_id: NUTRIENT_NAME_TO_IDS.SODIUM, label: "Sodium", unit: "mg", value: "0" },
@@ -902,8 +902,8 @@ export default function CreateFood() {
 						<Text style={styles.cardHeaderLabel}>Basics</Text>
 					</View>
 
-					<Field styles={styles} placeholderColor={theme.inputPlaceholder} label="Food name" placeholder="e.g. Grass-fed Ribeye" value={foodName} onChangeText={handleFoodNameChange} />
-					<Field styles={styles} placeholderColor={theme.inputPlaceholder} label="BRAND / CATEGORY" placeholder="e.g. Local Farmhouse" value={brand} onChangeText={handleBrandChange} />
+					<Field styles={styles} placeholderColor={theme.inputPlaceholder} label="Food name" placeholder="e.g. Grass-fed ribeye" value={foodName} onChangeText={handleFoodNameChange} />
+					<Field styles={styles} placeholderColor={theme.inputPlaceholder} label="Brand or category" placeholder="e.g. Local farmhouse" value={brand} onChangeText={handleBrandChange} />
 
 					{/* Barcode input with custom scan button embedded */}
 					<Field

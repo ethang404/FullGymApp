@@ -4,23 +4,23 @@
 		"slug": "gym-app",
 		"version": "1.0.0",
 		"orientation": "portrait",
-		"icon": "./assets/images/NewIcon.png",
-		"scheme": "frontend",
+		"icon": "./assets/images/icon.png",
+		"scheme": "hearty",
 		"userInterfaceStyle": "automatic",
 		"ios": {
 			"supportsTablet": true,
 			"infoPlist": {
 				"NSCameraUsageDescription": "Hearty uses your camera to scan barcodes and nutrition labels."
 			},
-			"bundleIdentifier": "com.ethan.forge"
+			"bundleIdentifier": "com.ethangordon.hearty"
 		},
 		"android": {
 			"adaptiveIcon": {
 				"foregroundImage": "./assets/images/adaptive-icon.png",
-				"backgroundColor": "#ffffff"
+				"backgroundColor": "#2F7A4E"
 			},
-			"permissions": ["android.permission.CAMERA", "android.permission.RECORD_AUDIO"],
-			"package": "com.ethan.forge"
+			"permissions": ["android.permission.CAMERA"],
+			"package": "com.ethangordon.hearty"
 		},
 		"web": {
 			"bundler": "metro",
@@ -35,7 +35,7 @@
 					"image": "./assets/images/splash-icon.png",
 					"imageWidth": 200,
 					"resizeMode": "contain",
-					"backgroundColor": "#ffffff"
+					"backgroundColor": "#F4F7F1"
 				}
 			],
 			"expo-secure-store",
@@ -65,6 +65,12 @@
 				"projectId": "f9bb0df0-17d1-4f4c-a5b1-216c3305b399"
 			}
 		},
-		"owner": "ethang420s-team"
+		"owner": "ethang420s-team",
+		"runtimeVersion": {
+			"policy": "fingerprint"
+		},
+		"updates": {
+			"url": "https://u.expo.dev/f9bb0df0-17d1-4f4c-a5b1-216c3305b399"
+		}
 	}
 }
