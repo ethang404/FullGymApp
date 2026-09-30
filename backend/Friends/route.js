@@ -1,8 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const controller = require("./controller");
-const verifyToken = require("../Middlewear/token");
-const blockGuest = require("../Middlewear/blockGuest");
+const verifyToken = require("../middlewear/token");
+const blockGuest = require("../middlewear/blockGuest");
 
 // GET    /friends                         list accepted friends
 // GET    /friends/requests?direction=...  list pending requests (incoming|outgoing)

@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const controller = require("./controller");
-const verifyToken = require("../Middlewear/token");
+const verifyToken = require("../middlewear/token");
 
 // GET /explore?type=recipe|workout|all&scope=all|friends|public|mine&search=&cursor=&limit=20
 // Combined, cursor-paginated feed of recipes + workouts the caller is allowed to see:

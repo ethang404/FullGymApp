@@ -108,7 +108,12 @@ async function callGemini(captionText, fetchImpl) {
 	}
 
 	if (!res.ok) {
-		const errorBody = await res.text().catch(() => "(couldn't read body)");
+		let errorBody;
+		try {
+			errorBody = await res.text();
+		} catch {
+			errorBody = "(couldn't read body)";
+		}
 		console.error(`Gemini returned HTTP ${res.status}:`, errorBody);
 		throw new DataError("Couldn't process that TikTok video right now. Try again later.");
 	}

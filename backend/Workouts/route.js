@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 
 const controller = require("./controller");
-const verifyToken = require("../Middlewear/token");
+const verifyToken = require("../middlewear/token");
 
 //Get Workouts
 //Get one workout
