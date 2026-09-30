@@ -25,7 +25,7 @@ async function refreshToken(token) {
 			audience: "my-gym-app",
 			issuer: "gym-auth-server",
 		});
-	} catch (err) {
+	} catch {
 		throw new UnauthorizedError("Invalid or expired refresh token");
 	}
 
@@ -94,7 +94,7 @@ async function register(userData) {
 			password: hash,
 		});
 		return user;
-	} catch (err) {
+	} catch {
 		throw new GeneralError("Failed to register user");
 	}
 }
@@ -129,7 +129,7 @@ async function createGuest() {
 			is_guest: true,
 		});
 		return user;
-	} catch (err) {
+	} catch {
 		throw new GeneralError("Failed to create guest user");
 	}
 }
@@ -162,7 +162,7 @@ async function upgradeGuest(user_id, userData) {
 	return user;
 }
 
-async function loginWithApple({ identityToken, authorizationCode, nonce, firstName, lastName }) {
+async function loginWithApple({ identityToken, nonce, firstName, lastName }) {
 	if (!identityToken) throw new DataError("Missing Apple identityToken");
 
 	const payload = await verifyAppleIdentityToken(identityToken);
@@ -183,7 +183,7 @@ async function loginWithApple({ identityToken, authorizationCode, nonce, firstNa
 				email: payload.email || null,
 				apple_user_id: appleUserId,
 			});
-		} catch (err) {
+		} catch {
 			throw new GeneralError("Failed to create user from Apple sign-in");
 		}
 	}
@@ -219,7 +219,7 @@ async function loginWithGoogle({ idToken }) {
 				email: payload.email || null,
 				google_user_id: googleUserId,
 			});
-		} catch (err) {
+		} catch {
 			throw new GeneralError("Failed to create user from Google sign-in");
 		}
 	}

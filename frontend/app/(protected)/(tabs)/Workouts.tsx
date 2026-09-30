@@ -3,6 +3,7 @@ import { useMemo, useState, useCallback } from "react";
 import { router, useFocusEffect } from "expo-router";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
+import { fonts } from "@/theme/typography";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
 import { toast } from "@/utils/toast";
@@ -66,25 +67,10 @@ export default function Workouts() {
 					marginBottom: 8,
 				},
 				pageTitle: {
-					fontSize: 22,
-					fontWeight: "800",
+					fontSize: 28,
+					lineHeight: 34,
+					fontFamily: fonts.headingHeavy,
 					color: theme.text,
-				},
-				newBtn: {
-					flexDirection: "row",
-					alignItems: "center",
-					gap: 6,
-					backgroundColor: theme.primary,
-					paddingHorizontal: 14,
-					paddingVertical: 9,
-					borderRadius: 10,
-				},
-				newBtnText: {
-					fontSize: 12,
-					fontWeight: "700",
-					color: theme.textInverse,
-					textTransform: "uppercase",
-					letterSpacing: 0.5,
 				},
 
 				//Start workout btn stuff
@@ -97,8 +83,9 @@ export default function Workouts() {
 					marginBottom: 4,
 				},
 				ctaTitle: {
-					fontSize: 20,
-					fontWeight: "800",
+					fontSize: 22,
+					lineHeight: 28,
+					fontFamily: fonts.heading,
 					color: theme.text,
 					marginBottom: 6,
 				},
@@ -118,19 +105,15 @@ export default function Workouts() {
 					paddingVertical: 14,
 				},
 				ctaButtonText: {
-					fontSize: 14,
-					fontWeight: "800",
+					fontSize: 15,
+					fontWeight: "700",
 					color: theme.textInverse,
-					textTransform: "uppercase",
-					letterSpacing: 0.5,
 				},
 
 				sectionLabel: {
-					fontSize: 11,
+					fontSize: 15,
 					fontWeight: "700",
-					color: theme.textMuted,
-					letterSpacing: 1.5,
-					textTransform: "uppercase",
+					color: theme.textSecondary,
 					marginBottom: 8,
 					marginTop: 4,
 				},
@@ -221,7 +204,7 @@ export default function Workouts() {
 							{w.duration_minutes && (
 								<View style={styles.stat}>
 									<FontAwesome5 name="clock" size={10} color={theme.textTertiary} />
-									<Text style={styles.statText}>{w.duration_minutes}m</Text>
+									<Text style={styles.statText}>{w.duration_minutes} min</Text>
 								</View>
 							)}
 							{w.total_volume_kg && (
@@ -243,22 +226,18 @@ export default function Workouts() {
 		<>
 			<View style={styles.header}>
 				<Text style={styles.pageTitle}>Workouts</Text>
-				<TouchableOpacity style={styles.newBtn} activeOpacity={0.8} onPress={goToNewWorkout}>
-					<FontAwesome5 name="plus" size={11} color={theme.textInverse} />
-					<Text style={styles.newBtnText}>New</Text>
-				</TouchableOpacity>
 			</View>
 
 			<View style={styles.ctaBanner}>
-				<Text style={styles.ctaTitle}>Ready to train?</Text>
-				<Text style={styles.ctaSub}>Log your sets, track your progress, beat your records.</Text>
+				<Text style={styles.ctaTitle}>Ready when you are</Text>
+				<Text style={styles.ctaSub}>Log each set as you go and we&apos;ll keep track of the rest.</Text>
 				<PressableScale style={styles.ctaButton} onPress={goToNewWorkout}>
 					<FontAwesome5 name="play" size={12} color={theme.textInverse} />
-					<Text style={styles.ctaButtonText}>Start New Session</Text>
+					<Text style={styles.ctaButtonText}>Start workout</Text>
 				</PressableScale>
 			</View>
 
-			{workouts.length > 0 && <Text style={styles.sectionLabel}>History</Text>}
+			{workouts.length > 0 && <Text style={styles.sectionLabel}>Past workouts</Text>}
 		</>
 	);
 
@@ -274,7 +253,7 @@ export default function Workouts() {
 						<View style={styles.emptyState}>
 							<FontAwesome5 name="dumbbell" size={32} color={theme.textTertiary} />
 							<Text style={styles.emptyTitle}>No workouts yet</Text>
-							<Text style={styles.emptySubtitle}>Start your first session to begin tracking</Text>
+							<Text style={styles.emptySubtitle}>Tap Start workout to log your first one.</Text>
 						</View>
 					}
 					style={styles.scroll}

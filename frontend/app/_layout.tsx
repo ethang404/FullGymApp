@@ -7,14 +7,18 @@ import { AxiosInterceptorHandler } from "@/utils/AxiosInterceptorHandler";
 import { ProfileProvider } from "@/utils/ProfileProvider";
 import { FriendsProvider } from "@/utils/FriendsProvider";
 import { ToastProvider } from "@/utils/ToastProvider";
+import { useFonts } from "expo-font";
+import { fontAssets } from "@/theme/typography";
 
 function AppStack() {
 	const { isValidUser, isLoading } = useContext(AuthContext);
+	// A font that fails to load (fontError) shouldn't block the app; headings fall back to the system font.
+	const [fontsLoaded, fontError] = useFonts(fontAssets);
 
 	//need this while our verifyToken call is running
 	//so we don't load the wrong stack off the rip. More of a cosmetic/performance thing than important functionality
 	//may as well have
-	if (isLoading) {
+	if (isLoading || (!fontsLoaded && !fontError)) {
 		return <LoadingScreen />;
 	}
 

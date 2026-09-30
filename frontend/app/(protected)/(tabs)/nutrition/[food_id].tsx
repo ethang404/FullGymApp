@@ -8,18 +8,17 @@ import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
 import Screen from "@/components/Screen";
 
-import { AddServingModal } from "./components/AddServingModal";
-import NutritionFactsLabel from "./components/NutritionLabel";
+import { AddServingModal } from "@/features/nutrition/components/AddServingModal";
+import NutritionFactsLabel from "@/features/nutrition/components/NutritionLabel";
 
 import {
-	calcMacrosFromPer100g,
 	COMMON_UNITS,
 	type ServingSize,
 	type FoodDetail,
 	NUTRIENT_NAME_TO_IDS,
 	NUTRIENT_IDS_TO_NAMES,
 	calcNutrientsFromPer100g,
-} from "../../types/nutrition";
+} from "@/types/nutrition";
 
 export default function FoodDetailScreen() {
 	const { theme } = useTheme();
@@ -36,7 +35,10 @@ export default function FoodDetailScreen() {
 
 	const [quantityText, setQuantityText] = useState(quantity ?? "1");
 
-	const initialServing: ServingSize | null = serving_label && serving_weight_g ? { label: serving_label, weight_g: parseFloat(serving_weight_g) } : null;
+	const initialServing: ServingSize | null = useMemo(
+		() => (serving_label && serving_weight_g ? { label: serving_label, weight_g: parseFloat(serving_weight_g) } : null),
+		[serving_label, serving_weight_g],
+	);
 
 	const [selectedServing, setSelectedServing] = useState<ServingSize | null>(initialServing);
 	const [servingOptions, setServingOptions] = useState<ServingSize[]>(initialServing ? [initialServing] : []);
@@ -73,11 +75,11 @@ export default function FoodDetailScreen() {
 		} finally {
 			setLoading(false);
 		}
-	}, [food_id]);
+	}, [food_id, initialServing]);
 
 	useEffect(() => {
 		fetchFood();
-	}, [food_id]);
+	}, [fetchFood]);
 
 	const usedLabels = useMemo(() => new Set(servingOptions.map((s) => s.label)), [servingOptions]);
 	const availableUnits = useMemo(() => COMMON_UNITS.filter((u) => !usedLabels.has(u)), [usedLabels]);
@@ -142,8 +144,8 @@ export default function FoodDetailScreen() {
 					paddingBottom: 6,
 				},
 				headerCenter: { flex: 1, alignItems: "center" },
-				foodName: { color: theme.text, fontSize: 16, fontWeight: "800", letterSpacing: 0.3, textTransform: "uppercase" },
-				foodMeta: { color: theme.textMuted, fontSize: 11, letterSpacing: 0.5, marginTop: 2, textTransform: "uppercase" },
+				foodName: { color: theme.text, fontSize: 16, fontWeight: "800", letterSpacing: 0.3 },
+				foodMeta: { color: theme.textMuted, fontSize: 11, marginTop: 2 },
 				iconButton: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
 
 				card: {
@@ -155,7 +157,7 @@ export default function FoodDetailScreen() {
 					marginHorizontal: 16,
 				},
 				energyRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
-				eyebrow: { color: theme.textMuted, fontSize: 10.5, fontWeight: "700", letterSpacing: 1 },
+				eyebrow: { color: theme.textMuted, fontSize: 10.5, fontWeight: "700" },
 				energyValueRow: { flexDirection: "row", alignItems: "baseline", gap: 6, marginTop: 4 },
 				energyValue: { color: theme.text, fontSize: 40, fontWeight: "800" },
 				energyUnit: { color: theme.textMuted, fontSize: 14 },
@@ -227,14 +229,14 @@ export default function FoodDetailScreen() {
 				<View style={styles.card}>
 					<View style={styles.energyRow}>
 						<View>
-							<Text style={styles.eyebrow}>TOTAL ENERGY</Text>
+							<Text style={styles.eyebrow}>Calories</Text>
 							<View style={styles.energyValueRow}>
 								<Text style={styles.energyValue}>{cals != null ? Math.round(cals) : "—"}</Text>
 								<Text style={styles.energyUnit}>kcal</Text>
 							</View>
 						</View>
 						<View>
-							<Text style={[styles.eyebrow, { textAlign: "right" }]}>QUANTITY</Text>
+							<Text style={[styles.eyebrow, { textAlign: "right" }]}>Amount</Text>
 							<View style={styles.stepperRow}>
 								<TouchableOpacity onPress={() => stepQuantity(-0.5)} hitSlop={8}>
 									<FontAwesome5 name="minus-circle" size={18} color={theme.primary} />

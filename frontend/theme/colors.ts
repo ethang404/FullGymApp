@@ -1,16 +1,75 @@
-//Cream/Coral/Sage/Lavender — "cute", soft-on-the-eyes default
-export const sorbetTheme = {
+// Every theme is checked against WCAG AA: body text and `primary` hit 4.5:1 on
+// cardBg/background/cardBgAlt, `textInverse` hits 4.5:1 on `primary` (button labels),
+// and textTertiary / placeholders / macro colors hit 3:1 (icons and graphics).
+// Re-check contrast when changing any of these values.
+
+//Leaf green / butter / tomato on fresh paper — the Hearty default
+export const heartyTheme = {
 	// Core
-	primary: "#FF9C7A",
+	primary: "#2F7A4E",
+	background: "#F4F7F1",
+	cardBg: "#FFFFFF",
+	cardBgAlt: "#EAF1E6",
+
+	// Text
+	text: "#1F2A23",
+	textMuted: "#56645B",
+	textSecondary: "#3D4A42",
+	textTertiary: "#7A877F",
+	textQuaternary: "#C9D3CB",
+	textInverse: "#FFFFFF",
+
+	// Auth
+	authBackground: "#F4F7F1",
+	authCardBg: "#FFFFFF",
+	authCardBorder: "#DDE5D8",
+	authText: "#1F2A23",
+	authTextMuted: "#56645B",
+	authTextHint: "#7A877F",
+	authInputBg: "#FFFFFF",
+	authInputBorder: "#CFD9CA",
+	authInputText: "#1F2A23",
+	authLabel: "#3D4A42",
+
+	// Inputs
+	inputBg: "#FFFFFF",
+	inputBorder: "#CFD9CA",
+	inputPlaceholder: "#7A877F",
+
+	// Borders
+	border: "#DDE5D8",
+	borderLight: "#EAF1E6",
+
+	// Semantic
+	error: "#C23B2B",
+	accent: "#F2B53A", // butter — celebration moments only
+	dotActive: "#2F7A4E",
+
+	// Macros (nutrition rings/bars) — tomato / honey / plum
+	macroProtein: "#C0442E",
+	macroCarbs: "#A86A00",
+	macroFat: "#6B4FA0",
+
+	// Overlays
+	overlay: "rgba(0,0,0,0.5)",
+
+	// Shadows
+	shadowColor: "#000000",
+};
+
+//Cream/Coral/Sage/Lavender — soft and warm
+export const sorbetTheme: Theme = {
+	// Core
+	primary: "#B34824",
 	background: "#FDF6F0",
 	cardBg: "#FFFFFF",
 	cardBgAlt: "#FBEEE6",
 
 	// Text
 	text: "#4A4A4A",
-	textMuted: "#A8917E",
-	textSecondary: "#7A6A5D",
-	textTertiary: "#C2AFA0",
+	textMuted: "#7A6150",
+	textSecondary: "#6B5A4D",
+	textTertiary: "#A08878",
 	textQuaternary: "#E3D5C8",
 	textInverse: "#FFFFFF",
 
@@ -19,31 +78,31 @@ export const sorbetTheme = {
 	authCardBg: "#FFFFFF",
 	authCardBorder: "#F0E1D5",
 	authText: "#4A4A4A",
-	authTextMuted: "#A8917E",
-	authTextHint: "#C2AFA0",
+	authTextMuted: "#7A6150",
+	authTextHint: "#A08878",
 	authInputBg: "#FFFFFF",
 	authInputBorder: "#E8D9CE",
 	authInputText: "#4A4A4A",
-	authLabel: "#7A6A5D",
+	authLabel: "#6B5A4D",
 
 	// Inputs
 	inputBg: "#FFFFFF",
 	inputBorder: "#E8D9CE",
-	inputPlaceholder: "#C2AFA0",
+	inputPlaceholder: "#A08878",
 
 	// Borders
 	border: "#F0E1D5",
 	borderLight: "#FBEEE6",
 
 	// Semantic
-	error: "#D96B5C",
-	accent: "#C8B6E2",
-	dotActive: "#FF9C7A",
+	error: "#C0473A",
+	accent: "#FF9C7A",
+	dotActive: "#B34824",
 
-	// Macros (nutrition rings/bars) — coral / sage / lavender trio
-	macroProtein: "#3F8A64", // deepened sage for contrast on light bg
-	macroCarbs: "#D85A30", // deepened coral
-	macroFat: "#7F6BAE", // deepened lavender
+	// Macros (nutrition rings/bars) — sage / coral / lavender trio
+	macroProtein: "#3F8A64",
+	macroCarbs: "#D85A30",
+	macroFat: "#7F6BAE",
 
 	// Overlays
 	overlay: "rgba(0,0,0,0.5)",
@@ -52,52 +111,52 @@ export const sorbetTheme = {
 	shadowColor: "#000000",
 };
 
-//Red/black
-export const kratosRedTheme = {
+//Lavender/white
+export const lavenderTheme: Theme = {
 	// Core
-	primary: "#D72638",
-	background: "#0A0A0A",
-	cardBg: "#141414",
-	cardBgAlt: "#1C1C1C",
+	primary: "#6E4DB3",
+	background: "#F6F3FC",
+	cardBg: "#FFFFFF",
+	cardBgAlt: "#EDE6F8",
 
 	// Text
-	text: "#F5F5F5",
-	textMuted: "#A0A0A0",
-	textSecondary: "#C0C0C0",
-	textTertiary: "#707070",
-	textQuaternary: "#505050",
-	textInverse: "#0A0A0A",
+	text: "#2C2438",
+	textMuted: "#6B5E7C",
+	textSecondary: "#5C4E6B",
+	textTertiary: "#8E82A0",
+	textQuaternary: "#D1C7DC",
+	textInverse: "#FFFFFF",
 
 	// Auth
-	authBackground: "#050505",
-	authCardBg: "#111111",
-	authCardBorder: "#1F1F1F",
-	authText: "#F5F5F5",
-	authTextMuted: "#A0A0A0",
-	authTextHint: "#606060",
-	authInputBg: "#0A0A0A",
-	authInputBorder: "#2A2A2A",
-	authInputText: "#E5E5E5",
-	authLabel: "#C0C0C0",
+	authBackground: "#F1EBFA",
+	authCardBg: "#FFFFFF",
+	authCardBorder: "#DCCEF0",
+	authText: "#2C2438",
+	authTextMuted: "#6B5E7C",
+	authTextHint: "#8E82A0",
+	authInputBg: "#FFFFFF",
+	authInputBorder: "#D6C6EC",
+	authInputText: "#2C2438",
+	authLabel: "#5C4E6B",
 
 	// Inputs
-	inputBg: "#1A1A1A",
-	inputBorder: "#2A2A2A",
-	inputPlaceholder: "#606060",
+	inputBg: "#FFFFFF",
+	inputBorder: "#D6C6EC",
+	inputPlaceholder: "#8E82A0",
 
 	// Borders
-	border: "#2A2A2A",
-	borderLight: "#333333",
+	border: "#DCCEF0",
+	borderLight: "#EDE6F8",
 
 	// Semantic
-	error: "#FF4444",
-	accent: "#D72638",
-	dotActive: "#D72638",
+	error: "#C23A4F",
+	accent: "#C8B6E2",
+	dotActive: "#6E4DB3",
 
-	// Macros (nutrition rings/bars)
-	macroProtein: "#4ADE80",
-	macroCarbs: "#38BDF8",
-	macroFat: "#FB923C",
+	// Macros (nutrition rings/bars) — deeper shades for contrast on light backgrounds
+	macroProtein: "#15803D",
+	macroCarbs: "#0369A1",
+	macroFat: "#C2410C",
 
 	// Overlays
 	overlay: "rgba(0,0,0,0.5)",
@@ -106,8 +165,8 @@ export const kratosRedTheme = {
 	shadowColor: "#000000",
 };
 
-//White/Black
-export const midnightTheme = {
+//White/Black — the one dark theme
+export const midnightTheme: Theme = {
 	// Core
 	primary: "#FFFFFF",
 	background: "#000000",
@@ -116,9 +175,9 @@ export const midnightTheme = {
 
 	// Text
 	text: "#FFFFFF",
-	textMuted: "#999999",
+	textMuted: "#A3A3A3",
 	textSecondary: "#CCCCCC",
-	textTertiary: "#666666",
+	textTertiary: "#7A7A7A",
 	textQuaternary: "#444444",
 	textInverse: "#000000",
 
@@ -127,8 +186,8 @@ export const midnightTheme = {
 	authCardBg: "#0F0F0F",
 	authCardBorder: "#222222",
 	authText: "#FFFFFF",
-	authTextMuted: "#999999",
-	authTextHint: "#555555",
+	authTextMuted: "#A3A3A3",
+	authTextHint: "#7A7A7A",
 	authInputBg: "#000000",
 	authInputBorder: "#2A2A2A",
 	authInputText: "#FFFFFF",
@@ -137,14 +196,14 @@ export const midnightTheme = {
 	// Inputs
 	inputBg: "#111111",
 	inputBorder: "#2A2A2A",
-	inputPlaceholder: "#555555",
+	inputPlaceholder: "#7A7A7A",
 
 	// Borders
 	border: "#222222",
 	borderLight: "#2F2F2F",
 
 	// Semantic
-	error: "#FF4444",
+	error: "#FF6B6B",
 	accent: "#FFFFFF",
 	dotActive: "#FFFFFF",
 
@@ -160,362 +219,28 @@ export const midnightTheme = {
 	shadowColor: "#000000",
 };
 
-//Red/white
-export const crimsonLightTheme = {
-	// Core
-	primary: "#D72638",
-	background: "#F7F7F5",
-	cardBg: "#FFFFFF",
-	cardBgAlt: "#F0EEEA",
-
-	// Text
-	text: "#111111",
-	textMuted: "#666666",
-	textSecondary: "#444444",
-	textTertiary: "#888888",
-	textQuaternary: "#AAAAAA",
-	textInverse: "#FFFFFF",
-
-	// Auth
-	authBackground: "#FBFBF9",
-	authCardBg: "#FFFFFF",
-	authCardBorder: "#E0DDDA",
-	authText: "#111111",
-	authTextMuted: "#666666",
-	authTextHint: "#999999",
-	authInputBg: "#FFFFFF",
-	authInputBorder: "#DDDDDD",
-	authInputText: "#111111",
-	authLabel: "#444444",
-
-	// Inputs
-	inputBg: "#FFFFFF",
-	inputBorder: "#DDDDDD",
-	inputPlaceholder: "#AAAAAA",
-
-	// Borders
-	border: "#E0DDDA",
-	borderLight: "#EEEBE8",
-
-	// Semantic
-	error: "#D72638",
-	accent: "#D72638",
-	dotActive: "#D72638",
-
-	// Macros (nutrition rings/bars) — deeper shades for contrast on light backgrounds
-	macroProtein: "#15803D",
-	macroCarbs: "#0369A1",
-	macroFat: "#C2410C",
-
-	// Overlays
-	overlay: "rgba(0,0,0,0.5)",
-
-	// Shadows
-	shadowColor: "#000000",
-};
-
-//Black/orange
-export const carbonTheme = {
-	// Core
-	primary: "#F97316",
-	background: "#111111",
-	cardBg: "#1C1C1C",
-	cardBgAlt: "#242424",
-
-	// Text
-	text: "#F0F0F0",
-	textMuted: "#909090",
-	textSecondary: "#B0B0B0",
-	textTertiary: "#606060",
-	textQuaternary: "#484848",
-	textInverse: "#111111",
-
-	// Auth
-	authBackground: "#0A0A0A",
-	authCardBg: "#141414",
-	authCardBorder: "#222222",
-	authText: "#F0F0F0",
-	authTextMuted: "#909090",
-	authTextHint: "#555555",
-	authInputBg: "#0A0A0A",
-	authInputBorder: "#2A2A2A",
-	authInputText: "#E0E0E0",
-	authLabel: "#B0B0B0",
-
-	// Inputs
-	inputBg: "#1C1C1C",
-	inputBorder: "#2E2E2E",
-	inputPlaceholder: "#585858",
-
-	// Borders
-	border: "#2A2A2A",
-	borderLight: "#333333",
-
-	// Semantic
-	error: "#FF4444",
-	accent: "#F97316",
-	dotActive: "#F97316",
-
-	// Macros (nutrition rings/bars)
-	macroProtein: "#4ADE80",
-	macroCarbs: "#38BDF8",
-	macroFat: "#FB923C",
-
-	// Overlays
-	overlay: "rgba(0,0,0,0.5)",
-
-	// Shadows
-	shadowColor: "#000000",
-};
-
-//Blue/Black
-export const slateTheme = {
-	// Core
-	primary: "#3B82F6",
-	background: "#0F172A",
-	cardBg: "#1E293B",
-	cardBgAlt: "#263347",
-
-	// Text
-	text: "#F1F5F9",
-	textMuted: "#94A3B8",
-	textSecondary: "#CBD5E1",
-	textTertiary: "#64748B",
-	textQuaternary: "#475569",
-	textInverse: "#0F172A",
-
-	// Auth
-	authBackground: "#020617",
-	authCardBg: "#0F172A",
-	authCardBorder: "#1E293B",
-	authText: "#F1F5F9",
-	authTextMuted: "#94A3B8",
-	authTextHint: "#64748B",
-	authInputBg: "#020617",
-	authInputBorder: "#1E293B",
-	authInputText: "#E2E8F0",
-	authLabel: "#CBD5E1",
-
-	// Inputs
-	inputBg: "#1E293B",
-	inputBorder: "#334155",
-	inputPlaceholder: "#64748B",
-
-	// Borders
-	border: "#1E293B",
-	borderLight: "#334155",
-
-	// Semantic
-	error: "#F87171",
-	accent: "#3B82F6",
-	dotActive: "#3B82F6",
-
-	// Macros (nutrition rings/bars)
-	macroProtein: "#4ADE80",
-	macroCarbs: "#38BDF8",
-	macroFat: "#FB923C",
-
-	// Overlays
-	overlay: "rgba(0,0,0,0.5)",
-
-	// Shadows
-	shadowColor: "#000000",
-};
-
-//Pink/white
-export const blossomTheme = {
-	// Core
-	primary: "#D6336C",
-	background: "#FFF3F6",
-	cardBg: "#FFFFFF",
-	cardBgAlt: "#FBE4EC",
-
-	// Text
-	text: "#3A2430",
-	textMuted: "#8A6572",
-	textSecondary: "#6B4655",
-	textTertiary: "#B08C99",
-	textQuaternary: "#D9BFC9",
-	textInverse: "#FFFFFF",
-
-	// Auth
-	authBackground: "#FFEAF1",
-	authCardBg: "#FFFFFF",
-	authCardBorder: "#F5CEDC",
-	authText: "#3A2430",
-	authTextMuted: "#8A6572",
-	authTextHint: "#B08C99",
-	authInputBg: "#FFF8FA",
-	authInputBorder: "#F0C0D2",
-	authInputText: "#3A2430",
-	authLabel: "#6B4655",
-
-	// Inputs
-	inputBg: "#FFFFFF",
-	inputBorder: "#F0C0D2",
-	inputPlaceholder: "#B08C99",
-
-	// Borders
-	border: "#F5CEDC",
-	borderLight: "#FBE4EC",
-
-	// Semantic
-	error: "#D64550",
-	accent: "#D6336C",
-	dotActive: "#D6336C",
-
-	// Macros (nutrition rings/bars) — deeper shades for contrast on light backgrounds
-	macroProtein: "#15803D",
-	macroCarbs: "#0369A1",
-	macroFat: "#C2410C",
-
-	// Overlays
-	overlay: "rgba(0,0,0,0.5)",
-
-	// Shadows
-	shadowColor: "#000000",
-};
-
-//Green/white
-export const sageTheme = {
-	// Core
-	primary: "#3F7D58",
-	background: "#F3F8F1",
-	cardBg: "#FFFFFF",
-	cardBgAlt: "#E7F1E3",
-
-	// Text
-	text: "#223328",
-	textMuted: "#6F8A76",
-	textSecondary: "#4E6B55",
-	textTertiary: "#93AA97",
-	textQuaternary: "#C4D6C6",
-	textInverse: "#FFFFFF",
-
-	// Auth
-	authBackground: "#EEF6EC",
-	authCardBg: "#FFFFFF",
-	authCardBorder: "#D6E8D2",
-	authText: "#223328",
-	authTextMuted: "#6F8A76",
-	authTextHint: "#93AA97",
-	authInputBg: "#FFFFFF",
-	authInputBorder: "#CBE0C7",
-	authInputText: "#223328",
-	authLabel: "#4E6B55",
-
-	// Inputs
-	inputBg: "#FFFFFF",
-	inputBorder: "#CBE0C7",
-	inputPlaceholder: "#93AA97",
-
-	// Borders
-	border: "#D6E8D2",
-	borderLight: "#E7F1E3",
-
-	// Semantic
-	error: "#D64545",
-	accent: "#3F7D58",
-	dotActive: "#3F7D58",
-
-	// Macros (nutrition rings/bars) — deeper shades for contrast on light backgrounds
-	macroProtein: "#15803D",
-	macroCarbs: "#0369A1",
-	macroFat: "#C2410C",
-
-	// Overlays
-	overlay: "rgba(0,0,0,0.5)",
-
-	// Shadows
-	shadowColor: "#000000",
-};
-
-//Lavender/white
-export const lavenderTheme = {
-	// Core
-	primary: "#7C5CBF",
-	background: "#F6F3FC",
-	cardBg: "#FFFFFF",
-	cardBgAlt: "#EDE6F8",
-
-	// Text
-	text: "#2C2438",
-	textMuted: "#83758F",
-	textSecondary: "#5C4E6B",
-	textTertiary: "#A297AF",
-	textQuaternary: "#D1C7DC",
-	textInverse: "#FFFFFF",
-
-	// Auth
-	authBackground: "#F1EBFA",
-	authCardBg: "#FFFFFF",
-	authCardBorder: "#DCCEF0",
-	authText: "#2C2438",
-	authTextMuted: "#83758F",
-	authTextHint: "#A297AF",
-	authInputBg: "#FFFFFF",
-	authInputBorder: "#D6C6EC",
-	authInputText: "#2C2438",
-	authLabel: "#5C4E6B",
-
-	// Inputs
-	inputBg: "#FFFFFF",
-	inputBorder: "#D6C6EC",
-	inputPlaceholder: "#A297AF",
-
-	// Borders
-	border: "#DCCEF0",
-	borderLight: "#EDE6F8",
-
-	// Semantic
-	error: "#D6455A",
-	accent: "#7C5CBF",
-	dotActive: "#7C5CBF",
-
-	// Macros (nutrition rings/bars) — deeper shades for contrast on light backgrounds
-	macroProtein: "#15803D",
-	macroCarbs: "#0369A1",
-	macroFat: "#C2410C",
-
-	// Overlays
-	overlay: "rgba(0,0,0,0.5)",
-
-	// Shadows
-	shadowColor: "#000000",
-};
-
-export type Theme = typeof kratosRedTheme; //creates a type of Theme, must contain primary/backgreound etc.
+export type Theme = typeof heartyTheme; //creates a type of Theme, must contain primary/backgreound etc.
 
 //so this is a string type, but where it's only allowed to be these strings here
-export type ThemeName = "sorbet" | "kratosRed" | "midnight" | "crimsonLight" | "carbon" | "slate" | "blossom" | "sage" | "lavender";
+export type ThemeName = "hearty" | "sorbet" | "lavender" | "midnight";
 
 //Combine theme name w/ theme
 //Think of zip in python
 export const themes: Record<ThemeName, Theme> = {
+	hearty: heartyTheme,
 	sorbet: sorbetTheme,
-	kratosRed: kratosRedTheme,
-	midnight: midnightTheme,
-	crimsonLight: crimsonLightTheme,
-	carbon: carbonTheme,
-	slate: slateTheme,
-	blossom: blossomTheme,
-	sage: sageTheme,
 	lavender: lavenderTheme,
+	midnight: midnightTheme,
 };
 
 // Display label for each theme
 export const themeLabels: Record<ThemeName, string> = {
+	hearty: "Hearty",
 	sorbet: "Sorbet",
-	kratosRed: "Kratos",
-	midnight: "Midnight",
-	crimsonLight: "Crimson",
-	carbon: "Carbon",
-	slate: "Slate",
-	blossom: "Blossom",
-	sage: "Sage",
 	lavender: "Lavender",
+	midnight: "Midnight",
 };
 
-// Default theme — used wherever the app initializes its theme state
-// (e.g. `useState<ThemeName>(defaultThemeName)` or a fallback in your theme provider/context)
-export const defaultThemeName: ThemeName = "sorbet";
+// Default theme — used wherever the app initializes its theme state.
+// A saved theme that no longer exists (older builds had 9) falls back to this.
+export const defaultThemeName: ThemeName = "hearty";

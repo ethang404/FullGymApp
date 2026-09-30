@@ -3,13 +3,13 @@ import { useMemo, useState, useCallback } from "react";
 import { router, useFocusEffect } from "expo-router";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
+import { fonts } from "@/theme/typography";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
 import { todayISO, formatRelativeDate } from "@/utils/date";
 import { useProfile } from "@/utils/ProfileProvider";
 import { ScreenState } from "@/components/ScreenState";
 import { PressableScale } from "@/components/PressableScale";
-import { RingProgress } from "@/components/RingProgress";
 import { Tasks } from "@/components/Tasks";
 import Screen from "@/components/Screen";
 
@@ -33,11 +33,21 @@ interface Workout {
 // % of goal, guarding against a 0 / missing goal.
 const pctOfGoal = (current: number, goal: number) => (goal > 0 ? (current / goal) * 100 : 0);
 
+function greeting(now = new Date()) {
+	const h = now.getHours();
+	if (h < 12) return "Good morning";
+	if (h < 18) return "Good afternoon";
+	return "Good evening";
+}
+
+const goToNewWorkout = () =>
+	router.push({ pathname: "/(protected)/workouts/[workout_id]", params: { workout_id: "new", mode: "new" } });
+
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function Home() {
 	const { theme } = useTheme();
-	const { goals } = useProfile();
+	const { goals, profile } = useProfile();
 
 	const [summary, setSummary] = useState<NutrientSummary | null>(null);
 	const [workouts, setWorkouts] = useState<Workout[]>([]);
@@ -107,82 +117,69 @@ export default function Home() {
 				content: { padding: 20, paddingBottom: 32, gap: 20 },
 
 				// Header
-				header: {
-					flexDirection: "row",
-					alignItems: "center",
-					justifyContent: "space-between",
-					marginBottom: 4,
+				greeting: {
+					fontSize: 30,
+					lineHeight: 36,
+					fontFamily: fonts.headingHeavy,
+					color: theme.text,
 				},
-				appName: {
-					fontSize: 18,
-					fontWeight: "800",
-					color: theme.primary,
-					letterSpacing: 2,
-					textTransform: "uppercase",
+				dateLine: {
+					fontSize: 14,
+					color: theme.textMuted,
 				},
 
 				// Cards
 				card: {
 					backgroundColor: theme.cardBg,
-					borderRadius: 16,
-					padding: 18,
+					borderRadius: 20,
+					padding: 20,
 					borderWidth: 1,
 					borderColor: theme.border,
 				},
-				cardAlt: {
-					backgroundColor: theme.cardBgAlt,
+				listCard: {
+					backgroundColor: theme.cardBg,
 					borderRadius: 16,
-					padding: 18,
+					paddingHorizontal: 16,
 					borderWidth: 1,
 					borderColor: theme.border,
 				},
 
-				// Calorie hero
-				calLabel: {
-					fontSize: 11,
-					fontWeight: "700",
-					color: theme.textMuted,
-					letterSpacing: 1.5,
-					textTransform: "uppercase",
-					marginBottom: 4,
-				},
+				// Calories left — the one big number on the screen
 				calNumber: {
-					fontSize: 48,
-					fontWeight: "800",
-					color: theme.text,
-					lineHeight: 52,
+					fontSize: 56,
+					lineHeight: 60,
+					fontFamily: fonts.headingHeavy,
+					color: theme.primary,
 				},
-				calGoal: {
-					fontSize: 13,
+				calCaption: {
+					fontSize: 16,
+					fontWeight: "600",
+					color: theme.text,
+				},
+				calSub: {
+					fontSize: 14,
 					color: theme.textMuted,
 					marginTop: 2,
 				},
-				calRow: {
-					flexDirection: "row",
-					justifyContent: "space-between",
-					alignItems: "center",
-				},
 
-				// Progress bar
+				// Progress bars
 				barTrack: {
-					height: 4,
-					backgroundColor: theme.border,
-					borderRadius: 2,
-					marginTop: 14,
+					height: 8,
+					backgroundColor: theme.cardBgAlt,
+					borderRadius: 4,
 					overflow: "hidden",
 				},
 				barFill: {
-					height: 4,
-					backgroundColor: theme.primary,
-					borderRadius: 2,
+					height: 8,
+					borderRadius: 4,
 				},
+				calBar: { marginTop: 16 },
 
-				// Macro rings row
-				macroRow: {
-					flexDirection: "row",
-					justifyContent: "space-around",
-					marginTop: 4,
-				},
+				// Macros
+				macroList: { marginTop: 20, gap: 12 },
+				macroHead: { flexDirection: "row", justifyContent: "space-between", marginBottom: 6 },
+				macroName: { fontSize: 14, fontWeight: "600", color: theme.text },
+				macroAmount: { fontSize: 14, color: theme.textMuted },
 
 				// Section header
 				sectionRow: {
@@ -192,16 +189,15 @@ export default function Home() {
 					marginBottom: 12,
 				},
 				sectionTitle: {
-					fontSize: 17,
-					fontWeight: "700",
+					fontSize: 20,
+					lineHeight: 26,
+					fontFamily: fonts.heading,
 					color: theme.text,
 				},
 				viewAll: {
-					fontSize: 12,
-					fontWeight: "700",
+					fontSize: 14,
+					fontWeight: "600",
 					color: theme.primary,
-					letterSpacing: 0.5,
-					textTransform: "uppercase",
 				},
 
 				// CTA buttons
@@ -221,29 +217,25 @@ export default function Home() {
 				},
 				ctaSecondary: {
 					flex: 1,
-					backgroundColor: theme.cardBgAlt,
+					backgroundColor: theme.cardBg,
 					borderRadius: 14,
 					paddingVertical: 16,
 					alignItems: "center",
 					flexDirection: "row",
 					justifyContent: "center",
 					gap: 8,
-					borderWidth: 1,
-					borderColor: theme.border,
+					borderWidth: 1.5,
+					borderColor: theme.primary,
 				},
 				ctaPrimaryText: {
-					fontSize: 14,
-					fontWeight: "800",
+					fontSize: 15,
+					fontWeight: "700",
 					color: theme.textInverse,
-					textTransform: "uppercase",
-					letterSpacing: 0.5,
 				},
 				ctaSecondaryText: {
-					fontSize: 14,
-					fontWeight: "800",
-					color: theme.text,
-					textTransform: "uppercase",
-					letterSpacing: 0.5,
+					fontSize: 15,
+					fontWeight: "700",
+					color: theme.primary,
 				},
 
 				// Workout row
@@ -262,8 +254,6 @@ export default function Home() {
 					backgroundColor: theme.cardBgAlt,
 					alignItems: "center",
 					justifyContent: "center",
-					borderWidth: 1,
-					borderColor: theme.border,
 				},
 				workoutName: {
 					fontSize: 15,
@@ -271,7 +261,7 @@ export default function Home() {
 					color: theme.text,
 				},
 				workoutMeta: {
-					fontSize: 12,
+					fontSize: 13,
 					color: theme.textMuted,
 					marginTop: 2,
 				},
@@ -279,81 +269,103 @@ export default function Home() {
 					marginLeft: "auto",
 				},
 
+				emptyWrap: {
+					alignItems: "center",
+					paddingVertical: 20,
+					gap: 12,
+				},
 				emptyText: {
 					fontSize: 14,
 					color: theme.textMuted,
 					textAlign: "center",
-					paddingVertical: 16,
 				},
+				emptyButton: {
+					flexDirection: "row",
+					alignItems: "center",
+					gap: 8,
+					backgroundColor: theme.cardBgAlt,
+					borderRadius: 999,
+					paddingHorizontal: 16,
+					paddingVertical: 10,
+				},
+				emptyButtonText: { fontSize: 14, fontWeight: "700", color: theme.primary },
 			}),
 		[theme],
 	);
 
-	const calPercent = summary ? pctOfGoal(summary.calories, calorieGoal) : 0;
+	const eaten = Math.round(summary?.calories ?? 0);
+	const left = calorieGoal - eaten;
+	const calPercent = pctOfGoal(eaten, calorieGoal);
+	const firstName = profile?.first_name?.trim();
+	const todayLabel = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+
+	const macros = [
+		{ key: "protein", label: "Protein", color: theme.macroProtein },
+		{ key: "carbs", label: "Carbs", color: theme.macroCarbs },
+		{ key: "fat", label: "Fat", color: theme.macroFat },
+	] as const;
 
 	return (
 		<Screen edges={["top"]}>
-			<ScreenState loading={loading} error={error} onRetry={fetchData} errorTitle="Couldn't load your dashboard">
+			<ScreenState loading={loading} error={error} onRetry={fetchData} errorTitle="Couldn't load today">
 				<ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 					{/* Header */}
-					<View style={styles.header}>
-						<Text style={styles.appName}>Kratos</Text>
+					<View>
+						<Text style={styles.greeting} accessibilityRole="header">
+							{greeting()}
+							{firstName ? `, ${firstName}` : ""}
+						</Text>
+						<Text style={styles.dateLine}>{todayLabel}</Text>
 					</View>
 
-					{/* Calorie card */}
+					{/* Calories left today */}
 					<View style={styles.card}>
-						<Text style={styles.calLabel}>Daily Calories</Text>
-						<View style={styles.calRow}>
-							<View>
-								<Text style={styles.calNumber}>{summary?.calories.toLocaleString() ?? "0"}</Text>
-								<Text style={styles.calGoal}>of {calorieGoal.toLocaleString()} kcal</Text>
-							</View>
-							<RingProgress percent={calPercent} color={theme.primary} trackColor={theme.border} label="GOAL" size={80} strokeWidth={8} />
-						</View>
-						<View style={styles.barTrack}>
-							<View style={[styles.barFill, { width: `${Math.min(calPercent, 100)}%` }]} />
+						<Text style={styles.calNumber}>{Math.abs(left).toLocaleString()}</Text>
+						<Text style={styles.calCaption}>{left >= 0 ? "calories left today" : "calories over your goal"}</Text>
+						<Text style={styles.calSub}>
+							{eaten.toLocaleString()} of {calorieGoal.toLocaleString()} eaten
+						</Text>
+						<View
+							style={[styles.barTrack, styles.calBar]}
+							accessibilityRole="progressbar"
+							accessibilityValue={{ min: 0, max: 100, now: Math.round(Math.min(calPercent, 100)) }}
+						>
+							<View style={[styles.barFill, { width: `${Math.min(calPercent, 100)}%`, backgroundColor: theme.primary }]} />
 						</View>
 
-						{/* Macro rings */}
 						{summary && (
-							<View style={styles.macroRow}>
-								<RingProgress
-									percent={pctOfGoal(summary.protein, goals.protein)}
-									color={theme.macroProtein}
-									trackColor={theme.border}
-									label="PROTEIN"
-									size={64}
-									strokeWidth={6}
-								/>
-								<RingProgress
-									percent={pctOfGoal(summary.carbs, goals.carbs)}
-									color={theme.macroCarbs}
-									trackColor={theme.border}
-									label="CARBS"
-									size={64}
-									strokeWidth={6}
-								/>
-								<RingProgress
-									percent={pctOfGoal(summary.fat, goals.fat)}
-									color={theme.macroFat}
-									trackColor={theme.border}
-									label="FAT"
-									size={64}
-									strokeWidth={6}
-								/>
+							<View style={styles.macroList}>
+								{macros.map((m) => {
+									const current = Math.round(summary[m.key]);
+									const goal = goals[m.key];
+									const pct = Math.min(pctOfGoal(current, goal), 100);
+									return (
+										<View key={m.key}>
+											<View style={styles.macroHead}>
+												<Text style={styles.macroName}>{m.label}</Text>
+												<Text style={styles.macroAmount}>
+													{current} / {goal} g
+												</Text>
+											</View>
+											<View style={styles.barTrack}>
+												<View style={[styles.barFill, { width: `${pct}%`, backgroundColor: m.color }]} />
+											</View>
+										</View>
+									);
+								})}
 							</View>
 						)}
 					</View>
 
 					{/* CTA buttons */}
 					<View style={styles.ctaRow}>
-						<PressableScale style={styles.ctaPrimary} onPress={() => router.push("/nutrition/Nutrition")}>
+						<PressableScale style={styles.ctaPrimary} onPress={() => router.push("/nutrition/Nutrition")} accessibilityRole="button">
 							<FontAwesome5 name="utensils" size={14} color={theme.textInverse} />
-							<Text style={styles.ctaPrimaryText}>Log Food</Text>
+							<Text style={styles.ctaPrimaryText}>Log food</Text>
 						</PressableScale>
-						<PressableScale style={styles.ctaSecondary} onPress={() => router.push("/Workouts")}>
-							<FontAwesome5 name="dumbbell" size={14} color={theme.text} />
-							<Text style={styles.ctaSecondaryText}>Workout</Text>
+						<PressableScale style={styles.ctaSecondary} onPress={goToNewWorkout} accessibilityRole="button">
+							<FontAwesome5 name="play" size={12} color={theme.primary} />
+							<Text style={styles.ctaSecondaryText}>Start workout</Text>
 						</PressableScale>
 					</View>
 
@@ -363,15 +375,25 @@ export default function Home() {
 					{/* Recent workouts */}
 					<View>
 						<View style={styles.sectionRow}>
-							<Text style={styles.sectionTitle}>Recent Workouts</Text>
-							<TouchableOpacity onPress={() => router.push("/Workouts")}>
-								<Text style={styles.viewAll}>View All</Text>
-							</TouchableOpacity>
+							<Text style={styles.sectionTitle} accessibilityRole="header">
+								Recent workouts
+							</Text>
+							{workouts.length > 0 && (
+								<TouchableOpacity onPress={() => router.push("/Workouts")} hitSlop={10} accessibilityRole="link">
+									<Text style={styles.viewAll}>See all</Text>
+								</TouchableOpacity>
+							)}
 						</View>
 
-						<View style={styles.card}>
+						<View style={styles.listCard}>
 							{workouts.length === 0 ? (
-								<Text style={styles.emptyText}>No workouts yet. Start one!</Text>
+								<View style={styles.emptyWrap}>
+									<Text style={styles.emptyText}>Your workouts will show up here.</Text>
+									<TouchableOpacity style={styles.emptyButton} onPress={goToNewWorkout} accessibilityRole="button">
+										<FontAwesome5 name="play" size={11} color={theme.primary} />
+										<Text style={styles.emptyButtonText}>Start your first workout</Text>
+									</TouchableOpacity>
+								</View>
 							) : (
 								workouts.map((w, i) => (
 									<TouchableOpacity
@@ -379,6 +401,7 @@ export default function Home() {
 										style={[styles.workoutRow, i === workouts.length - 1 && { borderBottomWidth: 0 }]}
 										onPress={() => router.push(`/(protected)/workouts/${w.id}`)}
 										activeOpacity={0.7}
+										accessibilityRole="button"
 									>
 										<View style={styles.workoutIcon}>
 											<FontAwesome5 name="dumbbell" size={14} color={theme.primary} />
@@ -386,9 +409,13 @@ export default function Home() {
 										<View style={{ flex: 1 }}>
 											<Text style={styles.workoutName}>{w.name}</Text>
 											<Text style={styles.workoutMeta}>
-												{formatRelativeDate(w.date)}
-												{w.duration_minutes ? ` · ${w.duration_minutes}m` : ""}
-												{w.total_volume_kg ? ` · ${w.total_volume_kg.toLocaleString()}kg` : ""}
+												{[
+													formatRelativeDate(w.date),
+													w.duration_minutes ? `${w.duration_minutes} min` : null,
+													w.total_volume_kg ? `${w.total_volume_kg.toLocaleString()} kg lifted` : null,
+												]
+													.filter(Boolean)
+													.join(", ")}
 											</Text>
 										</View>
 										<FontAwesome5 name="chevron-right" size={12} color={theme.textTertiary} style={styles.workoutChevron} />

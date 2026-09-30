@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useMemo, useState, useEffect, type PropsWithChildren } from "react";
 import * as SecureStore from "expo-secure-store";
-import { themes, type Theme, type ThemeName } from "./colors";
+import { themes, defaultThemeName, type Theme, type ThemeName } from "./colors";
 
 const THEME_KEY = "app_theme";
 
@@ -13,7 +13,7 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: PropsWithChildren) {
-	const [name, setName] = useState<ThemeName>("sorbet");
+	const [name, setName] = useState<ThemeName>(defaultThemeName);
 
 	// Load persisted theme on mount
 	useEffect(() => {

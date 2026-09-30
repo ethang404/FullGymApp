@@ -10,11 +10,11 @@ import { useProfile } from "@/utils/ProfileProvider";
 import Screen from "@/components/Screen";
 import Pills from "@/components/Pills";
 
-import AddIngredientModal from "../(tabs)/nutrition/components/AddIngredientModal";
-import ImportRecipeModal from "../(tabs)/nutrition/components/ImportRecipeModal";
-import RecipeFoodCard from "../(tabs)/nutrition/components/RecipeFoodCard";
-import NutritionFactsLabel from "../(tabs)/nutrition/components/NutritionLabel";
-import { getFullFood, searchFoods } from "../(tabs)/nutrition/hooks/useFoodSearch";
+import AddIngredientModal from "@/features/nutrition/components/AddIngredientModal";
+import ImportRecipeModal from "@/features/nutrition/components/ImportRecipeModal";
+import RecipeFoodCard from "@/features/nutrition/components/RecipeFoodCard";
+import NutritionFactsLabel from "@/features/nutrition/components/NutritionLabel";
+import { getFullFood, searchFoods } from "@/features/nutrition/hooks/useFoodSearch";
 import {
 	calcNutrientsFromPer100g,
 	calcMacrosFromPer100g,
@@ -22,20 +22,19 @@ import {
 	parseIngredientLine,
 	isLikelyIngredientMatch,
 	NUTRIENT_NAME_TO_IDS,
-	NUTRIENT_IDS_TO_NAMES,
 	type RecipeIngredient,
 	type ImportedRecipe,
 	type ParsedIngredientLine,
 	type FoodSearchResult,
 	type ServingSize,
-} from "../types/nutrition";
-import { CONTENT_VISIBILITIES, CONTENT_VISIBILITY_LABELS, type ContentVisibility } from "../types/visibility";
+} from "@/types/nutrition";
+import { CONTENT_VISIBILITIES, CONTENT_VISIBILITY_LABELS, type ContentVisibility } from "@/types/visibility";
 
 // "https://www.hungryhobby.net/x/" -> "HUNGRYHOBBY.NET" (RN's URL is spotty, so parse by hand)
 function hostLabel(url: string | null): string {
-	if (!url) return "LINK";
+	if (!url) return "Link";
 	const m = url.match(/^https?:\/\/([^/]+)/i);
-	return m ? m[1].replace(/^www\./, "").toUpperCase() : "LINK";
+	return m ? m[1].replace(/^www\./, "") : "Link";
 }
 
 export default function CreateRecipe() {
@@ -377,7 +376,7 @@ export default function CreateRecipe() {
 					justifyContent: "center",
 				},
 				screen: { flex: 1, backgroundColor: theme.background, padding: 16 },
-				sectionLabel: { color: theme.primary, fontSize: 11, fontWeight: "700", letterSpacing: 0.5, marginBottom: 8 },
+				sectionLabel: { color: theme.textSecondary, fontSize: 14, fontWeight: "700", marginBottom: 8 },
 				viewOnlyBanner: {
 					flexDirection: "row",
 					alignItems: "center",
@@ -410,10 +409,10 @@ export default function CreateRecipe() {
 					paddingVertical: 14,
 					alignItems: "center",
 				},
-				macroCardLabel: { color: theme.textMuted, fontSize: 10, fontWeight: "700", letterSpacing: 0.5, marginBottom: 6 },
+				macroCardLabel: { color: theme.textMuted, fontSize: 10, fontWeight: "700", marginBottom: 6 },
 				macroCardValue: { fontSize: 22, fontWeight: "800" },
 				ingredientsHeaderRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
-				tapToEdit: { color: theme.textMuted, fontSize: 10, fontWeight: "700", letterSpacing: 0.5 },
+				tapToEdit: { color: theme.textMuted, fontSize: 10, fontWeight: "700" },
 				addComponentBtn: {
 					borderWidth: 1.5,
 					borderStyle: "dashed",
@@ -426,7 +425,7 @@ export default function CreateRecipe() {
 					gap: 8,
 					marginBottom: 24,
 				},
-				addComponentText: { color: theme.primary, fontSize: 13, fontWeight: "700", letterSpacing: 0.5 },
+				addComponentText: { color: theme.primary, fontSize: 13, fontWeight: "700" },
 				servingsRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 16 },
 				servingsLabel: { color: theme.textMuted, fontSize: 12, fontWeight: "700", flex: 1 },
 				servingsInput: {
@@ -452,7 +451,7 @@ export default function CreateRecipe() {
 				saveButtonText: { color: theme.cardBg, fontSize: 15, fontWeight: "700" },
 
 				scaleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 1, flexWrap: "wrap", paddingBottom: 12 },
-				scaleLabel: { color: theme.textMuted, fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },
+				scaleLabel: { color: theme.textMuted, fontSize: 11, fontWeight: "700" },
 				scaleButtons: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
 				scaleBtn: {
 					paddingVertical: 6,
@@ -476,7 +475,7 @@ export default function CreateRecipe() {
 					paddingVertical: 14,
 					marginBottom: 20,
 				},
-				importBtnText: { color: theme.primary, fontSize: 13, fontWeight: "700", letterSpacing: 0.5 },
+				importBtnText: { color: theme.primary, fontSize: 13, fontWeight: "700" },
 
 				importedCard: {
 					backgroundColor: theme.cardBg,
@@ -523,11 +522,11 @@ export default function CreateRecipe() {
 				{viewOnly && (
 					<View style={styles.viewOnlyBanner}>
 						<FontAwesome5 name="eye" size={11} color={theme.textMuted} />
-						<Text style={styles.viewOnlyBannerText}>Viewing a shared recipe — read only</Text>
+						<Text style={styles.viewOnlyBannerText}>This is someone else&apos;s recipe. You can look but not edit.</Text>
 					</View>
 				)}
 
-				<Text style={styles.sectionLabel}>RECIPE IDENTITY</Text>
+				<Text style={styles.sectionLabel}>Recipe name</Text>
 				<TextInput
 					style={[styles.nameInput, viewOnly && { color: theme.textMuted }]}
 					placeholder="Enter recipe name..."
@@ -539,34 +538,34 @@ export default function CreateRecipe() {
 
 				{!viewOnly && (
 					<>
-						<Text style={styles.sectionLabel}>VISIBILITY</Text>
+						<Text style={styles.sectionLabel}>Who can see this</Text>
 						<Pills options={CONTENT_VISIBILITIES} value={visibility} onSelect={setVisibility} labels={CONTENT_VISIBILITY_LABELS} />
 
 						<TouchableOpacity style={styles.importBtn} onPress={() => setImportModalVisible(true)} activeOpacity={0.7}>
 							<FontAwesome5 name="link" size={12} color={theme.primary} />
-							<Text style={styles.importBtnText}>IMPORT FROM A LINK</Text>
+							<Text style={styles.importBtnText}>Import from a link</Text>
 						</TouchableOpacity>
 					</>
 				)}
 
 				<View style={styles.macroCards}>
 					<View style={styles.macroCard}>
-						<Text style={styles.macroCardLabel}>PROTEIN</Text>
+						<Text style={styles.macroCardLabel}>Protein</Text>
 						<Text style={[styles.macroCardValue, { color: theme.macroProtein }]}>{Math.round(totals.protein)}g</Text>
 					</View>
 					<View style={styles.macroCard}>
-						<Text style={styles.macroCardLabel}>CARBS</Text>
+						<Text style={styles.macroCardLabel}>Carbs</Text>
 						<Text style={[styles.macroCardValue, { color: theme.macroCarbs }]}>{Math.round(totals.carbs)}g</Text>
 					</View>
 					<View style={styles.macroCard}>
-						<Text style={styles.macroCardLabel}>FATS</Text>
+						<Text style={styles.macroCardLabel}>Fat</Text>
 						<Text style={[styles.macroCardValue, { color: theme.macroFat }]}>{Math.round(totals.fat)}g</Text>
 					</View>
 				</View>
 
 				{!viewOnly && (
 					<View style={styles.scaleRow}>
-						<Text style={styles.scaleLabel}>SCALE RECIPE</Text>
+						<Text style={styles.scaleLabel}>Scale recipe</Text>
 						<View style={styles.scaleButtons}>
 							{[0.25, 0.5, 1, 1.5, 2, 3].map((factor) => (
 								<TouchableOpacity key={factor} style={styles.scaleBtn} onPress={() => scaleAllIngredients(factor)} disabled={ingredients.length === 0}>
@@ -590,7 +589,7 @@ export default function CreateRecipe() {
 							{!autoMatching && (
 								<TouchableOpacity style={styles.retryMatchBtn} onPress={() => runAutoMatch(importedIngredients)}>
 									<FontAwesome5 name="magic" size={10} color={theme.primary} />
-									<Text style={styles.retryMatchText}>MATCH</Text>
+									<Text style={styles.retryMatchText}>Match</Text>
 								</TouchableOpacity>
 							)}
 							{autoMatching && <ActivityIndicator size="small" color={theme.primary} />}
@@ -612,7 +611,7 @@ export default function CreateRecipe() {
 				{!viewOnly && (
 					<TouchableOpacity style={styles.addComponentBtn} onPress={openAddIngredient} activeOpacity={0.7}>
 						<FontAwesome5 name="plus" size={12} color={theme.primary} />
-						<Text style={styles.addComponentText}>ADD COMPONENT</Text>
+						<Text style={styles.addComponentText}>Add ingredient</Text>
 					</TouchableOpacity>
 				)}
 
@@ -628,7 +627,7 @@ export default function CreateRecipe() {
 				)}
 
 				<View style={styles.servingsRow}>
-					<Text style={styles.servingsLabel}>SERVINGS PER RECIPE</Text>
+					<Text style={styles.servingsLabel}>Servings this makes</Text>
 					<TextInput
 						style={[styles.servingsInput, viewOnly && { color: theme.textMuted }]}
 						keyboardType="number-pad"
@@ -672,7 +671,7 @@ export default function CreateRecipe() {
 						disabled={saving || !recipeName || ingredients.length === 0}
 						activeOpacity={0.85}
 					>
-						{saving ? <ActivityIndicator color={theme.cardBg} /> : <Text style={styles.saveButtonText}>{recipe_id ? "Save Changes" : "Save Recipe"}</Text>}
+						{saving ? <ActivityIndicator color={theme.cardBg} /> : <Text style={styles.saveButtonText}>{recipe_id ? "Save changes" : "Save recipe"}</Text>}
 					</TouchableOpacity>
 				)}
 			</ScrollView>

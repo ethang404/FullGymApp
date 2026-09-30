@@ -14,14 +14,13 @@ interface PressableScaleProps extends Omit<PressableProps, "style"> {
 // A Pressable that springs down to 0.97 while held. For primary CTAs / cards.
 export function PressableScale({ style, onPressIn, onPressOut, children, ...rest }: PressableScaleProps) {
 	const scale = useSharedValue(1);
-	const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+	const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }));
 
-	// react-hooks/immutability doesn't know a Reanimated SharedValue is meant to be
-	// written to — assigning `.value` outside the render is the documented pattern.
+	// get()/set() rather than `.value`: the React Compiler lint treats assigning to a
+	// hook's return value as a mutation, while set() is Reanimated's compiler-friendly API.
 	const press = (to: number) => {
 		"worklet";
-		// eslint-disable-next-line react-hooks/immutability
-		scale.value = withSpring(to, SPRING);
+		scale.set(withSpring(to, SPRING));
 	};
 
 	return (

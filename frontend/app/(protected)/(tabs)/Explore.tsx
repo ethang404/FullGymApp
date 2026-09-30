@@ -3,13 +3,15 @@ import { useMemo, useState } from "react";
 import { router, type Href } from "expo-router";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
+import { fonts } from "@/theme/typography";
 import { ScreenState } from "@/components/ScreenState";
 import Screen from "@/components/Screen";
+import { BackLink } from "@/components/BackLink";
 import SegmentedControl from "@/components/SegmentedControl";
-import FilterChips from "./explore/components/FilterChips";
-import ExploreCard from "./explore/components/ExploreCard";
-import { useExploreFeed } from "./explore/hooks/useExploreFeed";
-import { EXPLORE_TYPES, EXPLORE_SCOPES, type ExploreItem } from "../types/explore";
+import FilterChips from "@/features/explore/components/FilterChips";
+import ExploreCard from "@/features/explore/components/ExploreCard";
+import { useExploreFeed } from "@/features/explore/hooks/useExploreFeed";
+import { EXPLORE_TYPES, EXPLORE_SCOPES, type ExploreItem } from "@/types/explore";
 
 const TYPE_LABELS = { all: "All", recipe: "Recipes", workout: "Workouts" };
 const SCOPE_LABELS = { all: "Everyone", friends: "Friends", public: "Public", mine: "Mine" };
@@ -36,7 +38,7 @@ export default function Explore() {
 			StyleSheet.create({
 				scroll: { flex: 1 },
 				content: { padding: 16, paddingBottom: 32, gap: 10 },
-				pageTitle: { fontSize: 22, fontWeight: "800", color: theme.text, marginBottom: 12 },
+				pageTitle: { fontSize: 28, lineHeight: 34, fontFamily: fonts.headingHeavy, color: theme.text, marginBottom: 12 },
 				searchBar: {
 					flexDirection: "row",
 					alignItems: "center",
@@ -62,6 +64,7 @@ export default function Explore() {
 
 	const header = (
 		<>
+			<BackLink label="You" to="/Profile" />
 			<Text style={styles.pageTitle}>Explore</Text>
 			<View style={styles.searchBar}>
 				<FontAwesome5 name="search" size={14} color={theme.inputPlaceholder} />
@@ -86,7 +89,7 @@ export default function Explore() {
 
 	return (
 		<Screen edges={["top"]}>
-			<ScreenState loading={loading} error={error} onRetry={refresh} errorTitle="Couldn't load Explore">
+			<ScreenState loading={loading} error={error} onRetry={refresh} errorTitle="Couldn't load shared posts">
 				<FlatList
 					data={items}
 					keyExtractor={(item) => `${item.type}:${item.id}`}

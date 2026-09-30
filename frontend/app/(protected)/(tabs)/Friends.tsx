@@ -3,17 +3,19 @@ import { useMemo, useState, useCallback } from "react";
 import { router, useFocusEffect, type Href } from "expo-router";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
+import { fonts } from "@/theme/typography";
 import { log } from "@/utils/log";
 import { toast } from "@/utils/toast";
 import { ScreenState } from "@/components/ScreenState";
 import Screen from "@/components/Screen";
+import { BackLink } from "@/components/BackLink";
 import SegmentedControl from "@/components/SegmentedControl";
 import { useFriends } from "@/utils/FriendsProvider";
-import { useFriendSearch } from "./friends/hooks/useFriendSearch";
-import FriendRequestRow from "./friends/components/FriendRequestRow";
-import FriendListRow from "./friends/components/FriendListRow";
-import SearchResultRow from "./friends/components/SearchResultRow";
-import type { Friend, RequestDirection, UserSearchResult } from "../types/friends";
+import { useFriendSearch } from "@/features/friends/hooks/useFriendSearch";
+import FriendRequestRow from "@/features/friends/components/FriendRequestRow";
+import FriendListRow from "@/features/friends/components/FriendListRow";
+import SearchResultRow from "@/features/friends/components/SearchResultRow";
+import type { Friend, RequestDirection, UserSearchResult } from "@/types/friends";
 
 export default function Friends() {
 	const { theme } = useTheme();
@@ -28,8 +30,7 @@ export default function Friends() {
 	useFocusEffect(
 		useCallback(() => {
 			refresh();
-			// eslint-disable-next-line react-hooks/exhaustive-deps
-		}, []),
+		}, [refresh]),
 	);
 
 	const isSearching = query.trim().length > 0;
@@ -103,7 +104,7 @@ export default function Friends() {
 			StyleSheet.create({
 				scroll: { flex: 1 },
 				content: { padding: 16, paddingBottom: 32, gap: 10 },
-				pageTitle: { fontSize: 22, fontWeight: "800", color: theme.text, marginBottom: 12 },
+				pageTitle: { fontSize: 28, lineHeight: 34, fontFamily: fonts.headingHeavy, color: theme.text, marginBottom: 12 },
 				searchBar: {
 					flexDirection: "row",
 					alignItems: "center",
@@ -118,11 +119,9 @@ export default function Friends() {
 				},
 				searchInput: { flex: 1, color: theme.text, fontSize: 15 },
 				sectionLabel: {
-					fontSize: 11,
+					fontSize: 15,
 					fontWeight: "700",
-					color: theme.textMuted,
-					letterSpacing: 1.5,
-					textTransform: "uppercase",
+					color: theme.textSecondary,
 					marginBottom: 8,
 					marginTop: 4,
 				},
@@ -138,12 +137,13 @@ export default function Friends() {
 
 	const header = (
 		<>
+			<BackLink label="You" to="/Profile" />
 			<Text style={styles.pageTitle}>Friends</Text>
 			<View style={styles.searchBar}>
 				<FontAwesome5 name="search" size={14} color={theme.inputPlaceholder} />
 				<TextInput
 					style={styles.searchInput}
-					placeholder="Search friends by name or handle..."
+					placeholder="Search by name or username"
 					placeholderTextColor={theme.inputPlaceholder}
 					value={query}
 					onChangeText={setQuery}
@@ -154,7 +154,7 @@ export default function Friends() {
 
 			{!isSearching && (
 				<View style={styles.pendingBlock}>
-					<Text style={styles.sectionLabel}>Pending Approvals</Text>
+					<Text style={styles.sectionLabel}>Friend requests</Text>
 					<SegmentedControl
 						options={["incoming", "outgoing"] as const}
 						value={pendingTab}
@@ -192,12 +192,13 @@ export default function Friends() {
 					ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
 					ListHeaderComponent={
 						<>
+							<BackLink label="You" to="/Profile" />
 							<Text style={styles.pageTitle}>Friends</Text>
 							<View style={styles.searchBar}>
 								<FontAwesome5 name="search" size={14} color={theme.inputPlaceholder} />
 								<TextInput
 									style={styles.searchInput}
-									placeholder="Search friends by name or handle..."
+									placeholder="Search by name or username"
 									placeholderTextColor={theme.inputPlaceholder}
 									value={query}
 									onChangeText={setQuery}
@@ -244,7 +245,7 @@ export default function Friends() {
 						<View style={styles.emptyState}>
 							<FontAwesome5 name="user-friends" size={32} color={theme.textTertiary} />
 							<Text style={styles.emptyTitle}>No friends yet</Text>
-							<Text style={styles.emptySubtitle}>Search above to send your first friend request</Text>
+							<Text style={styles.emptySubtitle}>Search for a username above to add a friend.</Text>
 						</View>
 					}
 					style={styles.scroll}

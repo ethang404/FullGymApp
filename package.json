@@ -1,0 +1,12 @@
+{
+  "name": "fullgymapp",
+  "private": true,
+  "description": "Repo-level dev tooling only (git hooks). App code lives in backend/ and frontend/.",
+  "scripts": {
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0"
+  }
+}

@@ -45,7 +45,7 @@ export function RingProgress({
 				</Svg>
 				<Text style={{ fontSize: 13, fontWeight: "700", color }}>{Math.round(clamped)}%</Text>
 			</View>
-			{label ? <Text style={{ fontSize: 11, color, fontWeight: "600", letterSpacing: 0.5 }}>{label}</Text> : null}
+			{label ? <Text style={{ fontSize: 11, color, fontWeight: "600" }}>{label}</Text> : null}
 		</View>
 	);
 }

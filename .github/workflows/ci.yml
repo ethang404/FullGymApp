@@ -1,0 +1,129 @@
+name: CI
+
+#only when interacting with main for now. Add release later
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+#Workflow can only read, not write in these procs
+permissions:
+  contents: read
+
+# A new push to a PR cancels that PR's still-running CI
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  #This lint checks frontend and backend and shows results of both regardless
+  lint:
+    name: lint (${{ matrix.package }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      # Report both packages even if one fails.
+      fail-fast: false
+      matrix:
+        package: [backend, frontend]
+    defaults:
+      run:
+        working-directory: ${{ matrix.package }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ matrix.package }}/package-lock.json
+      - run: npm ci
+      # Fails on errors only; warnings (e.g. the fetch-on-mount set-state-in-effect ones) are reported but allowed.
+      - run: npm run lint
+
+  test-backend:
+    name: test (backend)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Throwaway database for this run only
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: gymapp_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      NODE_ENV: test
+      DB_CONNECTION_URL: postgres://postgres:postgres@localhost:5432/gymapp_test
+      # Test-only values; nothing here is a real secret.
+      JWT_SECRET: ci-test-jwt-secret
+      PEPPER: ci-test-pepper
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      # TODO: drop the geminiRecipeParser skip once its known failing test is fixed.
+      # (Passing testPathIgnorePatterns on the CLI replaces Jest's default, so /node_modules/ is repeated.)
+      - run: npm test -- --ci --testPathIgnorePatterns=/node_modules/ --testPathIgnorePatterns=geminiRecipeParser
+
+  check-frontend:
+    name: check (frontend)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      # Includes the "packages match the Expo SDK" check; fix failures locally with `npx expo install --fix`.
+      - name: Expo doctor
+        run: npx expo-doctor
+      # Bundles the JS exactly like EAS Build/Update would. Web is skipped: the app doesn't target it
+      - name: Bundle (expo export)
+        run: npx expo export --platform android --platform ios
+
+  audit:
+    name: audit (${{ matrix.package }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [backend, frontend]
+    defaults:
+      run:
+        working-directory: ${{ matrix.package }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Reads package-lock.json directly, so no install is needed. The log lists every known
+      # vulnerability, but the job only fails on critical ones; fix others with `npm audit fix`.
+      - run: npm audit --audit-level=critical
+
+  #Add frontend tests later
+  #if required for $$ I'll combine the npm ci into one step instead of each

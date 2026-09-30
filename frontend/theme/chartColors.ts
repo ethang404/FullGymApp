@@ -3,7 +3,7 @@
 // independent of the active theme's primary/accent colors (unlike
 // macroProtein/Carbs/Fat, which are theme-tokenized but only cover 3
 // categories) since we need 10 distinct, readable hues that hold up across
-// all 8 selectable themes/backgrounds.
+// every selectable theme.
 export const MUSCLE_GROUP_COLORS: Record<string, string> = {
 	chest: "#EF4444",
 	back: "#3B82F6",

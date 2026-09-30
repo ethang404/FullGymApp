@@ -18,7 +18,7 @@ async function verifyGoogleIdToken(idToken) {
 			idToken,
 			audience: ACCEPTED_AUDIENCES,
 		});
-	} catch (err) {
+	} catch {
 		throw new UnauthorizedError("Invalid or expired Google idToken");
 	}
 

@@ -31,9 +31,9 @@ export type ActivityLevel = (typeof ACTIVITY_LEVELS)[number];
 export type GoalType = (typeof GOAL_TYPES)[number];
 
 export const ACTIVITY_LABELS: Record<ActivityLevel, string> = {
-	sedentary: "Sedentary",
-	light: "Lightly active",
-	moderate: "Moderately active",
+	sedentary: "Mostly sitting",
+	light: "A little active",
+	moderate: "Fairly active",
 	active: "Active",
 	very_active: "Very active",
 };

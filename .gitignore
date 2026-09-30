@@ -1,0 +1,2 @@
+# Root-level tooling deps (husky, lint-staged). backend/ and frontend/ have their own .gitignore.
+node_modules/
