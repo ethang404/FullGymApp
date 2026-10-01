@@ -340,8 +340,7 @@ async function CreateCatalogExercise(data) {
 
 //estimated 1RM (Epley) off the heaviest qualifying working set for an exercise instance
 //basically evaluates how strong you are on that exercise on that day
-//weight × (1 + 0.0333 × reps)
-//maybe add more later
+//weight × (1 + reps / 30)
 
 function getExerciseE1RM(exercise) {
 	return getBestWorkingSet(exercise.sets ?? [])?.e1rm ?? null;
@@ -362,35 +361,9 @@ function getBestWorkingSet(sets) {
 	return best;
 }
 
-function average(values) {
-	return values.length ? values.reduce((sum, v) => sum + v, 0) / values.length : null;
-}
-
-//canonical list of muscle groups, pulled from the ENUM definition itself so it stays in sync if that ever changes
-const MUSCLE_GROUPS = ExerciseCatalogModel.getAttributes().muscle_group.values;
-
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
-//rolling 7-day windows anchored to end_date - 0 is the most recent window, 1 is the one before that, etc.
-function getRollingWeekIndex(date, end_date) {
-	const daysFromEnd = Math.floor((new Date(end_date) - new Date(date)) / MS_PER_DAY);
-	return Math.floor(daysFromEnd / 7);
-}
-
-//the {week_start, week_end} date range covered by a given rolling week index
-function getRollingWeekRange(index, end_date) {
-	const week_end = new Date(end_date);
-	week_end.setDate(week_end.getDate() - index * 7);
-	const week_start = new Date(week_end);
-	week_start.setDate(week_start.getDate() - 6);
-	return { week_start, week_end };
-}
-
-//Biggest increases/decreases in lifts % across a given timeframe (keep consistent order_number since changing that would increase/decrease fatigue)
-async function getBiggest5Changes(user_id, start_date, end_date) {
-	//across all workouts for a user, look at exercises (+ w/ consistent order number), look at weight/reps to find biggest % changes
-
-	const full_data = await WorkoutsModel.findAll({
+//every workout (with exercises, sets and catalog info) a user logged in a date range, oldest first
+async function getWorkoutsInRange(user_id, start_date, end_date) {
+	return await WorkoutsModel.findAll({
 		where: {
 			user_id,
 			workout_date: {
@@ -404,6 +377,13 @@ async function getBiggest5Changes(user_id, start_date, end_date) {
 			[ExercisesModel, SetsModel, "order_number", "ASC"],
 		],
 	});
+}
+
+//Biggest increases/decreases in lifts % across a given timeframe (keep consistent order_number since changing that would increase/decrease fatigue)
+async function getBiggest5Changes(user_id, start_date, end_date) {
+	//across all workouts for a user, look at exercises (+ w/ consistent order number), look at weight/reps to find biggest % changes
+
+	const full_data = await getWorkoutsInRange(user_id, start_date, end_date);
 
 	//group occurrences of the same lift (catalog_id) across workouts, in chronological order
 	const occurrencesByCatalogId = new Map();
@@ -460,9 +440,42 @@ async function getBiggest5Changes(user_id, start_date, end_date) {
 	return changes.slice(0, 5);
 }
 
-async function exerciseOverTime(user_id, start_date, end_date, catalog_id, Epley) {
-	//given date range, a catalog exercise to get data for, and if we do Epley calc or not
+//Every lift the user has a qualifying working set for in the range - feeds the lift picker on the progress page.
+//Most-trained lifts first, since those are the ones with enough points to chart.
+async function getLoggedLifts(user_id, start_date, end_date) {
+	const full_data = await getWorkoutsInRange(user_id, start_date, end_date);
 
+	//catalog_id -> { catalog_id, name, muscle_group, dates: Set<workout_date>, last_date }
+	const liftsById = new Map();
+
+	for (const workout of full_data) {
+		for (const exercise of workout.exercises ?? []) {
+			if (getExerciseE1RM(exercise) === null) continue; //nothing chartable logged for this lift that day
+
+			const catalog = exercise.exercise_catalog;
+			if (!liftsById.has(catalog.catalog_id)) {
+				liftsById.set(catalog.catalog_id, {
+					catalog_id: catalog.catalog_id,
+					name: catalog.name,
+					muscle_group: catalog.muscle_group,
+					dates: new Set(),
+				});
+			}
+			const lift = liftsById.get(catalog.catalog_id);
+			lift.dates.add(workout.workout_date); //same lift twice in one workout still counts as one session
+			lift.last_date = workout.workout_date; //workouts come back oldest first, so the last write wins
+		}
+	}
+
+	return [...liftsById.values()]
+		.map(({ dates, ...lift }) => ({ ...lift, session_count: dates.size }))
+		.sort((a, b) => b.session_count - a.session_count || a.name.localeCompare(b.name));
+}
+
+//One point per workout for a single lift: that day's best working set (by e1RM), with its weight, reps and
+//e1RM all included so the frontend can switch between e1RM-over-time, weight-over-time and weight-vs-reps
+//charts without refetching.
+async function exerciseOverTime(user_id, start_date, end_date, catalog_id) {
 	const exerciseIncludeCatalogId = {
 		model: ExercisesModel,
 		where: {
@@ -514,365 +527,57 @@ async function exerciseOverTime(user_id, start_date, end_date, catalog_id, Epley
 		const bestSet = getBestWorkingSet(combinedSets);
 		if (bestSet === null) continue; //no qualifying working sets logged that day
 
-		if (Epley) {
-			data.push({ date: workout.workout_date, value: bestSet.e1rm });
-		} else {
-			data.push({ date: workout.workout_date, weight: bestSet.weight, reps: bestSet.reps });
-		}
-	}
-
-	return { catalog_id, name, muscle_group, data };
-}
-
-//Volume per muscle group (total reps across working sets)
-async function getVolumeByMuscleGroup(user_id, start_date, end_date) {
-	const full_data = await WorkoutsModel.findAll({
-		where: {
-			user_id,
-			workout_date: {
-				[Op.between]: [start_date, end_date],
-			},
-		},
-		include: [exerciseInclude],
-	});
-
-	const volumeByGroup = new Map(MUSCLE_GROUPS.map((group) => [group, 0]));
-
-	for (const workout of full_data) {
-		for (const exercise of workout.exercises ?? []) {
-			const muscle_group = exercise.exercise_catalog.muscle_group;
-			for (const set of exercise.sets ?? []) {
-				if (set.set_type !== "working" || !set.reps) continue;
-				volumeByGroup.set(muscle_group, volumeByGroup.get(muscle_group) + set.reps);
-			}
-		}
-	}
-
-	//collapse dict items into an array and get totalSum across them
-	const total_volume = [...volumeByGroup.values()].reduce((sum, v) => sum + v, 0);
-
-	//divides each muscle group count  by total to normalize into %
-	const breakdown = [...volumeByGroup.entries()]
-		.map(([muscle_group, volume]) => ({
-			muscle_group,
-			volume,
-			percent: total_volume ? (volume / total_volume) * 100 : 0,
-		}))
-		.sort((a, b) => b.volume - a.volume);
-
-	return { total_volume, breakdown };
-}
-
-//Within-session fatigue curve, split per exercise since positions are only comparable for the same lift.
-//avg e1RM (or raw weight) by order_number position, across every session in range, per catalog_id.
-//
-//We're supposed to show how fatigue accumulates as you move certain lifts later
-//like if bench was 1st, then move it to 4th later on
-//But the issue is progressive overload happens and that might pollute our logic so it says 4th position is stronger than 1
-//Lets skip this for now and come back to it later and see graphs once we have more data
-async function getFatigueCurves(user_id, start_date, end_date, Epley) {
-	const full_data = await WorkoutsModel.findAll({
-		where: {
-			user_id,
-			workout_date: {
-				[Op.between]: [start_date, end_date],
-			},
-		},
-		include: [exerciseInclude],
-		order: [
-			["workout_date", "ASC"],
-			[ExercisesModel, "order_number", "ASC"],
-			[ExercisesModel, SetsModel, "order_number", "ASC"],
-		],
-	});
-
-	//catalog_id -> { name, muscle_group, positions: Map<order_number, {value, percent_of_best}[]> }
-	const exercisesById = new Map();
-	const runningBestByExercise = new Map(); //catalog_id -> best value seen strictly before the current occurrence
-
-	//so each exercise (catalog_id), has positions. A position is order_number: best weight/erm
-	for (const workout of full_data) {
-		for (const exercise of workout.exercises ?? []) {
-			const bestSet = getBestWorkingSet(exercise.sets ?? []);
-			if (bestSet === null) continue; //no qualifying working sets this occurrence
-
-			const value = Epley ? bestSet.e1rm : bestSet.weight;
-			const catalog = exercise.exercise_catalog;
-
-			//first-ever occurrence of this lift has no prior data to compare against, so it trivially
-			//normalizes to 100% - everything after is judged against the best seen up to (not including) it
-			const baseline = runningBestByExercise.has(catalog.catalog_id) ? runningBestByExercise.get(catalog.catalog_id) : value;
-			const percent_of_best = (value / baseline) * 100;
-			runningBestByExercise.set(catalog.catalog_id, Math.max(baseline, value));
-
-			if (!exercisesById.has(catalog.catalog_id)) {
-				exercisesById.set(catalog.catalog_id, {
-					catalog_id: catalog.catalog_id,
-					name: catalog.name,
-					muscle_group: catalog.muscle_group,
-					positions: new Map(),
-				});
-			}
-
-			const entry = exercisesById.get(catalog.catalog_id);
-			if (!entry.positions.has(exercise.order_number)) entry.positions.set(exercise.order_number, []);
-			entry.positions.get(exercise.order_number).push({ value, percent_of_best });
-		}
-	}
-
-	const curves = [];
-	for (const { catalog_id, name, muscle_group, positions } of exercisesById.values()) {
-		const curve = [...positions.entries()]
-			.map(([order_number, entries]) => ({
-				order_number,
-				avg_value: average(entries.map((e) => e.value)), //plain average, kept for reference/display
-				avg_percent_of_best: average(entries.map((e) => e.percent_of_best)), //the fatigue signal, corrected for progressive overload
-				sample_size: entries.length, //positions 5+ often have few observations - let the frontend fade/hide those
-			}))
-			.sort((a, b) => a.order_number - b.order_number);
-
-		curves.push({ catalog_id, name, muscle_group, curve });
-	}
-
-	return curves;
-}
-
-function classifyVolume(set_count) {
-	if (set_count >= 20) return "high";
-	if (set_count >= 10) return "moderate";
-	return "low";
-}
-
-//RP-style weekly volume landmarks: working-set count per muscle group per rolling 7-day window,
-//classified high (20+) / moderate (10-19) / low (<10). Every week + muscle group is included, even at 0.
-async function getWeeklyVolumeLandmarks(user_id, start_date, end_date) {
-	const full_data = await WorkoutsModel.findAll({
-		where: {
-			user_id,
-			workout_date: {
-				[Op.between]: [start_date, end_date],
-			},
-		},
-		include: [exerciseInclude],
-	});
-
-	//rollingWeekIndex -> Map<muscle_group, set_count>
-	//each week stores several muscle_groups and corresponding set counts
-	const setsByWeek = new Map();
-
-	for (const workout of full_data) {
-		const weekIndex = getRollingWeekIndex(workout.workout_date, end_date);
-		if (!setsByWeek.has(weekIndex)) setsByWeek.set(weekIndex, new Map(MUSCLE_GROUPS.map((group) => [group, 0])));
-		const weekCounts = setsByWeek.get(weekIndex);
-
-		for (const exercise of workout.exercises ?? []) {
-			const muscle_group = exercise.exercise_catalog.muscle_group;
-			for (const set of exercise.sets ?? []) {
-				if (set.set_type !== "working") continue;
-				weekCounts.set(muscle_group, weekCounts.get(muscle_group) + 1);
-			}
-		}
-	}
-
-	//Same reasoning as getTrainingFrequency: bound to the oldest week with real data, not the full requested range.
-	const maxWeekIndex = setsByWeek.size ? Math.max(...setsByWeek.keys()) : -1;
-	const weeks = [];
-
-	for (let index = 0; index <= maxWeekIndex; index++) {
-		const { week_start, week_end } = getRollingWeekRange(index, end_date);
-		const weekCounts = setsByWeek.get(index) ?? new Map(MUSCLE_GROUPS.map((group) => [group, 0]));
-
-		const muscle_groups = [...weekCounts.entries()].map(([muscle_group, set_count]) => ({
-			muscle_group,
-			set_count,
-			classification: classifyVolume(set_count),
-		}));
-
-		//Results in something like:
-		/* muscle_groups = [
-			{ muscle_group: "chest", set_count: 4, classification: "low" },
-			{ muscle_group: "legs", set_count: 3, classification: "low" },
-			{ muscle_group: "back", set_count: 0, classification: "low" },
-		]; */
-
-		weeks.push({ week_start, week_end, muscle_groups });
-	}
-
-	weeks.reverse(); //oldest week first
-	return weeks;
-}
-
-//Feed of all-time PR events (new best e1RM for a catalog exercise). Deliberately fetches the user's FULL
-//history up to end_date (ignoring start_date as a lower query bound) so a plateau isn't miscounted as a
-//"new PR" just because the window starts partway through the user's history - start_date only filters
-//which already-computed PR events are returned.
-async function getPersonalRecordTimeline(user_id, start_date, end_date) {
-	const full_data = await WorkoutsModel.findAll({
-		where: {
-			user_id,
-			workout_date: {
-				[Op.lte]: end_date,
-			},
-		},
-		include: [exerciseInclude],
-		order: [
-			["workout_date", "ASC"],
-			[ExercisesModel, "order_number", "ASC"],
-			[ExercisesModel, SetsModel, "order_number", "ASC"],
-		],
-	});
-
-	const runningMax = new Map(); //catalog_id -> best e1rm seen so far
-	const prEvents = [];
-
-	for (const workout of full_data) {
-		for (const exercise of workout.exercises ?? []) {
-			const value = getExerciseE1RM(exercise);
-			if (value === null) continue;
-
-			const catalog = exercise.exercise_catalog;
-			const previousBest = runningMax.get(catalog.catalog_id) ?? 0;
-
-			if (value > previousBest) {
-				runningMax.set(catalog.catalog_id, value);
-				prEvents.push({
-					catalog_id: catalog.catalog_id,
-					name: catalog.name,
-					muscle_group: catalog.muscle_group,
-					workout_date: workout.workout_date,
-					value,
-				});
-			}
-		}
-	}
-
-	return prEvents.filter((event) => new Date(event.workout_date) >= new Date(start_date)).sort((a, b) => new Date(b.workout_date) - new Date(a.workout_date));
-}
-
-//Session count per rolling 7-day window - a simple training-consistency/adherence view.
-//how many days of the week we train
-async function getTrainingFrequency(user_id, start_date, end_date) {
-	const workouts = await WorkoutsModel.findAll({
-		where: {
-			user_id,
-			workout_date: {
-				[Op.between]: [start_date, end_date],
-			},
-		},
-		attributes: ["workout_date"],
-	});
-
-	const countsByWeek = new Map();
-	for (const workout of workouts) {
-		const weekIndex = getRollingWeekIndex(workout.workout_date, end_date);
-		countsByWeek.set(weekIndex, (countsByWeek.get(weekIndex) ?? 0) + 1);
-	}
-
-	//Bound the loop to the oldest week that actually has data, not the full requested range - "all" resolves
-	//to a 100-year lookback, and looping every week back to a fixed epoch would produce thousands of empty rows.
-	const maxWeekIndex = countsByWeek.size ? Math.max(...countsByWeek.keys()) : -1;
-	const weeks = [];
-	for (let index = 0; index <= maxWeekIndex; index++) {
-		const { week_start, week_end } = getRollingWeekRange(index, end_date);
-		weeks.push({ week_start, week_end, session_count: countsByWeek.get(index) ?? 0 });
-	}
-
-	weeks.reverse(); //oldest week first
-	return weeks;
-}
-
-//Average session volume (total working-set reps - not weighted by load) and average session duration,
-//per rolling 7-day window - shows whether sessions are trending bigger/smaller or longer/shorter over time.
-async function getSessionTrends(user_id, start_date, end_date) {
-	const full_data = await WorkoutsModel.findAll({
-		where: {
-			user_id,
-			workout_date: {
-				[Op.between]: [start_date, end_date],
-			},
-		},
-		include: [exerciseInclude],
-	});
-
-	//rollingWeekIndex -> { volumes: [], durations: [], session_count }
-	const byWeek = new Map();
-
-	for (const workout of full_data) {
-		const weekIndex = getRollingWeekIndex(workout.workout_date, end_date);
-		if (!byWeek.has(weekIndex)) byWeek.set(weekIndex, { volumes: [], durations: [], session_count: 0 });
-		const bucket = byWeek.get(weekIndex);
-		bucket.session_count += 1;
-
-		let volume = 0;
-		for (const exercise of workout.exercises ?? []) {
-			for (const set of exercise.sets ?? []) {
-				if (set.set_type !== "working" || !set.reps) continue;
-				volume += set.reps;
-			}
-		}
-		if (volume > 0) bucket.volumes.push(volume);
-
-		if (workout.finished_at && workout.workout_date) {
-			const diffMs = new Date(workout.finished_at) - new Date(workout.workout_date);
-			if (diffMs > 0) bucket.durations.push(Math.round(diffMs / 60000));
-		}
-	}
-
-	//Same reasoning as getTrainingFrequency: bound to the oldest week with real data, not the full requested range.
-	const maxWeekIndex = byWeek.size ? Math.max(...byWeek.keys()) : -1;
-	const weeks = [];
-	for (let index = 0; index <= maxWeekIndex; index++) {
-		const { week_start, week_end } = getRollingWeekRange(index, end_date);
-		const bucket = byWeek.get(index) ?? { volumes: [], durations: [], session_count: 0 };
-		weeks.push({
-			week_start,
-			week_end,
-			avg_volume: average(bucket.volumes),
-			avg_duration_minutes: average(bucket.durations),
-			session_count: bucket.session_count,
+		data.push({
+			date: workout.workout_date,
+			weight: bestSet.weight,
+			reps: bestSet.reps,
+			reps_in_reserve: bestSet.reps_in_reserve,
+			e1rm: bestSet.e1rm,
 		});
 	}
 
-	weeks.reverse(); //oldest week first
-	return weeks;
+	return { catalog_id: Number(catalog_id), name, muscle_group, data };
 }
 
-function classifyRepRange(reps) {
-	if (reps <= 5) return "1-5";
-	if (reps <= 12) return "6-12";
-	return "13+";
-}
+//Working sets and working-set reps per muscle group. Sets drive the pie chart (sets per muscle group is the
+//usual way to measure training volume), reps sit next to them in the bar chart. Muscle groups with nothing
+//logged are left out so the charts don't fill up with empty slices/bars.
+async function getVolumeByMuscleGroup(user_id, start_date, end_date) {
+	const full_data = await getWorkoutsInRange(user_id, start_date, end_date);
 
-//% of working sets in each rep range across the date range, pooled over every exercise -
-async function getRepRangeDistribution(user_id, start_date, end_date) {
-	const full_data = await WorkoutsModel.findAll({
-		where: {
-			user_id,
-			workout_date: {
-				[Op.between]: [start_date, end_date],
-			},
-		},
-		include: [exerciseInclude],
-	});
-
-	const counts = { "1-5": 0, "6-12": 0, "13+": 0 };
+	//muscle_group -> { sets, reps }
+	const volumeByGroup = new Map();
 
 	for (const workout of full_data) {
 		for (const exercise of workout.exercises ?? []) {
+			const muscle_group = exercise.exercise_catalog.muscle_group;
 			for (const set of exercise.sets ?? []) {
-				if (set.set_type !== "working" || !set.reps) continue;
-				counts[classifyRepRange(set.reps)] += 1;
+				if (set.set_type !== "working" || !set.reps) continue; //a working set with no reps logged is a blank row, not a set
+				if (!volumeByGroup.has(muscle_group)) volumeByGroup.set(muscle_group, { sets: 0, reps: 0 });
+				const group = volumeByGroup.get(muscle_group);
+				group.sets += 1;
+				group.reps += set.reps;
 			}
 		}
 	}
 
-	const total = Object.values(counts).reduce((sum, v) => sum + v, 0);
+	let total_sets = 0;
+	let total_reps = 0;
+	for (const { sets, reps } of volumeByGroup.values()) {
+		total_sets += sets;
+		total_reps += reps;
+	}
 
-	return ["1-5", "6-12", "13+"].map((range) => ({
-		range,
-		set_count: counts[range],
-		percent: total ? (counts[range] / total) * 100 : 0,
-	}));
+	const breakdown = [...volumeByGroup.entries()]
+		.map(([muscle_group, { sets, reps }]) => ({
+			muscle_group,
+			sets,
+			reps,
+			percent_of_sets: (sets / total_sets) * 100, //total_sets > 0 whenever there's a breakdown row
+		}))
+		.sort((a, b) => b.sets - a.sets || b.reps - a.reps);
+
+	return { total_sets, total_reps, breakdown };
 }
 
 module.exports = {
@@ -884,12 +589,7 @@ module.exports = {
 	SearchCatalogExercises,
 	CreateCatalogExercise,
 	getBiggest5Changes,
+	getLoggedLifts,
 	exerciseOverTime,
 	getVolumeByMuscleGroup,
-	getFatigueCurves,
-	getWeeklyVolumeLandmarks,
-	getPersonalRecordTimeline,
-	getTrainingFrequency,
-	getSessionTrends,
-	getRepRangeDistribution,
 };

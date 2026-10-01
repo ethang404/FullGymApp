@@ -2,10 +2,10 @@
 // history so every /workouts/progress/* analytics endpoint has real signal
 // to work with: progressive overload (weight climbs week over week per
 // lift), consistent order_number per exercise within its session type
-// (required for getBiggest5Changes/getFatigueCurves to detect anything),
-// varied rep ranges (populates all 3 rep-range-distribution buckets), and
-// reps_in_reserve set on roughly half the working sets (exercises both
-// branches of the RIR-adjusted e1RM formula).
+// (required for getBiggest5Changes to detect anything), varied rep ranges
+// (spreads out the weight-vs-reps chart), and reps_in_reserve set on
+// roughly half the working sets (exercises both branches of the
+// RIR-adjusted e1RM formula).
 //
 // Safe to re-run: the user and exercise_catalog rows are found-or-created,
 // and workout generation is skipped entirely if this user already has any
@@ -14,8 +14,8 @@
 // Run with:  cd backend && node SeedDatabaseScripts/seedProgressData.js
 //
 // Then log in against the running server with:
-//   userName: "progress_demo"
-//   password: "ProgressDemo123!"
+//   userName: "progress"
+//   password: "Progress"
 //
 // NOTE: backend/IntegrationTests/workout.test.js wipes the whole DB
 // (sequelize.sync({force:true}) in beforeAll). Run `npm test` BEFORE this
@@ -91,7 +91,9 @@ const WEEKLY_INCREMENT = {
 	"Hip Thrust": 5,
 };
 
-const END_DATE = new Date("2026-08-31T00:00:00");
+// Anchored to today (local midnight) so the history always ends in the last few days and shows up under
+// the Progress page's default "Month" filter, however long ago the script is run.
+const END_DATE = new Date(new Date().setHours(0, 0, 0, 0));
 const WEEKS_BACK = 10;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -178,7 +180,7 @@ async function seedWorkouts(user, catalogByName) {
 			const sessionDate = new Date(weekEnd.getTime() - (6 - dayOffset) * MS_PER_DAY);
 			const workoutDate = toDateOnly(sessionDate);
 
-			// NOTE: getSessionTrends (service.js) and serializeWorkoutListItem (controller.js) both compute
+			// NOTE: serializeWorkoutListItem (controller.js) computes
 			// "duration" as finished_at - workout_date, where workout_date (DATEONLY) parses as UTC midnight.
 			// There's no started_at column in the schema, so that's the app's existing (imperfect) convention -
 			// flagged separately as a pre-existing gap. To get a plausible-looking duration out of that formula

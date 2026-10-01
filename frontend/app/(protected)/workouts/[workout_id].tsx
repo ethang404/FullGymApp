@@ -325,7 +325,9 @@ export default function Workout() {
 		[deleteExercise, updateExercise, addSet, handleSetReorder, deleteSet, updateSet, styles, theme, isViewOnly],
 	);
 
-	const ListHeader = useCallback(
+	// Passed to the list as elements, not component functions: a component whose identity changes on every
+	// keystroke (workout_name is a dep) gets unmounted and remounted, which drops focus from the name input.
+	const listHeader = useMemo(
 		() => (
 			<>
 				{isViewOnly && (
@@ -357,7 +359,7 @@ export default function Workout() {
 		[workout.workout_name, workout.visibility, isViewOnly, styles, theme],
 	);
 
-	const ListFooter = useCallback(
+	const listFooter = useMemo(
 		() => (
 			<>
 				{!isViewOnly && (
@@ -403,8 +405,8 @@ export default function Workout() {
 					onReorder={handleExerciseReorder}
 					renderItem={renderExercise}
 					keyExtractor={getExerciseKey}
-					ListHeaderComponent={ListHeader}
-					ListFooterComponent={ListFooter}
+					ListHeaderComponent={listHeader}
+					ListFooterComponent={listFooter}
 					contentContainerStyle={{ paddingBottom: 40 }}
 				/>
 

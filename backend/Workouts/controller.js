@@ -159,14 +159,26 @@ async function getBiggestChanges(req, res) {
 	}
 }
 
-async function getExerciseHistory(req, res) {
-	const catalog_id = req.params.id;
-	const { epley } = req.query;
+async function getLoggedLifts(req, res) {
 	const user_id = req.user_id;
 	const { startDate, now } = getDateRangeFromRequest(req);
 
 	try {
-		const history = await service.exerciseOverTime(user_id, startDate, now, catalog_id, epley === "true");
+		const lifts = await service.getLoggedLifts(user_id, startDate, now);
+		return res.status(200).json({ lifts });
+	} catch (error) {
+		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
+		return res.status(500).json({ message: error.message });
+	}
+}
+
+async function getExerciseHistory(req, res) {
+	const catalog_id = req.params.id;
+	const user_id = req.user_id;
+	const { startDate, now } = getDateRangeFromRequest(req);
+
+	try {
+		const history = await service.exerciseOverTime(user_id, startDate, now, catalog_id);
 		return res.status(200).json(history);
 	} catch (error) {
 		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
@@ -181,85 +193,6 @@ async function getVolumeByMuscleGroup(req, res) {
 	try {
 		const volume = await service.getVolumeByMuscleGroup(user_id, startDate, now);
 		return res.status(200).json(volume);
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
-}
-
-async function getFatigueCurves(req, res) {
-	const { epley } = req.query;
-	const user_id = req.user_id;
-	const { startDate, now } = getDateRangeFromRequest(req);
-
-	try {
-		const curves = await service.getFatigueCurves(user_id, startDate, now, epley === "true");
-		return res.status(200).json({ curves });
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
-}
-
-async function getWeeklyVolumeLandmarks(req, res) {
-	const user_id = req.user_id;
-	const { startDate, now } = getDateRangeFromRequest(req);
-
-	try {
-		const weeks = await service.getWeeklyVolumeLandmarks(user_id, startDate, now);
-		return res.status(200).json({ weeks });
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
-}
-
-async function getPersonalRecordTimeline(req, res) {
-	const user_id = req.user_id;
-	const { startDate, now } = getDateRangeFromRequest(req);
-
-	try {
-		const records = await service.getPersonalRecordTimeline(user_id, startDate, now);
-		return res.status(200).json({ records });
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
-}
-
-async function getTrainingFrequency(req, res) {
-	const user_id = req.user_id;
-	const { startDate, now } = getDateRangeFromRequest(req);
-
-	try {
-		const weeks = await service.getTrainingFrequency(user_id, startDate, now);
-		return res.status(200).json({ weeks });
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
-}
-
-async function getSessionTrends(req, res) {
-	const user_id = req.user_id;
-	const { startDate, now } = getDateRangeFromRequest(req);
-
-	try {
-		const weeks = await service.getSessionTrends(user_id, startDate, now);
-		return res.status(200).json({ weeks });
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
-}
-
-async function getRepRangeDistribution(req, res) {
-	const user_id = req.user_id;
-	const { startDate, now } = getDateRangeFromRequest(req);
-
-	try {
-		const distribution = await service.getRepRangeDistribution(user_id, startDate, now);
-		return res.status(200).json({ distribution });
 	} catch (error) {
 		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
 		return res.status(500).json({ message: error.message });
@@ -291,12 +224,7 @@ module.exports = {
 	searchCatalog,
 	createCatalogExercise,
 	getBiggestChanges,
+	getLoggedLifts,
 	getExerciseHistory,
 	getVolumeByMuscleGroup,
-	getFatigueCurves,
-	getWeeklyVolumeLandmarks,
-	getPersonalRecordTimeline,
-	getTrainingFrequency,
-	getSessionTrends,
-	getRepRangeDistribution,
 };

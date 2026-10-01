@@ -8,7 +8,7 @@ import { ScreenState } from "@/components/ScreenState";
 import Screen from "@/components/Screen";
 import { BackLink } from "@/components/BackLink";
 import SegmentedControl from "@/components/SegmentedControl";
-import FilterChips from "@/features/explore/components/FilterChips";
+import FilterChips from "@/components/FilterChips";
 import ExploreCard from "@/features/explore/components/ExploreCard";
 import { useExploreFeed } from "@/features/explore/hooks/useExploreFeed";
 import { EXPLORE_TYPES, EXPLORE_SCOPES, type ExploreItem } from "@/types/explore";
