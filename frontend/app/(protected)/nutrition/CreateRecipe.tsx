@@ -91,7 +91,7 @@ export default function CreateRecipe() {
 					// unit, or derived volume ratio). If truly unresolvable, fall back
 					// to 1 (treat quantity as literal grams) rather than silently
 					// guessing 100g, and flag it so the user notices.
-					const resolved = resolveServingWeightG(ing.unit, ing.serving_sizes ?? []);
+					const resolved = resolveServingWeightG(ing.unit, ing.serving_sizes ?? [], ing.food_name);
 					const unitWeightG = resolved ?? 1;
 					if (resolved == null) {
 						log.warn(`Could not resolve unit "${ing.unit}" for ingredient "${ing.food_name}" - defaulting to 1g/unit.`);
@@ -264,7 +264,7 @@ export default function CreateRecipe() {
 		let quantity = parsed.quantity ?? 1;
 		let serving: ServingSize;
 
-		const weightG = parsed.unit ? resolveServingWeightG(parsed.unit, food.serving_sizes) : null;
+		const weightG = parsed.unit ? resolveServingWeightG(parsed.unit, food.serving_sizes, food.name, food.brand) : null;
 		if (weightG != null) {
 			serving = { label: parsed.unit as string, weight_g: weightG };
 		} else {

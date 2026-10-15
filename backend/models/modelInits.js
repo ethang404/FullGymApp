@@ -25,15 +25,39 @@ async function seedExerciseCatalog() {
 	console.log(`Seeded ${exercisesSeededList.length} exercises (duplicates skipped).`);
 }
 
+//Scripts for seeing database
+// The scripts are required lazily (inside run) because they import this file - requiring them at the
+// top would be circular and they'd get an empty module.
+const DB_SEED_SCRIPTS = [
+	{ flag: "SEED_EXERCISES", run: seedExerciseCatalog }, //full exercise catalog
+	{ flag: "SEED_DEMO_DATA", run: () => require("../SeedDatabaseScripts/seedDemoData").seedDemoData() }, //ethan/alice/bob demo users with everything (catalog included)
+];
+
+async function runBootScripts() {
+	if (process.env.NODE_ENV === "test" || require.main?.filename.includes("SeedDatabaseScripts")) return;
+
+	for (const { flag, run } of DB_SEED_SCRIPTS) {
+		if (process.env[flag] !== "true") continue;
+		try {
+			console.log(`${flag}=true: running...`);
+			await run();
+		} catch (error) {
+			//one failing shouldn't stop the rest (or the server) from starting
+			console.error(`${flag} failed:`, error);
+		}
+	}
+}
+
 async function testDB() {
 	try {
 		await sequelize.authenticate();
 		console.log("Connection has been established successfully.");
 		//await sequelize.sync({ force: true });
-		if (process.env.SEED_EXERCISES === "true") await seedExerciseCatalog(); //seed exercises
 	} catch (error) {
 		console.error("Unable to connect to the database:", error);
+		return;
 	}
+	await runBootScripts();
 }
 testDB();
 defineRelationships();

@@ -98,7 +98,7 @@ export function AddServingModal({ visible, foodId, foodName, availableUnits, exi
 		// starting value from another serving size already defined on this
 		// food (e.g. food only has "tbsp" - derive "tsp" from it). Still
 		// editable - this is a best-effort pre-fill, not an authoritative value.
-		const derived = resolveServingWeightG(unit, existingServings);
+		const derived = resolveServingWeightG(unit, existingServings, foodName);
 		setNewWeight(derived != null ? String(derived) : "");
 	}
 

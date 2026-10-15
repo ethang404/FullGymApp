@@ -8,17 +8,20 @@ import {
 	ActivityIndicator,
 	TouchableOpacity,
 	Modal,
-	FlatList,
+	Alert,
 	KeyboardAvoidingView,
 	Platform,
+	ScrollView,
+	type StyleProp,
+	type TextStyle,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { memo, useEffect, useState, useCallback, useMemo } from "react";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { memo, useEffect, useState, useCallback, useMemo, type Dispatch, type SetStateAction } from "react";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
+import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { randomUUID } from "expo-crypto";
-import ReorderableList, { reorderItems, useReorderableDrag, ReorderableListReorderEvent } from "react-native-reorderable-list";
+import ReorderableList, { reorderItems, useReorderableDrag, type ReorderableListReorderEvent } from "react-native-reorderable-list";
 
 import { useTheme } from "@/theme/ThemeProvider";
 import { fonts } from "@/theme/typography";
@@ -27,814 +30,863 @@ import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
 import { toast } from "@/utils/toast";
 import { useProfile } from "@/utils/ProfileProvider";
+import { todayISO, formatMediumDate } from "@/utils/date";
 import Screen from "@/components/Screen";
+import { ScreenState } from "@/components/ScreenState";
 import { WorkoutCelebration } from "@/components/WorkoutCelebration";
 import { haptics } from "@/utils/haptics";
 import Pills from "@/components/Pills";
 import * as types from "@/types/workouts";
 import { CONTENT_VISIBILITIES, CONTENT_VISIBILITY_LABELS, type ContentVisibility } from "@/types/visibility";
 
-const emptyWorkout: types.WorkoutData = {
-	workout_name: "",
-	workout_date: new Date().toISOString(),
-	notes: "",
-	finished_at: null,
-	exercises: [],
-	visibility: "private",
-};
+import LoadingScreen from "@/components/LoadingScreen";
+import { ExercisePicker } from "@/features/workouts/components/ExercisePicker";
 
-interface CatalogExercise {
-	catalog_id: number;
-	name: string;
-	muscle_group: string;
+//default state of workout. A function (not a constant) so the date is "today" when the screen opens,
+//not whenever the app first loaded this file.
+function makeEmptyWorkout(): types.WorkoutData {
+	return {
+		workout_name: "",
+		workout_date: todayISO(), //local calendar date ("2026-10-06"). toISOString() is UTC and can already be tomorrow in the evening
+		notes: "",
+		created_at: new Date().toISOString(), //an exact moment, so UTC is right here
+		finished_at: null,
+		exercises: [],
+		visibility: "private",
+	};
 }
 
-// ---- Key helpers: fall back to tempId for unsaved items ----
-const getExerciseKey = (ex: types.WorkoutExercise) => ex.exercise_id?.toString() ?? ex.tempId!;
-const getSetKey = (s: types.WorkoutSet) => s.set_id?.toString() ?? s.tempId!;
+// ---------------- Helpers ----------------
 
-// Number field <-> text: show an empty field for 0 so it reads as "not entered".
-const numToText = (n: number) => (n ? String(n) : "");
+//stable keys: database id if saved, tempId if not
+const exerciseKey = (e: types.WorkoutExercise) => String(e.exercise_id ?? e.tempId);
+const setKey = (s: types.WorkoutSet) => String(s.set_id ?? s.tempId);
 
-// ---- Reassign order_number to match array position after any drag ----
-function withRecomputedOrder<T extends { order_number: number }>(items: T[]): T[] {
-	return items.map((item, index) => ({ ...item, order_number: index + 1 }));
+//array position is the source of truth for order; order_number just mirrors it (1-based, like the backend expects)
+const renumber = <T extends { order_number: number }>(items: T[]) => items.map((item, i) => ({ ...item, order_number: i + 1 }));
+
+//157.5 -> "157.5", null -> "–"
+const formatNumber = (n: number | null | undefined) => (n == null ? "–" : String(n));
+
+//"W" for warmups, working sets numbered 1, 2, 3... (warmups don't count toward the number)
+function setLabels(sets: types.WorkoutSet[]) {
+	let working = 0;
+	return sets.map((s) => (s.set_type === "warmup" ? "W" : String(++working)));
 }
 
-export default function Workout() {
-	const { workout_id, mode } = useLocalSearchParams<{
-		workout_id?: string;
-		mode: "new" | "edit" | "copy" | "view";
-	}>();
+//Line each set up with the same set from last time: 1st warmup with 1st warmup, 2nd working with 2nd working.
+//Matching within a type means adding an extra warmup doesn't shift every working row.
+function pairWithPrevious(sets: types.WorkoutSet[], previous: types.PreviousSet[]) {
+	const seen: Record<string, number> = {};
+	return sets.map((s) => {
+		const n = seen[s.set_type] ?? 0;
+		seen[s.set_type] = n + 1;
+		return previous.filter((p) => p.set_type === s.set_type)[n] ?? null;
+	});
+}
 
-	const { theme } = useTheme();
-	const styles = useMemoStyles(theme);
-	const { profile } = useProfile();
+// ---------------- Fetching ----------------
 
-	// mode="new" needs no fetch: the screen starts on an empty workout and isn't loading. Every entry
-	// point router.push()es a fresh screen, so params never change on a mounted instance.
-	const [workout, setWorkout] = useState<types.WorkoutData>(emptyWorkout);
-	const [loading, setLoading] = useState(mode === "edit" || mode === "copy" || mode === "view");
-	const [saving, setSaving] = useState(false);
-	const [celebrating, setCelebrating] = useState(false);
-	const [ownerId, setOwnerId] = useState<number | null>(null);
+//Turn someone's workout into the start of a new one of our own.
+//No database ids (so saving creates new rows instead of editing theirs), today's date, private, not finished,
+//and it keeps the plan (exercises, set count, warmup vs working) but not their numbers.
+function asCopy(workout: types.WorkoutData): types.WorkoutData {
+	return {
+		...workout,
+		workout_date: todayISO(),
+		finished_at: null,
+		visibility: "private",
+		exercises: workout.exercises.map((ex) => ({
+			...ex,
+			exercise_id: undefined,
+			tempId: randomUUID(),
+			sets: ex.sets.map((s) => ({ ...s, set_id: undefined, tempId: randomUUID(), weight: null, reps: null, reps_in_reserve: null, notes: "" })),
+		})),
+	};
+}
 
-	// Explicit mode="view" (opened from Explore/a friend) always wins. Also auto-downgrades
-	// mode="edit" to read-only if it turns out this workout isn't the viewer's own - defense
-	// in depth alongside the backend's own ownership check, so a stale/incorrect route param
-	// never renders a save button that would just 403 anyway. "copy" stays editable regardless
-	// of whose workout it was copied from - it saves as a brand-new workout owned by the viewer.
-	const isViewOnly = mode === "view" || (mode === "edit" && ownerId != null && ownerId !== profile?.user_id);
+function useWorkout(workout_id: string | undefined, mode: types.WorkoutMode) {
+	const shouldFetch = mode !== "new" && !!workout_id; // "new" mode: nothing to fetch (new workouts open with workout_id "new")
 
-	const [availExercises, setAvailExercises] = useState<CatalogExercise[]>([]);
-	const [activeExerciseKey, setActiveExerciseKey] = useState<string | null>(null);
+	const [workout, setWorkout] = useState<types.WorkoutData>(makeEmptyWorkout); //the function itself: React calls it once, on the first render
+	const [loading, setLoading] = useState(shouldFetch);
+	//the load failed. The screen shows an error + retry instead of the editor, so an empty placeholder workout
+	//can never be saved over the real one (editing deletes any exercises/sets missing from what we send)
+	const [error, setError] = useState(false);
+	const [attempt, setAttempt] = useState(0); //bumped by retry() so the effect runs again
 
 	useEffect(() => {
-		const getAllExercises = async () => {
+		if (!shouldFetch) return;
+
+		let cancelled = false;
+
+		const load = async () => {
 			try {
-				const resp = await instance.get(`/workouts/catalog/`);
-				setAvailExercises(resp.data.exercises);
+				const resp = await instance.get(`/workouts/${workout_id}`);
+				const found: types.WorkoutData = resp.data.workout;
+				if (!cancelled) setWorkout(mode === "copy" ? asCopy(found) : found);
 			} catch (err) {
-				log.error("Failed to load exercise catalog:", err);
+				log.error("Couldn't get workout", err);
+				if (!cancelled) setError(true);
 			} finally {
-				setLoading(false);
+				if (!cancelled) setLoading(false);
 			}
 		};
 
-		getAllExercises();
-	}, []);
+		load();
+		return () => {
+			cancelled = true; // screen closed before the request finished: ignore the response
+		};
+	}, [workout_id, mode, shouldFetch, attempt]);
 
-	useEffect(() => {
-		if ((mode === "edit" || mode === "copy" || mode === "view") && workout_id != null) {
-			const getWorkoutData = async () => {
-				setLoading(true);
-				try {
-					const resp = await instance.get(`/workouts/${workout_id}`);
-					const found = resp.data.workout;
-
-					if (!found) {
-						log.warn(`No workout found for id ${workout_id}`);
-						setWorkout(emptyWorkout);
-						return;
-					}
-
-					setOwnerId(found.user_id ?? null);
-
-					const exercises = found.exercises.map((ex: any) => ({
-						...ex,
-						exercise_id: mode === "copy" ? undefined : ex.exercise_id,
-						tempId: mode === "copy" || ex.exercise_id == null ? randomUUID() : undefined,
-						sets: ex.sets.map((s: any) => ({
-							...s,
-							set_id: mode === "copy" ? undefined : s.set_id,
-							tempId: mode === "copy" || s.set_id == null ? randomUUID() : undefined,
-						})),
-					}));
-
-					setWorkout({
-						workout_name: found.name,
-						workout_date: found.workout_date,
-						notes: found.notes ?? "",
-						finished_at: found.finished_at ?? null,
-						exercises,
-						// A copy is a brand-new workout owned by the viewer - always starts private,
-						// regardless of the source workout's visibility.
-						visibility: mode === "copy" ? "private" : ((found.visibility as ContentVisibility) ?? "private"),
-					});
-				} catch (err) {
-					log.error("Failed to load workout:", err);
-				} finally {
-					setLoading(false);
-				}
-			};
-
-			getWorkoutData();
-		}
-	}, [workout_id, mode]);
-
-	// ---------------- Reorder handlers (local state only) ----------------
-
-	const handleExerciseReorder = useCallback(({ from, to }: ReorderableListReorderEvent) => {
-		setWorkout((prev) => ({
-			...prev,
-			exercises: withRecomputedOrder(reorderItems(prev.exercises, from, to)),
-		}));
-	}, []);
-
-	const handleSetReorder = useCallback((exerciseKey: string, { from, to }: ReorderableListReorderEvent) => {
-		setWorkout((prev) => ({
-			...prev,
-			exercises: prev.exercises.map((ex) => (getExerciseKey(ex) === exerciseKey ? { ...ex, sets: withRecomputedOrder(reorderItems(ex.sets, from, to)) } : ex)),
-		}));
-	}, []);
-
-	// ---------------- Add / edit / delete helpers ----------------
-
-	const addExercise = useCallback(() => {
-		const newTempId = randomUUID();
-		setWorkout((prev) => ({
-			...prev,
-			exercises: [
-				...prev.exercises,
-				{
-					tempId: newTempId,
-					exercise_name: "",
-					notes: "",
-					order_number: prev.exercises.length + 1,
-					sets: [],
-				},
-			],
-		}));
-		setActiveExerciseKey(newTempId);
-	}, []);
-
-	const deleteExercise = useCallback((exerciseKey: string) => {
-		setWorkout((prev) => ({
-			...prev,
-			exercises: withRecomputedOrder(prev.exercises.filter((ex) => getExerciseKey(ex) !== exerciseKey)),
-		}));
-	}, []);
-
-	const updateExercise = useCallback((exerciseKey: string, patch: Partial<types.WorkoutExercise>) => {
-		setWorkout((prev) => ({
-			...prev,
-			exercises: prev.exercises.map((ex) => (getExerciseKey(ex) === exerciseKey ? { ...ex, ...patch } : ex)),
-		}));
-	}, []);
-
-	const addSet = useCallback((exerciseKey: string) => {
-		haptics.tap();
-		setWorkout((prev) => ({
-			...prev,
-			exercises: prev.exercises.map((ex) =>
-				getExerciseKey(ex) === exerciseKey
-					? {
-							...ex,
-							sets: [
-								...ex.sets,
-								{
-									tempId: randomUUID(),
-									order_number: ex.sets.length + 1,
-									set_type: "working",
-									notes: "",
-									reps: 0,
-									weight: 0,
-								},
-							],
-						}
-					: ex,
-			),
-		}));
-	}, []);
-
-	const deleteSet = useCallback((exerciseKey: string, setKey: string) => {
-		setWorkout((prev) => ({
-			...prev,
-			exercises: prev.exercises.map((ex) =>
-				getExerciseKey(ex) === exerciseKey ? { ...ex, sets: withRecomputedOrder(ex.sets.filter((s) => getSetKey(s) !== setKey)) } : ex,
-			),
-		}));
-	}, []);
-
-	const updateSet = useCallback((exerciseKey: string, setKey: string, patch: Partial<types.WorkoutSet>) => {
-		setWorkout((prev) => ({
-			...prev,
-			exercises: prev.exercises.map((ex) =>
-				getExerciseKey(ex) === exerciseKey ? { ...ex, sets: ex.sets.map((s) => (getSetKey(s) === setKey ? { ...s, ...patch } : s)) } : ex,
-			),
-		}));
-	}, []);
-
-	const handleCreateNewCatalogExercise = async (name: string, muscleGroup: string) => {
-		try {
-			const resp = await instance.post(`/workouts/catalog/`, { name, muscle_group: muscleGroup });
-			const created: CatalogExercise = resp.data.exercise;
-
-			setAvailExercises((prev) => [...prev, created]);
-
-			if (activeExerciseKey) {
-				updateExercise(activeExerciseKey, {
-					exercise_name: created.name,
-					catalog_id: Number(created.catalog_id),
-				});
-			}
-		} catch (err) {
-			log.error("Error creating exercise catalog entry:", err);
-		}
+	const retry = () => {
+		setError(false);
+		setLoading(true);
+		setAttempt((a) => a + 1);
 	};
 
-	const handleSave = useCallback(async () => {
-		if (saving || isViewOnly) return;
+	return { workout, setWorkout, loading, error, retry };
+}
 
-		// Validate before hitting the network — the backend rejects a workout with
-		// no name/date or any exercise missing a catalog_id, so catch it here with
-		// a useful message instead of silently dropping rows.
-		if (!workout.workout_name.trim()) {
-			toast.error("Give your workout a name.");
-			return;
-		}
-		if (workout.exercises.length === 0) {
-			toast.error("Add at least one exercise.");
-			return;
-		}
-		if (workout.exercises.some((ex) => !ex.catalog_id)) {
-			toast.error("Pick an exercise for every row before saving.");
-			return;
-		}
+//Best weight + last session's sets for each exercise, keyed by catalog_id.
+//Only fetches ids it doesn't have yet: everything on load, then just the new one when an exercise is added.
+//Reordering/adding sets/typing never refetches since the ids on screen don't change.
+function useExerciseStats(catalogIds: number[], excludeWorkoutId?: number) {
+	const [stats, setStats] = useState<Record<number, types.ExerciseStats>>({});
+	//failed requests so far. Bumping it changes a dependency, which is what makes the effect run again -
+	//otherwise a failure leaves missingKey the same and nothing would ever retry
+	const [failures, setFailures] = useState(0);
 
-		setSaving(true);
-		try {
-			if (mode === "edit" && workout_id != null) {
-				await instance.put(`/workouts/${workout_id}`, workout);
-			} else {
-				await instance.post(`/workouts`, workout);
-			}
-			haptics.success();
-			if (mode === "edit") {
-				toast.success("Workout updated.");
-				router.back();
-			} else {
-				// New workouts get the celebration; it navigates back when dismissed.
-				setCelebrating(true);
-			}
-		} catch (err) {
-			log.error("Failed to save workout:", err);
-			toast.error("Workout not saved. Check your connection and try again.");
-			setSaving(false);
-		}
-	}, [saving, isViewOnly, mode, workout_id, workout]);
+	//a string so the effect only re-runs when the actual missing ids change (a new array every render would re-run it every time)
+	const missingKey = catalogIds.filter((id) => !(id in stats)).join(",");
 
-	// Hoisted + stable: all deps are useCallback([]) handlers, stable state setters,
-	// or memoized styles/theme — so ExerciseCard's React.memo actually holds.
-	const renderExercise = useCallback(
-		({ item }: { item: types.WorkoutExercise }) => (
-			<ExerciseCard
-				exercise={item}
-				onDelete={deleteExercise}
-				onUpdate={updateExercise}
-				onAddSet={addSet}
-				onSetReorder={handleSetReorder}
-				onDeleteSet={deleteSet}
-				onUpdateSet={updateSet}
-				onOpenSelector={setActiveExerciseKey}
-				styles={styles}
-				theme={theme}
-				readOnly={isViewOnly}
-			/>
-		),
-		[deleteExercise, updateExercise, addSet, handleSetReorder, deleteSet, updateSet, styles, theme, isViewOnly],
-	);
+	useEffect(() => {
+		if (!missingKey) return;
 
-	// Passed to the list as elements, not component functions: a component whose identity changes on every
-	// keystroke (workout_name is a dep) gets unmounted and remounted, which drops focus from the name input.
-	const listHeader = useMemo(
-		() => (
-			<>
-				{isViewOnly && (
-					<View style={styles.viewOnlyBanner}>
-						<FontAwesome5 name="eye" size={11} color={theme.textMuted} />
-						<Text style={styles.viewOnlyBannerText}>This is someone else&apos;s workout. You can look but not edit.</Text>
-					</View>
-				)}
-				<TextInput
-					style={[styles.titleInput, isViewOnly && { color: theme.textMuted }]}
-					value={workout.workout_name}
-					onChangeText={(text) => setWorkout((prev) => ({ ...prev, workout_name: text }))}
-					placeholder="Workout name"
-					placeholderTextColor={theme.text + "88"}
-					editable={!isViewOnly}
-				/>
-				{!isViewOnly && (
-					<View style={styles.visibilityRow}>
-						<Pills
-							options={CONTENT_VISIBILITIES}
-							value={workout.visibility}
-							onSelect={(v: ContentVisibility) => setWorkout((prev) => ({ ...prev, visibility: v }))}
-							labels={CONTENT_VISIBILITY_LABELS}
-						/>
-					</View>
-				)}
-			</>
-		),
-		[workout.workout_name, workout.visibility, isViewOnly, styles, theme],
-	);
+		let cancelled = false;
+		let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
-	const listFooter = useMemo(
-		() => (
-			<>
-				{!isViewOnly && (
-					<Pressable style={styles.addButton} onPress={addExercise} accessibilityRole="button">
-						<Ionicons name="add-circle-outline" size={20} color={theme.text} />
-						<Text style={styles.addButtonText}>Add exercise</Text>
-					</Pressable>
-				)}
+		instance
+			.get("/workouts/exercise-stats", { params: { catalog_ids: missingKey, exclude_workout_id: excludeWorkoutId } })
+			.then((resp) => {
+				if (!cancelled) setStats((prev) => ({ ...prev, ...resp.data.stats }));
+			})
+			.catch((err) => {
+				log.error("Couldn't get exercise stats", err);
+				//try again in a few seconds, up to 3 times (prev/best are nice to have, not worth hammering the server for)
+				if (!cancelled && failures < 3) retryTimer = setTimeout(() => setFailures((f) => f + 1), 3000);
+			});
 
-				{!isViewOnly && (
-					<Pressable style={[styles.saveButton, saving && { opacity: 0.6 }]} onPress={handleSave} disabled={saving} accessibilityRole="button">
-						{saving ? <ActivityIndicator color={theme.textInverse} /> : <Text style={styles.saveButtonText}>Save workout</Text>}
-					</Pressable>
-				)}
-			</>
-		),
-		[addExercise, handleSave, saving, isViewOnly, styles, theme],
-	);
+		return () => {
+			cancelled = true;
+			clearTimeout(retryTimer); //left the screen (or the ids changed): drop any pending retry
+		};
+	}, [missingKey, excludeWorkoutId, failures]);
 
-	if (loading) {
-		return (
-			<Screen edges={["top"]} style={styles.centered}>
-				<View style={styles.headerRow}>
-					<TouchableOpacity style={styles.iconButton} onPress={() => router.back()} hitSlop={10} accessibilityRole="button" accessibilityLabel="Back">
-						<FontAwesome5 name="chevron-left" size={18} color={theme.text} />
-					</TouchableOpacity>
-				</View>
-				<ActivityIndicator size="large" color={theme.primary} />
-			</Screen>
-		);
-	}
+	return stats;
+}
+
+// ---------------- Sets ----------------
+
+//column widths shared by the header row and every set row so they line up
+const COL = { grip: 24, type: 56, lbs: 60, reps: 52, rir: 48, trash: 28 };
+
+//A number text box
+function NumberField({
+	value,
+	onChangeValue,
+	placeholder,
+	decimal = false,
+	style,
+}: {
+	value: number | null;
+	onChangeValue: (n: number | null) => void;
+	placeholder?: string;
+	decimal?: boolean;
+	style?: StyleProp<TextStyle>;
+}) {
+	const { theme } = useTheme();
+	const [text, setText] = useState(value == null ? "" : String(value));
+
+	const handleChange = (raw: string) => {
+		//digits only, plus a single "." for weights
+		const cleaned = decimal ? raw.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1") : raw.replace(/[^0-9]/g, "");
+		setText(cleaned);
+		onChangeValue(cleaned === "" || cleaned === "." ? null : Number(cleaned));
+	};
 
 	return (
-		<GestureHandlerRootView style={{ flex: 1 }}>
-			<Screen edges={["top"]}>
-				<View style={styles.headerRow}>
-					<TouchableOpacity style={styles.iconButton} onPress={() => router.back()} hitSlop={10} accessibilityRole="button" accessibilityLabel="Back">
-						<FontAwesome5 name="chevron-left" size={18} color={theme.text} />
-					</TouchableOpacity>
-				</View>
-				<ReorderableList
-					data={workout.exercises}
-					onReorder={handleExerciseReorder}
-					renderItem={renderExercise}
-					keyExtractor={getExerciseKey}
-					ListHeaderComponent={listHeader}
-					ListFooterComponent={listFooter}
-					contentContainerStyle={{ paddingBottom: 40 }}
-				/>
-
-				<WorkoutCelebration
-					visible={celebrating}
-					exerciseCount={workout.exercises.length}
-					setCount={workout.exercises.reduce((n, ex) => n + ex.sets.length, 0)}
-					onDone={() => {
-						setCelebrating(false);
-						router.back();
-					}}
-				/>
-
-				<ExerciseSelectorModal
-					visible={activeExerciseKey !== null}
-					onClose={() => setActiveExerciseKey(null)}
-					availExercises={availExercises}
-					onSelect={(selected) => {
-						if (activeExerciseKey) {
-							updateExercise(activeExerciseKey, {
-								exercise_name: selected.name,
-								catalog_id: Number(selected.catalog_id),
-							});
-						}
-					}}
-					onAddNew={handleCreateNewCatalogExercise}
-					theme={theme}
-					styles={styles}
-				/>
-			</Screen>
-		</GestureHandlerRootView>
+		<TextInput
+			style={style}
+			value={text}
+			onChangeText={handleChange}
+			placeholder={placeholder}
+			placeholderTextColor={theme.inputPlaceholder}
+			keyboardType={decimal ? "decimal-pad" : "number-pad"}
+			selectTextOnFocus
+		/>
 	);
 }
 
-interface ExerciseCardProps {
-	exercise: types.WorkoutExercise;
-	onDelete: (exerciseKey: string) => void;
-	onUpdate: (exerciseKey: string, patch: Partial<types.WorkoutExercise>) => void;
-	onAddSet: (exerciseKey: string) => void;
-	onSetReorder: (exerciseKey: string, event: ReorderableListReorderEvent) => void;
-	onDeleteSet: (exerciseKey: string, setKey: string) => void;
-	onUpdateSet: (exerciseKey: string, setKey: string, patch: Partial<types.WorkoutSet>) => void;
-	onOpenSelector: (exerciseKey: string) => void;
-	styles: ReturnType<typeof createStyles>;
-	theme: Theme;
-	readOnly?: boolean;
+const SET_TYPE_OPTIONS: { type: types.SetType; label: string }[] = [
+	{ type: "warmup", label: "Warmup" },
+	{ type: "working", label: "Working set" },
+];
+
+//The "W ⌄" pill. Tapping it slides a "Set type" sheet up from the bottom of the screen.
+function SetTypePicker({ label, value, onChange }: { label: string; value: types.SetType; onChange: (type: types.SetType) => void }) {
+	const { theme } = useTheme();
+	const styles = useMemoStyles(theme);
+
+	const [open, setOpen] = useState(false);
+
+	const pick = (type: types.SetType) => {
+		setOpen(false);
+		if (type !== value) onChange(type);
+	};
+
+	return (
+		<>
+			<Pressable style={styles.typePill} onPress={() => setOpen(true)} hitSlop={6} accessibilityRole="button" accessibilityLabel={`Set type: ${value}`}>
+				<Text style={styles.typePillText}>{label}</Text>
+				<Ionicons name="chevron-down" size={11} color={theme.primary} />
+			</Pressable>
+
+			<Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+				{/* dark full-screen layer: tapping it (anywhere above the sheet) closes the sheet */}
+				<Pressable style={styles.sheetOverlay} onPress={() => setOpen(false)}>
+					<View style={styles.sheet}>
+						<Text style={styles.sheetTitle}>Set type</Text>
+						{SET_TYPE_OPTIONS.map((option) => (
+							<Pressable key={option.type} style={styles.sheetOption} onPress={() => pick(option.type)}>
+								<Text style={styles.sheetOptionText}>{option.label}</Text>
+								{option.type === value && <Ionicons name="checkmark" size={18} color={theme.primary} />}
+							</Pressable>
+						))}
+					</View>
+				</Pressable>
+			</Modal>
+		</>
+	);
 }
 
-const ExerciseCard = memo(function ExerciseCard({
-	exercise,
-	onDelete,
-	onUpdate,
-	onAddSet,
-	onSetReorder,
-	onDeleteSet,
-	onUpdateSet,
-	onOpenSelector,
-	styles,
-	theme,
-	readOnly,
-}: ExerciseCardProps) {
+//Touch-and-drag handle. Drags whichever reorderable list cell it sits in (a set row, or a whole exercise card).
+//Only render it inside a ReorderableList cell: the hook throws anywhere else.
+function DragGrip({ label }: { label: string }) {
+	const { theme } = useTheme();
 	const drag = useReorderableDrag();
-	const exKey = getExerciseKey(exercise);
-
-	// Bind this card's key once so the nested SetRow list gets stable callbacks.
-	const handleDeleteSet = useCallback((setKey: string) => onDeleteSet(exKey, setKey), [onDeleteSet, exKey]);
-	const handleUpdateSet = useCallback(
-		(setKey: string, patch: Partial<types.WorkoutSet>) => onUpdateSet(exKey, setKey, patch),
-		[onUpdateSet, exKey],
-	);
-	const handleSetReorder = useCallback((event: ReorderableListReorderEvent) => onSetReorder(exKey, event), [onSetReorder, exKey]);
-
-	const renderSet = useCallback(
-		({ item }: { item: types.WorkoutSet }) => (
-			<SetRow set={item} onDelete={handleDeleteSet} onUpdate={handleUpdateSet} styles={styles} theme={theme} readOnly={readOnly} />
-		),
-		[handleDeleteSet, handleUpdateSet, styles, theme, readOnly],
-	);
 
 	return (
-		<View style={[styles.card, { overflow: "hidden" }]}>
-			<View style={styles.cardHeader}>
-				{!readOnly && (
-					<Pressable onLongPress={drag} hitSlop={10} accessibilityLabel="Reorder exercise" accessibilityHint="Press and hold, then drag">
-						<Ionicons name="reorder-three" size={22} color={theme.text} />
-					</Pressable>
-				)}
+		<Pressable onPressIn={drag} hitSlop={8} accessibilityRole="button" accessibilityLabel={label}>
+			<MaterialIcons name="drag-indicator" size={20} color={theme.textTertiary} />
+		</Pressable>
+	);
+}
 
-				<TouchableOpacity style={{ flex: 1 }} onPress={() => !readOnly && onOpenSelector(exKey)} disabled={readOnly}>
-					<Text style={[styles.exerciseTitle, !exercise.exercise_name && { color: theme.text + "66" }]}>{exercise.exercise_name || "Choose an exercise"}</Text>
-				</TouchableOpacity>
+//One row of the sets table
+function SetRow({
+	set,
+	label,
+	previous,
+	editable,
+	onChange,
+	onRemove,
+}: {
+	set: types.WorkoutSet;
+	label: string; // "W", "1", "2"...
+	previous: types.PreviousSet | null; // the matching set from last time, if any
+	editable: boolean;
+	onChange?: (patch: Partial<types.WorkoutSet>) => void;
+	onRemove?: () => void;
+}) {
+	const { theme } = useTheme();
+	const styles = useMemoStyles(theme);
 
-				{!readOnly && (
-					<Pressable onPress={() => onDelete(exKey)} hitSlop={10} accessibilityRole="button" accessibilityLabel="Remove exercise">
-						<Ionicons name="trash-outline" size={18} color={theme.text} />
-					</Pressable>
+	return (
+		<View style={styles.setRow}>
+			{editable && (
+				<View style={{ width: COL.grip }}>
+					<DragGrip label={`Drag set ${label} to reorder`} />
+				</View>
+			)}
+
+			<View style={[styles.typeCell, { width: COL.type }]}>
+				{editable ? (
+					<SetTypePicker label={label} value={set.set_type} onChange={(set_type) => onChange?.({ set_type })} />
+				) : (
+					<Text style={styles.typeLabel}>{label}</Text>
 				)}
 			</View>
 
-			{(!readOnly || exercise.notes) && (
-				<TextInput
-					style={styles.notesInput}
-					value={exercise.notes}
-					onChangeText={(text) => onUpdate(exKey, { notes: text })}
-					placeholder="Notes (optional)"
-					placeholderTextColor={theme.text + "88"}
-					editable={!readOnly}
-				/>
+			{editable && (
+				<Text style={[styles.prevText, { flex: 1 }]} numberOfLines={1}>
+					{previous ? `${formatNumber(previous.weight)} × ${formatNumber(previous.reps)}` : "–"}
+				</Text>
 			)}
+			{!editable && <View style={{ flex: 1 }} />}
 
-			<ReorderableList
-				data={exercise.sets}
-				onReorder={handleSetReorder}
-				renderItem={renderSet}
-				keyExtractor={getSetKey}
-				scrollEnabled={false}
-				style={{ overflow: "hidden" }}
-			/>
+			{/* editable: text boxes with last time's numbers as placeholders. view only: plain numbers */}
+			{editable ? (
+				<>
+					<View style={{ width: COL.lbs }}>
+						<NumberField
+							value={set.weight}
+							onChangeValue={(weight) => onChange?.({ weight })}
+							placeholder={previous?.weight?.toString()}
+							decimal
+							style={styles.input}
+						/>
+					</View>
+					<View style={{ width: COL.reps }}>
+						<NumberField value={set.reps} onChangeValue={(reps) => onChange?.({ reps })} placeholder={previous?.reps?.toString()} style={styles.input} />
+					</View>
+					<View style={{ width: COL.rir }}>
+						<NumberField
+							value={set.reps_in_reserve}
+							onChangeValue={(reps_in_reserve) => onChange?.({ reps_in_reserve })}
+							placeholder={previous?.reps_in_reserve?.toString()}
+							style={[styles.input, styles.rirInput]}
+						/>
+					</View>
 
-			{!readOnly && (
-				<Pressable style={styles.addSetButton} onPress={() => onAddSet(exKey)} accessibilityRole="button">
-					<Ionicons name="add" size={16} color={theme.text} />
-					<Text style={styles.addButtonText}>Add set</Text>
-				</Pressable>
+					<View style={{ width: COL.trash, alignItems: "center" }}>
+						<Pressable onPress={onRemove} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Remove set ${label}`}>
+							<Ionicons name="trash-outline" size={18} color={theme.textTertiary} />
+						</Pressable>
+					</View>
+				</>
+			) : (
+				<>
+					<Text style={[styles.valueText, { width: COL.lbs }]}>{formatNumber(set.weight)}</Text>
+					<Text style={[styles.valueText, { width: COL.reps }]}>{formatNumber(set.reps)}</Text>
+					<Text style={[styles.valueText, styles.rirText, { width: COL.rir }]}>{formatNumber(set.reps_in_reserve)}</Text>
+				</>
 			)}
 		</View>
 	);
-});
-
-interface SetRowProps {
-	set: types.WorkoutSet;
-	onDelete: (setKey: string) => void;
-	onUpdate: (setKey: string, patch: Partial<types.WorkoutSet>) => void;
-	styles: ReturnType<typeof createStyles>;
-	theme: Theme;
-	readOnly?: boolean;
 }
 
-const SetRow = memo(function SetRow({ set, onDelete, onUpdate, styles, theme, readOnly }: SetRowProps) {
-	const drag = useReorderableDrag();
-	const setKey = getSetKey(set);
+//Takes in an exercise, if we can edit, then show values grabable and dropdown for working/warmups
+function RenderSets({
+	editable,
+	exercise,
+	previousSets = [],
+	onChangeSet,
+	onReorderSets,
+	onDeleteSet,
+}: {
+	editable: boolean;
+	exercise: types.WorkoutExercise;
+	previousSets?: types.PreviousSet[];
+	onChangeSet?: (setKey: string, patch: Partial<types.WorkoutSet>) => void;
+	onReorderSets?: (event: ReorderableListReorderEvent) => void;
+	onDeleteSet?: (setKey: string) => void;
+}) {
+	const { theme } = useTheme();
+	const styles = useMemoStyles(theme);
 
-	// Local string state so the field can be empty / hold "12." mid-typing; the
-	// parsed number is still pushed up on every change so Save has the live value.
-	const [repsText, setRepsText] = useState(() => numToText(set.reps));
-	const [weightText, setWeightText] = useState(() => numToText(set.weight));
+	if (exercise.sets.length === 0) return <Text style={styles.emptyText}>{editable ? "No sets yet. Add one below." : "No sets logged."}</Text>;
+
+	const labels = setLabels(exercise.sets);
+	const paired = pairWithPrevious(exercise.sets, previousSets);
 
 	return (
-		<View style={[styles.setRow, { overflow: "hidden" }]}>
-			{!readOnly && (
-				<Pressable onLongPress={drag} hitSlop={10} accessibilityLabel="Reorder set" accessibilityHint="Press and hold, then drag">
-					<Ionicons name="reorder-three-outline" size={18} color={theme.text} />
-				</Pressable>
+		<View>
+			<View style={styles.setHeader}>
+				{editable && <View style={{ width: COL.grip }} />}
+				<Text style={[styles.headerText, { width: COL.type }]}>Type</Text>
+				<Text style={[styles.headerText, { flex: 1 }]}>{editable ? "Prev" : ""}</Text>
+				<Text style={[styles.headerText, styles.headerCenter, { width: COL.lbs }]}>Lbs</Text>
+				<Text style={[styles.headerText, styles.headerCenter, { width: COL.reps }]}>Reps</Text>
+				<Text style={[styles.headerText, styles.headerCenter, { width: COL.rir }]}>RIR</Text>
+				{editable && <View style={{ width: COL.trash }} />}
+			</View>
+
+			{editable ? (
+				//drag a row by its grip; labels/prev follow the new array order automatically
+				<ReorderableList
+					data={exercise.sets}
+					keyExtractor={setKey}
+					onReorder={(event) => onReorderSets?.(event)}
+					scrollEnabled={false} //grows to fit its rows; the exercise list does the scrolling
+					keyboardShouldPersistTaps="handled"
+					renderItem={({ item, index }) => (
+						<View style={styles.setRowGap}>
+							<SetRow
+								set={item}
+								label={labels[index]}
+								previous={paired[index]}
+								editable
+								onChange={(patch) => onChangeSet?.(setKey(item), patch)}
+								onRemove={() => onDeleteSet?.(setKey(item))}
+							/>
+						</View>
+					)}
+				/>
+			) : (
+				exercise.sets.map((set, i) => (
+					<View key={setKey(set)} style={styles.setRowGap}>
+						<SetRow set={set} label={labels[i]} previous={paired[i]} editable={false} />
+					</View>
+				))
 			)}
+		</View>
+	);
+}
 
-			<Text style={styles.setLabel}>Set {set.order_number}</Text>
+// ---------------- Exercise card ----------------
 
-			<TextInput
-				style={styles.numberInput}
-				value={repsText}
-				onChangeText={(text) => {
-					const next = text.replace(/[^0-9.]/g, "");
-					setRepsText(next);
-					onUpdate(setKey, { reps: Number(next) || 0 });
-				}}
-				keyboardType="numeric"
-				placeholder="Reps"
-				accessibilityLabel={`Set ${set.order_number} reps`}
-				editable={!readOnly}
+function ExerciseCard({
+	exercise,
+	index,
+	total,
+	editable,
+	stats,
+	onChangeSet,
+	onReorderSets,
+	onAddSet,
+	onRemove,
+	onDeleteSet,
+}: {
+	exercise: types.WorkoutExercise;
+	index: number;
+	total: number;
+	editable: boolean;
+	stats?: types.ExerciseStats;
+	onChangeSet?: (setKey: string, patch: Partial<types.WorkoutSet>) => void;
+	onReorderSets?: (event: ReorderableListReorderEvent) => void;
+	onAddSet?: () => void;
+	onRemove?: () => void;
+	onDeleteSet?: (setKey: string) => void;
+}) {
+	const { theme } = useTheme();
+	const styles = useMemoStyles(theme);
+	const name = exercise.exercise_name || "Unnamed exercise";
+
+	//only ask first if there's something to lose; an exercise you just added by mistake goes straight away
+	const confirmRemove = () => {
+		const hasData = exercise.sets.some((s) => s.weight != null || s.reps != null || s.reps_in_reserve != null);
+		if (!hasData) return onRemove?.();
+		Alert.alert(`Remove ${name}?`, "The sets you've logged for it will be removed too.", [
+			{ text: "Cancel", style: "cancel" },
+			{ text: "Remove", style: "destructive", onPress: onRemove },
+		]);
+	};
+
+	return (
+		<View style={styles.card}>
+			<View style={styles.cardHeader}>
+				<View style={{ flex: 1 }}>
+					<Text style={styles.cardEyebrow}>
+						Exercise {index + 1} of {total}
+						{editable && stats?.best_weight != null && <Text style={styles.cardBest}>{`  ·  Best: ${formatNumber(stats.best_weight)} lbs`}</Text>}
+					</Text>
+					<Text style={styles.exerciseName}>{name}</Text>
+				</View>
+				{editable && (
+					<View style={styles.cardActions}>
+						<Pressable onPress={confirmRemove} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Remove ${name}`}>
+							<Ionicons name="trash-outline" size={18} color={theme.textTertiary} />
+						</Pressable>
+						{/* sits outside the sets list, so it drags the whole card rather than a set */}
+						<DragGrip label={`Drag ${name} to reorder`} />
+					</View>
+				)}
+			</View>
+
+			<RenderSets
+				editable={editable}
+				exercise={exercise}
+				previousSets={stats?.previous_sets}
+				onChangeSet={onChangeSet}
+				onReorderSets={onReorderSets}
+				onDeleteSet={onDeleteSet}
 			/>
-			<TextInput
-				style={styles.numberInput}
-				value={weightText}
-				onChangeText={(text) => {
-					const next = text.replace(/[^0-9.]/g, "");
-					setWeightText(next);
-					onUpdate(setKey, { weight: Number(next) || 0 });
-				}}
-				keyboardType="numeric"
-				placeholder="kg"
-				accessibilityLabel={`Set ${set.order_number} weight in kilograms`}
-				editable={!readOnly}
-			/>
 
-			{!readOnly && (
-				<Pressable onPress={() => onDelete(setKey)} hitSlop={10} accessibilityRole="button" accessibilityLabel={`Remove set ${set.order_number}`}>
-					<Ionicons name="close-circle-outline" size={18} color={theme.error} />
+			{editable && (
+				<Pressable style={styles.addSetButton} onPress={onAddSet} accessibilityRole="button">
+					<Ionicons name="add" size={18} color={theme.textSecondary} />
+					<Text style={styles.addSetText}>Add set</Text>
 				</Pressable>
 			)}
 		</View>
 	);
-});
+}
 
-function ExerciseSelectorModal({
-	visible,
-	onClose,
-	availExercises,
-	onSelect,
-	onAddNew,
-	theme,
-	styles,
+// ---------------- Screens ----------------
+
+//Render view only
+function ViewWorkout({ workout }: { workout: types.WorkoutData }) {
+	const { theme } = useTheme();
+	const styles = useMemoStyles(theme);
+
+	return (
+		<Screen>
+			<ScrollView contentContainerStyle={styles.content}>
+				<View style={styles.headerRow}>
+					<Pressable onPress={() => router.back()} hitSlop={12} accessibilityLabel="Go back">
+						<Ionicons name="chevron-back" size={24} color={theme.primary} />
+					</Pressable>
+					<View style={{ flex: 1 }}>
+						<Text style={styles.title}>{workout.workout_name || "Workout"}</Text>
+						<Text style={styles.subtitle}>{formatMediumDate(workout.workout_date)}</Text>
+					</View>
+				</View>
+
+				{workout.exercises.length === 0 && <Text style={styles.emptyText}>No exercises in this workout.</Text>}
+				{workout.exercises.map((exercise, i) => (
+					<ExerciseCard key={exerciseKey(exercise)} exercise={exercise} index={i} total={workout.exercises.length} editable={false} />
+				))}
+			</ScrollView>
+		</Screen>
+	);
+}
+
+//space between exercise cards: they live in a list now, so styles.content's gap doesn't reach them
+const ExerciseGap = () => <View style={{ height: 14 }} />;
+
+//new / edit / copy
+function EditWorkout({
+	workout,
+	setWorkout,
+	workoutId,
 }: {
-	visible: boolean;
-	onClose: () => void;
-	availExercises: CatalogExercise[];
-	onSelect: (selected: CatalogExercise) => void;
-	onAddNew: (name: string, muscleGroup: string) => void;
-	theme: Theme;
-	styles: ReturnType<typeof createStyles>;
+	workout: types.WorkoutData;
+	setWorkout: Dispatch<SetStateAction<types.WorkoutData>>;
+	workoutId?: number; // only when editing a saved workout, so its own sets don't show up as "prev"
 }) {
-	const [searchQuery, setSearchQuery] = useState("");
-	const [selectedGroup, setSelectedGroup] = useState("all");
+	const { theme } = useTheme();
+	const styles = useMemoStyles(theme);
 
-	const muscleGroups = useMemo(() => {
-		const groups = new Set(availExercises.map((e) => e.muscle_group).filter(Boolean));
-		return ["all", ...Array.from(groups)];
-	}, [availExercises]);
+	const catalogIds = workout.exercises.map((e) => e.catalog_id).filter((id): id is number => id != null);
+	const stats = useExerciseStats(catalogIds, workoutId);
 
-	const filteredExercises = useMemo(() => {
-		return availExercises.filter((item) => {
-			const matchesFilter = selectedGroup === "all" || item.muscle_group === selectedGroup;
-			const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
-			return matchesFilter && matchesSearch;
-		});
-	}, [availExercises, selectedGroup, searchQuery]);
+	const [pickerOpen, setPickerOpen] = useState(false);
+	const [saving, setSaving] = useState(false);
+	const [celebrating, setCelebrating] = useState(false);
 
-	const exactMatchExists = useMemo(() => {
-		return availExercises.some((e) => e.name.toLowerCase() === searchQuery.trim().toLowerCase());
-	}, [availExercises, searchQuery]);
+	//change one set in one exercise, leave everything else alone
+	const updateSet = (exKey: string, sKey: string, patch: Partial<types.WorkoutSet>) =>
+		setWorkout((w) => ({
+			...w,
+			exercises: w.exercises.map((e) => (exerciseKey(e) !== exKey ? e : { ...e, sets: e.sets.map((s) => (setKey(s) === sKey ? { ...s, ...patch } : s)) })),
+		}));
 
-	const handleCreateNew = () => {
-		if (searchQuery.trim()) {
-			onAddNew(searchQuery.trim(), selectedGroup === "all" ? "Other" : selectedGroup);
-			setSearchQuery("");
-			onClose();
+	const addSet = (exKey: string) =>
+		setWorkout((w) => ({
+			...w,
+			exercises: w.exercises.map((e) =>
+				exerciseKey(e) !== exKey
+					? e
+					: {
+							...e,
+							sets: [
+								...e.sets,
+								{ tempId: randomUUID(), order_number: e.sets.length + 1, set_type: "working", notes: "", weight: null, reps: null, reps_in_reserve: null },
+							],
+						},
+			),
+		}));
+
+	//new exercises go on the end with one empty working set ready to fill in
+	const addExercise = (picked: types.CatalogExercise) => {
+		haptics.tap();
+		setWorkout((w) => ({
+			...w,
+			exercises: [
+				...w.exercises,
+				{
+					tempId: randomUUID(),
+					catalog_id: picked.catalog_id,
+					exercise_name: picked.name,
+					notes: "",
+					order_number: w.exercises.length + 1,
+					sets: [{ tempId: randomUUID(), order_number: 1, set_type: "working", notes: "", weight: null, reps: null, reps_in_reserve: null }],
+				},
+			],
+		}));
+	};
+
+	//renumber closes the gap so the remaining sets stay 1..n
+	const deleteSet = (exKey: string, sKey: string) =>
+		setWorkout((w) => ({
+			...w,
+			exercises: w.exercises.map((e) => (exerciseKey(e) !== exKey ? e : { ...e, sets: renumber(e.sets.filter((s) => setKey(s) !== sKey)) })),
+		}));
+
+	const removeExercise = (exKey: string) => setWorkout((w) => ({ ...w, exercises: renumber(w.exercises.filter((e) => exerciseKey(e) !== exKey)) }));
+
+	//drag-and-drop: move the item, then renumber so order_number always matches what's on screen
+	const reorderExercises = ({ from, to }: ReorderableListReorderEvent) =>
+		setWorkout((w) => ({ ...w, exercises: renumber(reorderItems(w.exercises, from, to)) }));
+
+	const reorderSets = (exKey: string, { from, to }: ReorderableListReorderEvent) =>
+		setWorkout((w) => ({
+			...w,
+			exercises: w.exercises.map((e) => (exerciseKey(e) !== exKey ? e : { ...e, sets: renumber(reorderItems(e.sets, from, to)) })),
+		}));
+
+	const isEditing = workoutId != null; //saved workout: PUT over it. Otherwise (new/copy) POST a new one
+
+	const save = async () => {
+		if (saving) return;
+
+		//the backend rejects these anyway; catching them here gives a useful message instead of a failed request
+		if (!workout.workout_name.trim()) return toast.error("Give your workout a name.");
+		if (workout.exercises.length === 0) return toast.error("Add at least one exercise.");
+
+		//finishing a new workout stamps it finished now. Finished workouts are what "prev"/"best" read from,
+		//so an unfinished one would never show up there. Editing keeps the original time.
+		const payload = { ...workout, finished_at: workout.finished_at ?? new Date().toISOString() };
+
+		setSaving(true);
+		try {
+			if (isEditing) await instance.put(`/workouts/${workoutId}`, payload);
+			else await instance.post("/workouts", payload);
+			haptics.success();
+
+			if (isEditing) {
+				toast.success("Workout saved.");
+				router.back();
+			} else {
+				setCelebrating(true); //goes back when it's dismissed
+			}
+		} catch (err) {
+			log.error("Couldn't save workout", err);
+			toast.error("Workout not saved. Check your connection and try again.");
+			setSaving(false);
 		}
 	};
 
 	return (
-		<Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-			<SafeAreaView style={styles.modalContainer} edges={["top", "bottom"]}>
-				<KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-				<View style={styles.modalHeader}>
-					<Text style={styles.modalTitle}>Choose an exercise</Text>
-					<TouchableOpacity onPress={onClose} hitSlop={10} accessibilityRole="button" accessibilityLabel="Close">
-						<Ionicons name="close" size={24} color={theme.text} />
-					</TouchableOpacity>
-				</View>
-
-				<TextInput
-					style={styles.modalSearchInput}
-					placeholder="Search exercises"
-					placeholderTextColor={theme.text + "88"}
-					value={searchQuery}
-					onChangeText={setSearchQuery}
-				/>
-
-				<View style={styles.filterChipContainer}>
-					<FlatList
-						horizontal
-						data={muscleGroups}
-						keyExtractor={(item) => item}
-						showsHorizontalScrollIndicator={false}
-						renderItem={({ item }) => (
-							<TouchableOpacity
-								style={[styles.filterChip, selectedGroup === item && { backgroundColor: theme.primary }]}
-								onPress={() => setSelectedGroup(item)}
-							>
-								<Text style={[styles.filterChipText, selectedGroup === item && { color: theme.textInverse }]}>{item}</Text>
-							</TouchableOpacity>
-						)}
-					/>
-				</View>
-
-				<FlatList
-					data={filteredExercises}
-					keyExtractor={(item) => item.catalog_id.toString()}
-					renderItem={({ item }) => (
-						<TouchableOpacity
-							style={styles.exerciseListItem}
-							onPress={() => {
-								onSelect(item);
-								onClose();
-							}}
-						>
-							<Text style={styles.exerciseListItemName}>{item.name}</Text>
-							<Text style={styles.exerciseListItemSub}>{item.muscle_group}</Text>
-						</TouchableOpacity>
-					)}
-					ListEmptyComponent={() => (
-						<View style={styles.emptyContainer}>
-							<Text style={{ color: theme.text }}>No exercises match that search.</Text>
+		<Screen>
+			<KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+				{/* the exercise list IS the screen's scroller (a FlatList), so the set lists inside it are FlatList-in-FlatList,
+				    which RN allows. Putting them in a ScrollView instead triggers the "VirtualizedLists should never be nested" error */}
+				<ReorderableList
+					data={workout.exercises}
+					keyExtractor={exerciseKey}
+					onReorder={reorderExercises}
+					contentContainerStyle={styles.listContent}
+					keyboardShouldPersistTaps="handled"
+					ItemSeparatorComponent={ExerciseGap}
+					//elements, not components: an inline component would remount every render and the name box would lose focus
+					ListHeaderComponent={
+						<View style={styles.listHeader}>
+							<View style={styles.headerRow}>
+								<Pressable onPress={() => router.back()} hitSlop={12} accessibilityLabel="Go back">
+									<Ionicons name="chevron-back" size={24} color={theme.primary} />
+								</Pressable>
+								<View style={{ flex: 1 }}>
+									<TextInput
+										style={styles.titleInput}
+										value={workout.workout_name}
+										onChangeText={(workout_name) => setWorkout((w) => ({ ...w, workout_name }))}
+										placeholder="Workout name"
+										placeholderTextColor={theme.inputPlaceholder}
+									/>
+									<Text style={styles.subtitle}>{formatMediumDate(workout.workout_date)}</Text>
+								</View>
+							</View>
+							<Pills
+								options={CONTENT_VISIBILITIES}
+								value={workout.visibility}
+								onSelect={(visibility: ContentVisibility) => setWorkout((w) => ({ ...w, visibility }))}
+								labels={CONTENT_VISIBILITY_LABELS}
+							/>
 						</View>
-					)}
-					ListFooterComponent={
-						!exactMatchExists && searchQuery.trim().length > 0 ? (
-							<TouchableOpacity style={[styles.saveButton, { margin: 16 }]} onPress={handleCreateNew}>
-								<Text style={styles.saveButtonText}>Add &quot;{searchQuery.trim()}&quot; as a new exercise</Text>
-							</TouchableOpacity>
-						) : null
 					}
+					ListEmptyComponent={<Text style={styles.emptyText}>No exercises yet. Add one below.</Text>}
+					ListFooterComponent={
+						<View style={styles.listFooter}>
+							<Pressable style={styles.addExerciseButton} onPress={() => setPickerOpen(true)} accessibilityRole="button">
+								<Ionicons name="add" size={20} color={theme.primary} />
+								<Text style={styles.addExerciseText}>Add exercise</Text>
+							</Pressable>
+							<Pressable style={[styles.saveButton, saving && styles.disabled]} onPress={save} disabled={saving} accessibilityRole="button">
+								{saving ? (
+									<ActivityIndicator color={theme.textInverse} />
+								) : (
+									<Text style={styles.saveButtonText}>{isEditing ? "Save changes" : "Finish workout"}</Text>
+								)}
+							</Pressable>
+						</View>
+					}
+					renderItem={({ item: exercise, index }) => {
+						const exKey = exerciseKey(exercise);
+						return (
+							<ExerciseCard
+								exercise={exercise}
+								index={index}
+								total={workout.exercises.length}
+								editable
+								stats={exercise.catalog_id != null ? stats[exercise.catalog_id] : undefined}
+								onChangeSet={(sKey, patch) => updateSet(exKey, sKey, patch)}
+								onReorderSets={(event) => reorderSets(exKey, event)}
+								onAddSet={() => addSet(exKey)}
+								onRemove={() => removeExercise(exKey)}
+								onDeleteSet={(sKey) => deleteSet(exKey, sKey)}
+							/>
+						);
+					}}
 				/>
-				</KeyboardAvoidingView>
-			</SafeAreaView>
-		</Modal>
+			</KeyboardAvoidingView>
+
+			<ExercisePicker visible={pickerOpen} onClose={() => setPickerOpen(false)} onPick={addExercise} />
+
+			<WorkoutCelebration
+				visible={celebrating}
+				exerciseCount={workout.exercises.length}
+				setCount={workout.exercises.reduce((n, e) => n + e.sets.length, 0)}
+				onDone={() => {
+					setCelebrating(false);
+					router.back();
+				}}
+			/>
+		</Screen>
 	);
+}
+
+export default function Workout() {
+	const params = useLocalSearchParams<{
+		workout_id?: string;
+		mode?: types.WorkoutMode;
+		//view = just viewing a workout
+		//copy = grabbing someones workout and making our own from it (dont copy weights/sets/reps)
+		//edit = modifiyng an old workout
+		//new = no fetch, blank
+	}>();
+	const mode = params.mode ?? "edit"; // Home's recent workouts link doesn't pass a mode
+	const { workout_id } = params;
+
+	const { profile } = useProfile();
+
+	const { workout, setWorkout, loading, error, retry } = useWorkout(workout_id, mode);
+
+	if (loading) return <LoadingScreen />;
+
+	//never show the editor without the real workout loaded (see the error state in useWorkout)
+	if (error)
+		return (
+			<Screen>
+				<ScreenState error onRetry={retry} errorTitle="Couldn't load this workout">
+					{null}
+				</ScreenState>
+			</Screen>
+		);
+
+	//render no buttons or anything for control
+	if (mode === "view") return <ViewWorkout workout={workout} />;
+
+	return <EditWorkout workout={workout} setWorkout={setWorkout} workoutId={mode === "edit" ? Number(workout_id) : undefined} />;
 }
 
 function createStyles(theme: Theme) {
 	return StyleSheet.create({
 		safeArea: { flex: 1, backgroundColor: theme.background },
-		centered: { justifyContent: "center", alignItems: "center" },
-		headerRow: {
+		content: { padding: 16, paddingBottom: 48, gap: 14 },
+		//no gap here: the reorderable list measures its cells, so spacing comes from ExerciseGap / listHeader instead
+		listContent: { padding: 16, paddingBottom: 48 },
+		listHeader: { marginBottom: 14, gap: 12 },
+		listFooter: { marginTop: 14, gap: 12 },
+		addExerciseButton: {
 			flexDirection: "row",
 			alignItems: "center",
-			paddingHorizontal: 16,
-			paddingTop: 8,
+			justifyContent: "center",
+			gap: 6,
+			height: 52,
+			borderRadius: 18,
+			borderWidth: 1.5,
+			borderStyle: "dashed",
+			borderColor: theme.primary,
 		},
-		iconButton: {
-			padding: 8,
-		},
-		titleInput: {
-			fontSize: 22,
-			fontWeight: "600",
-			padding: 16,
-			color: theme.text,
-		},
-		viewOnlyBanner: {
-			flexDirection: "row",
-			alignItems: "center",
-			gap: 8,
-			backgroundColor: theme.cardBgAlt,
-			borderRadius: 10,
-			paddingVertical: 10,
-			paddingHorizontal: 14,
-			marginHorizontal: 16,
-			marginTop: 8,
-		},
-		viewOnlyBannerText: { color: theme.textMuted, fontSize: 12, fontWeight: "600" },
-		visibilityRow: { paddingHorizontal: 16, marginBottom: 8 },
-		card: {
-			marginHorizontal: 16,
-			marginBottom: 12,
-			padding: 12,
-			backgroundColor: theme.cardBg,
-			borderRadius: 8,
-			shadowColor: theme.shadowColor,
-			shadowOffset: { width: 0, height: 1 },
-			shadowOpacity: 0.2,
-			shadowRadius: 1.41,
-			elevation: 2,
-		},
-		cardHeader: {
-			flexDirection: "row",
-			alignItems: "center",
-			gap: 8,
-			marginBottom: 8,
-		},
-		exerciseTitle: { flex: 1, fontSize: 16, fontWeight: "600", color: theme.primary },
-		notesInput: { marginBottom: 8, color: theme.text },
+		addExerciseText: { fontSize: 16, fontWeight: "700", color: theme.primary },
+		saveButton: { height: 52, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: theme.primary },
+		saveButtonText: { fontSize: 16, fontWeight: "700", color: theme.textInverse },
+		disabled: { opacity: 0.6 },
+		headerRow: { flexDirection: "row", alignItems: "flex-start", gap: 8, marginBottom: 2 },
+		title: { fontFamily: fonts.heading, fontSize: 26, lineHeight: 34, color: theme.text },
+		titleInput: { fontFamily: fonts.heading, fontSize: 26, lineHeight: 34, color: theme.text, padding: 0 },
+		subtitle: { fontSize: 14, color: theme.textMuted },
+		timerRow: { flex: 1, flexDirection: "row", gap: 2 },
+		emptyText: { fontSize: 14, color: theme.textMuted, paddingVertical: 8 },
+
+		// Exercise card
+		card: { backgroundColor: theme.cardBg, borderRadius: 18, borderWidth: 1, borderColor: theme.border, padding: 16 },
+		cardHeader: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+		cardActions: { flexDirection: "row", alignItems: "center", gap: 14 },
+		cardEyebrow: { fontSize: 13, fontWeight: "600", color: theme.primary },
+		cardBest: { fontSize: 13, fontWeight: "500", color: theme.textMuted },
+		exerciseName: { fontFamily: fonts.heading, fontSize: 22, lineHeight: 30, color: theme.text, marginBottom: 12 },
+
+		// Sets table
+		setHeader: { flexDirection: "row", alignItems: "center", paddingHorizontal: 8, marginBottom: 8 },
+		headerText: { fontSize: 12, fontWeight: "600", color: theme.textMuted },
+		headerCenter: { textAlign: "center" },
+		setRowGap: { paddingBottom: 8 },
 		setRow: {
 			flexDirection: "row",
 			alignItems: "center",
-			gap: 12,
-			paddingVertical: 8,
-			paddingHorizontal: 4,
-			borderTopWidth: StyleSheet.hairlineWidth,
-			borderTopColor: theme.text + "33",
+			minHeight: 48,
+			paddingHorizontal: 8,
+			borderRadius: 14,
+			borderWidth: 1,
+			borderColor: theme.borderLight,
+			backgroundColor: theme.cardBg,
 		},
-		setLabel: { flex: 1, color: theme.text },
-		numberInput: {
-			width: 48,
-			borderWidth: StyleSheet.hairlineWidth,
-			borderColor: theme.text + "55",
-			borderRadius: 6,
-			padding: 4,
-			color: theme.text,
-			textAlign: "center",
-		},
-		addButton: {
+		typeCell: { flexDirection: "row", alignItems: "center", gap: 6 },
+		typePill: {
 			flexDirection: "row",
 			alignItems: "center",
-			gap: 6,
-			marginHorizontal: 16,
-			marginBottom: 20,
-			padding: 10,
+			gap: 2,
+			paddingHorizontal: 8,
+			paddingVertical: 4,
+			borderRadius: 8,
+			backgroundColor: theme.cardBgAlt,
+			borderWidth: 1,
+			borderColor: theme.border,
 		},
+		typePillText: { fontSize: 13, fontWeight: "700", color: theme.primary },
+		typeLabel: { fontSize: 14, fontWeight: "700", color: theme.primary, paddingLeft: 4 },
+		prevText: { fontSize: 14, color: theme.textMuted },
+		valueText: { fontSize: 16, fontWeight: "700", color: theme.text, textAlign: "center" },
+		rirText: { color: theme.primary },
+		input: {
+			marginHorizontal: 3,
+			height: 34,
+			borderRadius: 8,
+			borderWidth: 1,
+			borderColor: theme.inputBorder,
+			backgroundColor: theme.inputBg,
+			color: theme.text,
+			fontSize: 15,
+			fontWeight: "700",
+			textAlign: "center",
+			paddingVertical: 0,
+		},
+		rirInput: { borderColor: theme.primary, color: theme.primary },
+
+		// Card button
 		addSetButton: {
 			flexDirection: "row",
 			alignItems: "center",
+			justifyContent: "center",
 			gap: 4,
+			height: 46,
 			marginTop: 6,
-			alignSelf: "flex-start",
-		},
-		addButtonText: { color: theme.text, fontWeight: "500" },
-		saveButton: {
-			marginHorizontal: 16,
-			padding: 14,
-			borderRadius: 8,
-			backgroundColor: theme.primary,
-			alignItems: "center",
-		},
-		saveButtonText: { color: theme.textInverse, fontWeight: "600", fontSize: 16 },
-
-		modalContainer: { flex: 1, backgroundColor: theme.background, padding: 16 },
-		modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
-		modalTitle: { fontSize: 20, lineHeight: 26, fontFamily: fonts.heading, color: theme.text },
-		modalSearchInput: {
+			borderRadius: 14,
 			borderWidth: 1,
-			borderColor: theme.text + "33",
-			borderRadius: 8,
-			padding: 10,
-			color: theme.text,
-			marginBottom: 12,
+			borderColor: theme.border,
+			backgroundColor: theme.cardBgAlt,
 		},
-		filterChipContainer: { marginBottom: 12 },
-		filterChip: {
-			paddingHorizontal: 12,
-			paddingVertical: 6,
-			borderRadius: 16,
-			backgroundColor: theme.text + "15",
-			marginRight: 8,
-		},
-		filterChipText: { color: theme.text, fontSize: 14, textTransform: "capitalize" },
-		exerciseListItem: { paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.text + "33" },
-		exerciseListItemName: { fontSize: 16, fontWeight: "500", color: theme.text },
-		exerciseListItemSub: { fontSize: 12, color: theme.text + "88", marginTop: 2 },
-		emptyContainer: { padding: 20, alignItems: "center" },
+		addSetText: { fontSize: 15, fontWeight: "600", color: theme.textSecondary },
+
+		// Set type picker (bottom sheet)
+		sheetOverlay: { flex: 1, backgroundColor: theme.overlay, justifyContent: "flex-end" },
+		sheet: { backgroundColor: theme.cardBg, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16, paddingBottom: 32, gap: 4 },
+		sheetTitle: { fontFamily: fonts.heading, fontSize: 20, lineHeight: 28, color: theme.text, marginBottom: 4 },
+		sheetOption: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 14 },
+		sheetOptionText: { fontSize: 16, color: theme.text },
 	});
 }
 

@@ -1,7 +1,7 @@
-import { View, Text, StyleSheet, TouchableOpacity, Pressable, RefreshControl } from "react-native";
+import { RefreshControl } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useState, useCallback } from "react";
-import { router, useFocusEffect } from "expo-router";
+import { useFocusEffect } from "expo-router";
 import { useTheme } from "@/theme/ThemeProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
@@ -13,6 +13,7 @@ import Screen from "@/components/Screen";
 
 import LogFoodModal from "@/features/nutrition/components/LogFoodModal";
 import DiarySections, { type MealType, type DiaryEntry } from "@/features/nutrition/components/DiarySections";
+import DateNavBar from "@/features/nutrition/components/DateNavBar";
 
 export default function Nutrition() {
 	const { theme } = useTheme();
@@ -26,27 +27,26 @@ export default function Nutrition() {
 	const [activeMealType, setActiveMealType] = useState<MealType>("breakfast");
 	const [entries, setEntries] = useState<DiaryEntry[]>([]);
 
-	//for displaying dropdown for creating new recipes/foods
-	const [createMenuOpen, setCreateMenuOpen] = useState(false);
-	const [headerHeight] = useState(52);
-
 	//default date to today
 	const [selectedDate, setSelectedDate] = useState<string>(todayISO);
 
-	const fetchEntries = useCallback(async (isRefresh = false) => {
-		try {
-			const res = await instance.get(`/nutrition/diary?start_date=${selectedDate}&end_date=${selectedDate}`);
-			setEntries(res.data.diary_entries ?? []);
-			setError(false);
-		} catch (e) {
-			log.error("Nutrition fetch error:", e);
-			if (isRefresh) toast.error("Couldn't refresh. Pull down to try again.");
-			else setError(true);
-		} finally {
-			setLoading(false);
-			setRefreshing(false);
-		}
-	}, [selectedDate]);
+	const fetchEntries = useCallback(
+		async (isRefresh = false) => {
+			try {
+				const res = await instance.get(`/nutrition/diary?start_date=${selectedDate}&end_date=${selectedDate}`);
+				setEntries(res.data.diary_entries ?? []);
+				setError(false);
+			} catch (e) {
+				log.error("Nutrition fetch error:", e);
+				if (isRefresh) toast.error("Couldn't refresh. Pull down to try again.");
+				else setError(true);
+			} finally {
+				setLoading(false);
+				setRefreshing(false);
+			}
+		},
+		[selectedDate],
+	);
 
 	// Refetch every time this tab regains focus (not just on first mount),
 	// so coming back from another tab shows fresh data instead of a stale cache.
@@ -56,75 +56,14 @@ export default function Nutrition() {
 		}, [fetchEntries]),
 	);
 
-	const styles = StyleSheet.create({
-		createMenu: {
-			position: "absolute",
-			right: 16,
-			backgroundColor: theme.cardBgAlt,
-			borderRadius: 12,
-			borderWidth: StyleSheet.hairlineWidth,
-			borderColor: theme.border,
-			paddingVertical: 4,
-			minWidth: 160,
-			shadowColor: theme.shadowColor,
-			shadowOpacity: 0.25,
-			shadowRadius: 8,
-			shadowOffset: { width: 0, height: 4 },
-			elevation: 8,
-			zIndex: 20,
-		},
-		createMenuItem: { paddingHorizontal: 16, paddingVertical: 12 },
-		createMenuDivider: { height: StyleSheet.hairlineWidth, backgroundColor: theme.border },
-		createMenuText: { color: theme.text, fontSize: 14, fontWeight: "600" },
-	});
-
 	return (
 		<Screen edges={["top"]}>
-			{createMenuOpen && (
-				<>
-					<Pressable style={StyleSheet.absoluteFill} onPress={() => setCreateMenuOpen(false)} />
-					{/* This is outside click handle ^^ */}
-
-					<View style={[styles.createMenu, { top: headerHeight }]}>
-						<TouchableOpacity
-							style={styles.createMenuItem}
-							onPress={() => {
-								setCreateMenuOpen(false);
-								router.push("/nutrition/CreateFood");
-							}}
-						>
-							<Text style={styles.createMenuText}>Create food</Text>
-						</TouchableOpacity>
-						<View style={styles.createMenuDivider} />
-						<TouchableOpacity
-							style={styles.createMenuItem}
-							onPress={() => {
-								setCreateMenuOpen(false);
-								router.push("/nutrition/CreateRecipe");
-							}}
-						>
-							<Text style={styles.createMenuText}>Create recipe</Text>
-						</TouchableOpacity>
-
-						{/* New view recipes button */}
-						<TouchableOpacity
-							style={styles.createMenuItem}
-							onPress={() => {
-								setCreateMenuOpen(false);
-								router.push("/nutrition/DisplayRecipes");
-							}}
-						>
-							<Text style={styles.createMenuText}>View recipes</Text>
-						</TouchableOpacity>
-					</View>
-				</>
-			)}
+			{/* Outside ScreenState so you can still switch days while a day is loading or failed */}
+			<DateNavBar selectedDate={selectedDate} onChange={setSelectedDate} />
 
 			<ScreenState loading={loading} error={error} onRetry={fetchEntries} errorTitle="Couldn't load your diary">
 				<DiarySections
 					entries={entries}
-					selectedDate={selectedDate}
-					onDateChange={setSelectedDate}
 					goals={goals}
 					onAddMeal={(mealType) => {
 						setActiveMealType(mealType);

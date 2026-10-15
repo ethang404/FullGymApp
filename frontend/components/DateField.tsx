@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import DateTimePicker, { DateTimePickerAndroid } from "@react-native-community/datetimepicker";
 import { useTheme } from "@/theme/ThemeProvider";
@@ -13,6 +13,9 @@ interface DateFieldProps {
 	fieldStyle?: StyleProp<ViewStyle>;
 	/** Style for the value/placeholder text inside the box. */
 	textStyle?: StyleProp<TextStyle>;
+	/** Custom trigger content (e.g. a calendar icon) instead of the formatted date text. */
+	children?: ReactNode;
+	accessibilityLabel?: string;
 }
 
 const MIN_DATE = new Date(1900, 0, 1);
@@ -20,7 +23,7 @@ const FALLBACK = new Date(2000, 0, 1);
 
 // A tappable field that opens the OS date picker (Android dialog / iOS inline
 // spinner). Emits a local `YYYY-MM-DD` string — the format the API already uses.
-export function DateField({ value, onChange, placeholder = "Select date", fieldStyle, textStyle }: DateFieldProps) {
+export function DateField({ value, onChange, placeholder = "Select date", fieldStyle, textStyle, children, accessibilityLabel }: DateFieldProps) {
 	const { theme } = useTheme();
 	const [iosOpen, setIosOpen] = useState(false);
 	const current = parseISODate(value) ?? FALLBACK;
@@ -39,8 +42,8 @@ export function DateField({ value, onChange, placeholder = "Select date", fieldS
 
 	return (
 		<>
-			<Pressable style={fieldStyle} onPress={open}>
-				<Text style={[textStyle, !value && { opacity: 0.5 }]}>{value ? formatMediumDate(value) : placeholder}</Text>
+			<Pressable style={fieldStyle} onPress={open} accessibilityRole="button" accessibilityLabel={accessibilityLabel}>
+				{children ?? <Text style={[textStyle, !value && { opacity: 0.5 }]}>{value ? formatMediumDate(value) : placeholder}</Text>}
 			</Pressable>
 
 			{Platform.OS === "ios" && iosOpen && (
@@ -63,7 +66,8 @@ export function DateField({ value, onChange, placeholder = "Select date", fieldS
 }
 
 const styles = StyleSheet.create({
-	iosWrap: { alignItems: "center" },
+	// Full width so that inside a wrapping row (e.g. DateNavBar's header) the spinner drops to its own line.
+	iosWrap: { alignItems: "center", width: "100%" },
 	doneBtn: { alignSelf: "flex-end", paddingHorizontal: 8, paddingVertical: 6 },
 	doneText: { fontWeight: "700", fontSize: 15 },
 });

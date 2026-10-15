@@ -20,6 +20,8 @@ router.get("/catalog", verifyToken, controller.searchCatalog); //search/list cat
 router.post("/catalog", verifyToken, controller.createCatalogExercise); //add a new exercise to the catalog
 router.get("/catalog/:id/history", verifyToken, controller.getExerciseHistory); //best set per workout (weight, reps, e1RM) over time for one catalog exercise
 
+router.get("/exercise-stats", verifyToken, controller.getExerciseStats); //best weight + last session's sets per catalog exercise, e.g. /workouts/exercise-stats?catalog_ids=1,4&exclude_workout_id=28
+
 router.get("/progress/biggest-changes", verifyToken, controller.getBiggestChanges); //top 5 biggest % lift changes in a date range
 router.get("/progress/lifts", verifyToken, controller.getLoggedLifts); //every lift logged in a date range, for the lift picker
 router.get("/progress/volume-by-muscle-group", verifyToken, controller.getVolumeByMuscleGroup); //working sets + reps per muscle group

@@ -7,6 +7,7 @@ const ExerciseCatalogModel = require("../models/modelInits").exercise_catalog;
 let token;
 let otherToken;
 const catalog = {};
+const workoutIds = {}; // workout_date -> workout_id, so tests can "edit" a specific fixture workout
 
 // Progress endpoints filter relative to "now", so fixture dates are generated relative to today
 // instead of hardcoded (a hardcoded date would drift out of the week/month windows).
@@ -73,6 +74,7 @@ beforeAll(async () => {
 	for (const payload of workouts) {
 		resp = await request(app).post("/workouts").set("Authorization", `Bearer ${token}`).send(payload);
 		expect(resp.status).toEqual(200);
+		workoutIds[payload.workout_date] = resp.body.workout.workout_id;
 	}
 }, 60000);
 
@@ -187,5 +189,61 @@ describe("GET /workouts/progress/volume-by-muscle-group", () => {
 	test("returns zeros and no breakdown rows for a user with no workouts", async () => {
 		const resp = await get("/workouts/progress/volume-by-muscle-group", "all", otherToken);
 		expect(resp.body).toEqual({ total_sets: 0, total_reps: 0, breakdown: [] });
+	});
+});
+
+describe("GET /workouts/exercise-stats", () => {
+	const stats = (query, authToken = token) => request(app).get("/workouts/exercise-stats").query(query).set("Authorization", `Bearer ${authToken}`);
+	const set = (set_type, weight, reps, order_number) => ({ set_type, weight, reps, reps_in_reserve: null, order_number });
+
+	test("new workout: best working weight and the most recent session's sets per exercise", async () => {
+		const resp = await stats({ catalog_ids: `${catalog["Bench Press"]},${catalog["Squat"]}` });
+
+		expect(resp.status).toEqual(200);
+		expect(resp.body.stats[catalog["Bench Press"]]).toEqual({
+			best_weight: 85,
+			previous_sets: [set("working", 85, 5, 1), set("working", 80, 8, 2)], // RECENT's bench
+		});
+		expect(resp.body.stats[catalog["Squat"]]).toEqual({
+			best_weight: 100,
+			previous_sets: [set("working", 100, 5, 1), set("working", null, null, 2)], // blank rows still come back so positions line up
+		});
+	});
+
+	test("editing a workout skips it and anything newer, warmups included in previous but not best", async () => {
+		const resp = await stats({ catalog_ids: String(catalog["Bench Press"]), exclude_workout_id: workoutIds[RECENT] });
+
+		expect(resp.status).toEqual(200);
+		expect(resp.body.stats[catalog["Bench Press"]]).toEqual({
+			best_weight: 80, // RECENT's 85 doesn't count, and EARLIER's 40 warmup never does
+			previous_sets: [set("warmup", 40, 5, 1), set("working", 80, 5, 2), set("working", 80, 5, 3)],
+		});
+
+		const older = await stats({ catalog_ids: String(catalog["Bench Press"]), exclude_workout_id: workoutIds[EARLIER] });
+		expect(older.body.stats[catalog["Bench Press"]]).toEqual({ best_weight: 70, previous_sets: [set("working", 70, 5, 1)] }); // OLD, not RECENT
+	});
+
+	test("an exercise with no history comes back empty instead of missing", async () => {
+		const resp = await stats({ catalog_ids: `${catalog["Bicep Curl"]},999999`, exclude_workout_id: workoutIds[RECENT] });
+		expect(resp.body.stats).toEqual({
+			[catalog["Bicep Curl"]]: { best_weight: null, previous_sets: [] }, // only logged in RECENT, which is excluded
+			999999: { best_weight: null, previous_sets: [] },
+		});
+	});
+
+	test("only ever uses the logged-in user's history", async () => {
+		const resp = await stats({ catalog_ids: String(catalog["Bench Press"]) }, otherToken);
+		expect(resp.body.stats[catalog["Bench Press"]]).toEqual({ best_weight: null, previous_sets: [] });
+
+		// can't use someone else's workout as the "being edited" anchor either
+		const theirs = await stats({ catalog_ids: String(catalog["Bench Press"]), exclude_workout_id: workoutIds[RECENT] }, otherToken);
+		expect(theirs.status).toEqual(404);
+	});
+
+	test("rejects bad input", async () => {
+		expect((await stats({})).status).toEqual(400);
+		expect((await stats({ catalog_ids: "abc," })).status).toEqual(400);
+		expect((await stats({ catalog_ids: "1", exclude_workout_id: "abc" })).status).toEqual(400);
+		expect((await request(app).get("/workouts/exercise-stats").query({ catalog_ids: "1" })).status).toEqual(401);
 	});
 });

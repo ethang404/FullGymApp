@@ -2,8 +2,6 @@ import { View, Text, StyleSheet, TouchableOpacity, SectionList, type RefreshCont
 import { useMemo, type ComponentProps, type ReactElement } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
-import { shiftISODate, formatDayHeading } from "@/utils/date";
-import { RingProgress } from "@/components/RingProgress";
 import type { MacroGoals } from "@/utils/macroDefaults";
 
 type IconName = ComponentProps<typeof FontAwesome5>["name"];
@@ -24,7 +22,7 @@ const MEAL_ICONS: Record<MealType, IconName> = {
 	breakfast: "coffee",
 	lunch: "utensils",
 	dinner: "moon",
-	snack: "apple-alt",
+	snack: "cookie-bite",
 };
 
 export interface DiaryEntry {
@@ -72,6 +70,17 @@ function calculateMacrosPerMeal(entries: DiaryEntry[], meal_type: string): Total
 // % of goal, guarding against a 0 / missing goal.
 const pctOfGoal = (current: number, goal: number) => (goal > 0 ? (current / goal) * 100 : 0);
 
+// Just the bar: a track with a fill. Radius is half the height so the ends stay
+// pill-shaped at any thickness; pct is capped so going over a goal doesn't overflow.
+function ProgressBar({ pct, color, trackColor, height = 4 }: { pct: number; color: string; trackColor: string; height?: number }) {
+	const width = Math.min(Math.max(pct, 0), 100);
+	return (
+		<View style={{ height, backgroundColor: trackColor, borderRadius: height / 2, overflow: "hidden" }}>
+			<View style={{ height, width: `${width}%`, backgroundColor: color, borderRadius: height / 2 }} />
+		</View>
+	);
+}
+
 function MacroBar({
 	label,
 	current,
@@ -89,17 +98,17 @@ function MacroBar({
 	trackColor: string;
 	valueColor: string;
 }) {
-	const pct = goal > 0 ? Math.min((current / goal) * 100, 100) : 0;
 	return (
 		<View style={{ flex: 1, gap: 6 }}>
-			<Text style={{ fontSize: 10, fontWeight: "700", color }}>{label}</Text>
+			<View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+				<Text style={{ fontSize: 10, fontWeight: "700", color, flex: 1 }}>{label}</Text>
+				<Text style={{ fontSize: 10, fontWeight: "600", color: textColor }}>{Math.round(pctOfGoal(current, goal))}%</Text>
+			</View>
 			<Text style={{ fontSize: 17, fontWeight: "800", color: valueColor }}>
-				{Math.round(current)}
+				{Math.round(current)}/<Text style={{ fontSize: 14, fontWeight: "400", color: valueColor }}>{goal}</Text>
 				<Text style={{ fontSize: 12, fontWeight: "600", color: textColor }}> g</Text>
 			</Text>
-			<View style={{ height: 4, backgroundColor: trackColor, borderRadius: 2, overflow: "hidden" }}>
-				<View style={{ height: 4, width: `${pct}%`, backgroundColor: color, borderRadius: 2 }} />
-			</View>
+			<ProgressBar pct={pctOfGoal(current, goal)} color={color} trackColor={trackColor} />
 		</View>
 	);
 }
@@ -120,8 +129,6 @@ function MacroStat({ label, current, color, textColor }: { label: string; curren
 
 interface DiarySectionsProps {
 	entries: DiaryEntry[];
-	selectedDate: string;
-	onDateChange: (date: string) => void;
 	/** Omit for a read-only view where the viewer's own goals don't apply (e.g. a friend's diary) - renders totals without goal-relative rings/bars. */
 	goals?: MacroGoals;
 	/** Hides the per-meal "+" add button and disables logging entirely. */
@@ -135,7 +142,7 @@ interface DiarySectionsProps {
 // friends/[friend_user_id].tsx (a friend's diary, read-only) - hero summary card +
 // per-meal sections, computed from `entries` alone so both screens just fetch and hand
 // off data.
-export default function DiarySections({ entries, selectedDate, onDateChange, goals, readOnly, onAddMeal, bottomInset = 0, refreshControl }: DiarySectionsProps) {
+export default function DiarySections({ entries, goals, readOnly, onAddMeal, bottomInset = 0, refreshControl }: DiarySectionsProps) {
 	const { theme } = useTheme();
 
 	const totals = useMemo(() => calculateTotalMacros(entries), [entries]);
@@ -172,37 +179,24 @@ export default function DiarySections({ entries, selectedDate, onDateChange, goa
 					borderColor: theme.border,
 					overflow: "hidden",
 				},
-				dateNavBar: {
-					flexDirection: "row",
-					justifyContent: "space-between",
-					alignItems: "center",
-					paddingVertical: 14,
-					borderBottomWidth: StyleSheet.hairlineWidth,
-					borderBottomColor: theme.border,
-				},
-				dateNavArrow: {
-					paddingHorizontal: 20,
-					paddingVertical: 4,
-				},
-				dateText: {
-					color: theme.textSecondary,
-					fontWeight: "700",
-					fontSize: 13,
-				},
 				summaryCard: {
 					paddingHorizontal: 20,
 					paddingVertical: 24,
-					gap: 18,
+					gap: 24, // space between the calorie group and the macro row
 				},
+				calorieSection: { gap: 10 }, // label, big number and bar sit tight together
 				remainingLabel: {
-					fontSize: 11,
+					fontSize: 16,
 					fontWeight: "700",
 					color: theme.textMuted,
 				},
-				remainingRow: {
+				headerCardRow: {
 					flexDirection: "row",
 					alignItems: "center",
 					justifyContent: "space-between",
+				},
+				calorieGroup: {
+					flexDirection: "row",
 				},
 				remainingValue: {
 					fontSize: 40,
@@ -213,6 +207,7 @@ export default function DiarySections({ entries, selectedDate, onDateChange, goa
 				remainingUnit: {
 					fontSize: 14,
 					color: theme.textMuted,
+					alignSelf: "flex-end",
 				},
 				macroRow: {
 					flexDirection: "row",
@@ -376,39 +371,66 @@ export default function DiarySections({ entries, selectedDate, onDateChange, goa
 		<>
 			<View style={styles.heroCardWrapper}>
 				<View style={styles.heroCard}>
-					<View style={styles.dateNavBar}>
-						<TouchableOpacity onPress={() => onDateChange(shiftISODate(selectedDate, -1))} hitSlop={10} style={styles.dateNavArrow}>
-							<FontAwesome5 name="chevron-left" size={14} color={theme.textMuted} />
-						</TouchableOpacity>
-						<Text style={styles.dateText}>{formatDayHeading(selectedDate)}</Text>
-						<TouchableOpacity onPress={() => onDateChange(shiftISODate(selectedDate, 1))} hitSlop={10} style={styles.dateNavArrow}>
-							<FontAwesome5 name="chevron-right" size={14} color={theme.textMuted} />
-						</TouchableOpacity>
-					</View>
-
 					<View style={styles.summaryCard}>
 						{goals ? (
 							<>
-								<Text style={styles.remainingLabel}>Calories eaten</Text>
-								<View style={styles.remainingRow}>
-									<View>
-										<Text style={styles.remainingValue}>{Math.round(totals.calories).toLocaleString()}</Text>
+								<View style={styles.calorieSection}>
+									<View style={styles.headerCardRow}>
+										<Text style={styles.remainingLabel}>Calories eaten</Text>
+										<FontAwesome5 name="apple-alt" size={20} color={theme.primary} />
+									</View>
+									<View style={styles.calorieGroup}>
+										<Text style={styles.remainingValue}>{Math.round(totals.calories).toLocaleString()} </Text>
 										<Text style={styles.remainingUnit}>of {goals.calories.toLocaleString()} kcal</Text>
 									</View>
-									<RingProgress percent={pctOfGoal(totals.calories, goals.calories)} color={theme.primary} trackColor={theme.border} size={72} strokeWidth={7} />
+									<ProgressBar pct={pctOfGoal(totals.calories, goals.calories)} color={theme.primary} trackColor={theme.border} height={8} />
 								</View>
 
 								<View style={styles.macroRow}>
-									<MacroBar label="Protein" current={totals.protein} goal={goals.protein} color={theme.macroProtein} textColor={theme.textMuted} trackColor={theme.border} valueColor={theme.text} />
-									<MacroBar label="Carbs" current={totals.carbs} goal={goals.carbs} color={theme.macroCarbs} textColor={theme.textMuted} trackColor={theme.border} valueColor={theme.text} />
-									<MacroBar label="Fat" current={totals.fat} goal={goals.fat} color={theme.macroFat} textColor={theme.textMuted} trackColor={theme.border} valueColor={theme.text} />
-									<MacroBar label="Fiber" current={totals.fiber ?? 0} goal={goals.fiber} color={theme.macroCarbs} textColor={theme.textMuted} trackColor={theme.border} valueColor={theme.text} />
+									<MacroBar
+										label="Protein"
+										current={totals.protein}
+										goal={goals.protein}
+										color={theme.macroProtein}
+										textColor={theme.textMuted}
+										trackColor={theme.border}
+										valueColor={theme.text}
+									/>
+									<MacroBar
+										label="Carbs"
+										current={totals.carbs}
+										goal={goals.carbs}
+										color={theme.macroCarbs}
+										textColor={theme.textMuted}
+										trackColor={theme.border}
+										valueColor={theme.text}
+									/>
+									<MacroBar
+										label="Fat"
+										current={totals.fat}
+										goal={goals.fat}
+										color={theme.macroFat}
+										textColor={theme.textMuted}
+										trackColor={theme.border}
+										valueColor={theme.text}
+									/>
+									<MacroBar
+										label="Fiber"
+										current={totals.fiber ?? 0}
+										goal={goals.fiber}
+										color={theme.macroCarbs}
+										textColor={theme.textMuted}
+										trackColor={theme.border}
+										valueColor={theme.text}
+									/>
 								</View>
 							</>
 						) : (
 							<>
-								<Text style={styles.remainingLabel}>Calories eaten</Text>
-								<Text style={styles.remainingValue}>{Math.round(totals.calories).toLocaleString()}</Text>
+								<View style={styles.calorieSection}>
+									<Text style={styles.remainingLabel}>Calories eaten</Text>
+									<Text style={styles.remainingValue}>{Math.round(totals.calories).toLocaleString()}</Text>
+								</View>
 
 								<View style={styles.macroRow}>
 									<MacroStat label="Protein" current={totals.protein} color={theme.macroProtein} textColor={theme.text} />

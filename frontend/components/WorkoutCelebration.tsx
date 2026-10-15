@@ -106,8 +106,8 @@ export function WorkoutCelebration({
 		[theme],
 	);
 
-	// Badge icon must stay legible on the accent fill in every theme (Midnight's accent is white).
-	const iconColor = theme.accent.toUpperCase() === "#FFFFFF" ? "#000000" : theme.text;
+	// Accents are light tints in every theme, so the dark inverse text color stays legible on the badge.
+	const iconColor = theme.textInverse;
 
 	return (
 		<Modal visible={visible} transparent animationType="fade" onRequestClose={onDone}>

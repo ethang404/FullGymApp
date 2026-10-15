@@ -12,6 +12,7 @@ import { useFriends } from "@/utils/FriendsProvider";
 import { ScreenState } from "@/components/ScreenState";
 import Screen from "@/components/Screen";
 import DiarySections, { type DiaryEntry } from "@/features/nutrition/components/DiarySections";
+import DateNavBar from "@/features/nutrition/components/DateNavBar";
 import { displayName } from "@/types/friends";
 
 export default function FriendDiary() {
@@ -83,11 +84,11 @@ export default function FriendDiary() {
 				</View>
 			</View>
 
+			<DateNavBar selectedDate={selectedDate} onChange={setSelectedDate} />
+
 			<ScreenState loading={loading} error={error} onRetry={fetchEntries} errorTitle="Couldn't load this diary">
 				<DiarySections
 					entries={entries}
-					selectedDate={selectedDate}
-					onDateChange={setSelectedDate}
 					readOnly
 					refreshControl={
 						<RefreshControl

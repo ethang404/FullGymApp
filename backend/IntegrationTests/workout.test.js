@@ -172,3 +172,30 @@ describe("Add/Edit/Delete Workout Endpoints", function () {
 		expect(workout).toBeNull(); //workout should be null
 	});
 });
+
+describe("GET /workouts/:id", function () {
+	test("returns the workout in the same shape POST accepts (workout_name, exercise_name)", async function () {
+		let resp = await request(app).post("/Workouts").set("Authorization", `Bearer ${token}`).send(addWorkoutPayload);
+		expect(resp.status).toEqual(200);
+		const workoutId = resp.body.workout.workout_id;
+
+		resp = await request(app).get(`/workouts/${workoutId}`).set("Authorization", `Bearer ${token}`);
+		expect(resp.status).toEqual(200);
+
+		const { workout } = resp.body;
+		expect(workout.workout_id).toEqual(workoutId);
+		expect(workout.workout_name).toEqual(addWorkoutPayload.workout_name);
+		expect(workout.workout_date).toEqual(addWorkoutPayload.workout_date);
+		expect(workout.notes).toEqual(""); // stays a string, never null
+		expect(typeof workout.created_at).toEqual("string");
+		expect(workout).not.toHaveProperty("name");
+
+		expect(workout.exercises.map((e) => e.exercise_name)).toEqual(addWorkoutPayload.exercises.map((e) => e.exercise_name));
+		const [bench] = workout.exercises;
+		expect(bench).not.toHaveProperty("exercise_catalog");
+		expect(bench.catalog_id).toEqual(addWorkoutPayload.exercises[0].catalog_id);
+		expect(bench.sets.map(({ order_number, set_type, notes, reps, weight }) => ({ order_number, set_type, notes, reps, weight }))).toEqual(
+			addWorkoutPayload.exercises[0].sets,
+		);
+	});
+});

@@ -13,7 +13,7 @@ const {
 	friendships: friendshipsDB,
 } = require("../models/modelInits");
 const { UnauthorizedError, GeneralError, DataError, ForbiddenError } = require("../error");
-const { verifyAppleIdentityToken } = require("./appleAuth");
+const { verifyAppleIdentityToken, exchangeAppleAuthorizationCode } = require("./appleAuth");
 const { verifyGoogleIdToken } = require("./googleAuth");
 
 async function refreshToken(token) {
@@ -162,7 +162,19 @@ async function upgradeGuest(user_id, userData) {
 	return user;
 }
 
-async function loginWithApple({ identityToken, nonce, firstName, lastName }) {
+// Swaps the sign-in authorizationCode for Apple's refresh token and keeps it on the user, so deleting the
+// account can revoke it (see deleteMe in Users/service.js). Best effort: a failed exchange never blocks sign-in,
+// it just means there's nothing to revoke until their next Apple sign-in stores one.
+async function storeAppleRefreshToken(user, authorizationCode) {
+	try {
+		const refreshToken = await exchangeAppleAuthorizationCode(authorizationCode);
+		if (refreshToken) await user.update({ apple_refresh_token: refreshToken });
+	} catch (err) {
+		console.error("Couldn't store Apple refresh token", err);
+	}
+}
+
+async function loginWithApple({ identityToken, authorizationCode, nonce, firstName, lastName }) {
 	if (!identityToken) throw new DataError("Missing Apple identityToken");
 
 	const payload = await verifyAppleIdentityToken(identityToken);
@@ -187,6 +199,8 @@ async function loginWithApple({ identityToken, nonce, firstName, lastName }) {
 			throw new GeneralError("Failed to create user from Apple sign-in");
 		}
 	}
+
+	await storeAppleRefreshToken(user, authorizationCode);
 
 	return {
 		message: "Apple sign-in successful",
@@ -326,6 +340,7 @@ async function upgradeGuestWithOAuth(guestId, body) {
 		guest.is_guest = false;
 		await guest.save();
 
+		if (body.provider === "apple") await storeAppleRefreshToken(guest, body.authorizationCode);
 		return { status: "upgraded", user: guest };
 	}
 
@@ -338,6 +353,7 @@ async function upgradeGuestWithOAuth(guestId, body) {
 	}
 
 	await mergeUserInto(guest.user_id, existing.user_id);
+	if (body.provider === "apple") await storeAppleRefreshToken(existing, body.authorizationCode);
 	return { status: "merged", user: existing };
 }
 

@@ -51,6 +51,7 @@ export default function AppleSignInButton({ onError, disabled, onCredential }: A
 				const credentialBody: OAuthCredential = {
 					provider: "apple",
 					identityToken: credential.identityToken,
+					authorizationCode: credential.authorizationCode, //lets the backend get a refresh token it can revoke if the account is deleted
 					nonce: rawNonce,
 					firstName: credential.fullName?.givenName ?? null,
 					lastName: credential.fullName?.familyName ?? null,

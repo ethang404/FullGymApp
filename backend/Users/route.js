@@ -10,6 +10,9 @@ router.get("/me", verifyToken, controller.getMe);
 // Partial update of identity / body metrics / goals / onboarding flag.
 router.patch("/me", verifyToken, controller.updateMe);
 
+// Permanently delete the account and all of its data (workouts, diary, recipes, friendships).
+router.delete("/me", verifyToken, controller.deleteMe);
+
 // Mifflin–St Jeor suggestion from body metrics. Does not persist anything.
 router.post("/me/goals/estimate", verifyToken, controller.estimateGoals);
 

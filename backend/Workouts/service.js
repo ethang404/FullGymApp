@@ -4,7 +4,7 @@ const SetsModel = require("../models/modelInits").sets;
 const UsersModel = require("../models/modelInits").users;
 const ExerciseCatalogModel = require("../models/modelInits").exercise_catalog;
 
-const { Op } = require("sequelize");
+const { Op, QueryTypes } = require("sequelize");
 const sequelize = require("../models/db");
 
 const { GeneralError, NotFoundError, DataError, ForbiddenError } = require("../error");
@@ -122,6 +122,7 @@ async function CreateWorkout(data, user_id) {
 						notes: set.notes,
 						reps: set.reps,
 						weight: set.weight,
+						reps_in_reserve: set.reps_in_reserve,
 						duration_seconds: set.duration_seconds,
 						distance: set.distance,
 						set_type: set.set_type, //"warmup" vs "working" etc.
@@ -222,6 +223,7 @@ async function EditWorkout(data, workout_id, user_id) {
 							notes: set.notes,
 							reps: set.reps,
 							weight: set.weight,
+							reps_in_reserve: set.reps_in_reserve,
 							duration_seconds: set.duration_seconds,
 							distance: set.distance,
 						},
@@ -255,6 +257,7 @@ async function EditWorkout(data, workout_id, user_id) {
 								notes: set.notes,
 								reps: set.reps,
 								weight: set.weight,
+								reps_in_reserve: set.reps_in_reserve,
 								duration_seconds: set.duration_seconds,
 								distance: set.distance,
 							},
@@ -268,6 +271,7 @@ async function EditWorkout(data, workout_id, user_id) {
 								notes: set.notes,
 								reps: set.reps,
 								weight: set.weight,
+								reps_in_reserve: set.reps_in_reserve,
 								duration_seconds: set.duration_seconds,
 								distance: set.distance,
 							},
@@ -580,6 +584,96 @@ async function getVolumeByMuscleGroup(user_id, start_date, end_date) {
 	return { total_sets, total_reps, breakdown };
 }
 
+//NOTE: These queries don't account for order_number for fatigue on an exercise
+//Only set's previous query takes in account order_number for returning items for a given exercise
+//But TLDR fatigue for an exercise's order is never accounted for. Could fix by adding workout name?
+
+//Shared filters for "which past workouts count" when logging a workout. Both stats queries use these so
+//best and previous always look at the same workouts:
+//  - only this user's, only finished ones (a half-done workout from earlier today isn't "previous")
+//  - never the workout being edited (otherwise it shows its own sets as previous)
+//  - only workouts on/before the one being edited (editing an old workout shouldn't show newer ones)
+const PAST_WORKOUT_FILTERS = `
+	w.user_id = :userId
+	AND w.finished_at IS NOT NULL
+	AND w.workout_id <> :excludeWorkoutId
+	AND (CAST(:beforeDate AS DATE) IS NULL OR w.workout_date <= CAST(:beforeDate AS DATE))
+`;
+
+//Heaviest working set per catalog exercise, all in one query (GROUP BY = one row per catalog_id)
+const BEST_WEIGHT_SQL = `
+	SELECT e.catalog_id, MAX(s.weight) AS best_weight
+	FROM sets s
+	JOIN exercises e ON e.exercise_id = s.exercise_id
+	JOIN workouts w ON w.workout_id = e.workout_id
+	WHERE ${PAST_WORKOUT_FILTERS}
+	  AND e.catalog_id IN (:catalogIds)
+	  AND s.set_type = 'working'
+	  AND s.weight IS NOT NULL
+	GROUP BY e.catalog_id
+`;
+
+//Sets from the most recent time this catalog exercise was done. Inner query picks the exercise,
+//outer query gets its sets. One catalog_id per run (LIMIT 1 = one row total, not one per exercise).
+const PREVIOUS_SETS_SQL = `
+	SELECT set_type, weight, reps, reps_in_reserve, order_number
+	FROM sets
+	WHERE exercise_id = (
+		SELECT e.exercise_id
+		FROM exercises e
+		JOIN workouts w ON w.workout_id = e.workout_id
+		WHERE ${PAST_WORKOUT_FILTERS}
+		  AND e.catalog_id = :catalogId
+		ORDER BY w.workout_date DESC, w.finished_at DESC, e.order_number ASC
+		LIMIT 1
+	)
+	ORDER BY order_number
+`;
+
+//Best weight + last session's sets for each catalog exercise, for the prev/best columns while logging.
+//exclude_workout_id is the workout being edited (null for a new workout) - it's skipped, and only workouts
+//on or before its date count. Always the logged-in user's history, even when copying a friend's workout.
+async function getExerciseStats(user_id, catalog_ids, exclude_workout_id = null) {
+	let beforeDate = null;
+	if (exclude_workout_id) {
+		const current = await WorkoutsModel.findOne({ where: { workout_id: exclude_workout_id, user_id }, attributes: ["workout_date"] });
+		if (!current) throw new NotFoundError("No workout found with that workout ID");
+		beforeDate = current.workout_date;
+	}
+
+	const filters = { userId: user_id, excludeWorkoutId: exclude_workout_id ?? 0, beforeDate };
+
+	const bestRows = await sequelize.query(BEST_WEIGHT_SQL, {
+		replacements: { ...filters, catalogIds: catalog_ids },
+		type: QueryTypes.SELECT,
+	});
+
+	//one query per exercise, all running at once - fine for the handful of exercises in a workout
+	const previousPerExercise = await Promise.all(
+		catalog_ids.map((catalogId) =>
+			sequelize.query(PREVIOUS_SETS_SQL, {
+				replacements: { ...filters, catalogId },
+				type: QueryTypes.SELECT,
+			}),
+		),
+	);
+
+	//raw queries return DECIMAL as a string (same reason sets.weight has a getter)
+	const toNumber = (value) => (value == null ? null : parseFloat(value));
+
+	//catalog_id -> { best_weight, previous_sets }. Every requested id gets an entry, even with no history.
+	const stats = {};
+	catalog_ids.forEach((catalogId, i) => {
+		stats[catalogId] = {
+			best_weight: null,
+			previous_sets: previousPerExercise[i].map((set) => ({ ...set, weight: toNumber(set.weight) })),
+		};
+	});
+	for (const row of bestRows) stats[row.catalog_id].best_weight = toNumber(row.best_weight);
+
+	return stats;
+}
+
 module.exports = {
 	GetWorkouts,
 	GetWorkout,
@@ -592,4 +686,5 @@ module.exports = {
 	getLoggedLifts,
 	exerciseOverTime,
 	getVolumeByMuscleGroup,
+	getExerciseStats,
 };

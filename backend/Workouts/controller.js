@@ -36,11 +36,45 @@ async function getWorkoutsList(req, res) {
 	//For now we'll keep as GET and just allow 'week', 'month', 'year', 'all' filters (all is default)
 }
 
+//One workout in the same shape POST/PUT /workouts accept (workout_name, exercise_name), so the frontend can
+//load it, edit it, and send it straight back without renaming anything. Null notes become "" for text boxes.
+function serializeWorkout(workout) {
+	const w = workout.toJSON();
+	return {
+		workout_id: w.workout_id,
+		user_id: w.user_id,
+		workout_name: w.name ?? "",
+		workout_date: w.workout_date,
+		notes: w.notes ?? "",
+		created_at: w.createdAt, //Sequelize keeps timestamps camelCase on the object even with underscored: true (the column is created_at)
+		finished_at: w.finished_at,
+		visibility: w.visibility,
+		exercises: (w.exercises ?? []).map((e) => ({
+			exercise_id: e.exercise_id,
+			catalog_id: e.catalog_id,
+			exercise_name: e.exercise_catalog?.name ?? "",
+			notes: e.notes ?? "",
+			order_number: e.order_number,
+			sets: (e.sets ?? []).map((s) => ({
+				set_id: s.set_id,
+				order_number: s.order_number,
+				set_type: s.set_type,
+				notes: s.notes ?? "",
+				weight: s.weight,
+				reps: s.reps,
+				reps_in_reserve: s.reps_in_reserve,
+				duration_seconds: s.duration_seconds,
+				distance: s.distance,
+			})),
+		})),
+	};
+}
+
 async function getWorkout(req, res) {
 	let workoutId = req.params.id;
 	try {
 		let workout = await service.GetWorkout(workoutId, req.user_id);
-		return res.status(200).json({ workout });
+		return res.status(200).json({ workout: serializeWorkout(workout) });
 	} catch (error) {
 		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
 		return res.status(500).json({ message: error.message });
@@ -186,6 +220,38 @@ async function getExerciseHistory(req, res) {
 	}
 }
 
+//e.g. /workouts/exercise-stats?catalog_ids=1,4,7&exclude_workout_id=28
+//catalog_ids comes in as one string ("1,4,7"), so split it into numbers ourselves.
+//exclude_workout_id is the workout being edited - leave it off for a new workout.
+async function getExerciseStats(req, res) {
+	const { catalog_ids = "", exclude_workout_id } = req.query;
+
+	const catalogIds = [
+		...new Set(
+			String(catalog_ids)
+				.split(",")
+				.map(Number)
+				.filter((id) => Number.isInteger(id) && id > 0), //drops junk like "abc" or the "" from an empty param
+		),
+	];
+	if (catalogIds.length === 0) return res.status(400).json({ message: "catalog_ids must be a comma separated list of ids" });
+	if (catalogIds.length > 50) return res.status(400).json({ message: "Too many catalog_ids (max 50)" });
+
+	let excludeWorkoutId = null;
+	if (exclude_workout_id !== undefined) {
+		excludeWorkoutId = Number(exclude_workout_id);
+		if (!Number.isInteger(excludeWorkoutId) || excludeWorkoutId <= 0) return res.status(400).json({ message: "exclude_workout_id must be a workout id" });
+	}
+
+	try {
+		const stats = await service.getExerciseStats(req.user_id, catalogIds, excludeWorkoutId);
+		return res.status(200).json({ stats });
+	} catch (error) {
+		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
+		return res.status(500).json({ message: error.message });
+	}
+}
+
 async function getVolumeByMuscleGroup(req, res) {
 	const user_id = req.user_id;
 	const { startDate, now } = getDateRangeFromRequest(req);
@@ -227,4 +293,5 @@ module.exports = {
 	getLoggedLifts,
 	getExerciseHistory,
 	getVolumeByMuscleGroup,
+	getExerciseStats,
 };

@@ -66,6 +66,7 @@ const sets = sequelize.define(
 		tableName: "sets",
 		timestamps: true,
 		underscored: true,
+		indexes: [{ fields: ["exercise_id"] }],
 	},
 );
 module.exports = sets;

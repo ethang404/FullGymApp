@@ -3,8 +3,6 @@
 export interface ServingSize {
 	label: string;
 	weight_g: number;
-	// "The package's stated serving was actually N of this unit" - pure UX
-	// metadata, never used in gram math. null/undefined = unknown, treat as 1.
 	default_quantity?: number | null;
 }
 
@@ -283,9 +281,7 @@ export interface ParsedIngredientLine {
 }
 
 export function parseIngredientLine(line: string): ParsedIngredientLine {
-	let s = stripParentheticals(line)
-		.replace(/\s+/g, " ")
-		.trim();
+	let s = stripParentheticals(line).replace(/\s+/g, " ").trim();
 
 	let quantity: number | null = null;
 	const amount = parseLeadingAmount(s);
@@ -429,8 +425,8 @@ export function estimateDensityForFood(name: string, brand?: string | null): num
 //MIRRORS backend, KEEP IN SYNC
 //Attempts direct conversions if solid or already have
 //Tries to get density using other serving sizes we can convert betweeen
-//Otherwise does fallback
-export function resolveServingWeightG(unit: string, servingSizes: ServingSize[]): number | null {
+//Otherwise does the keyword density fallback on the food's name/brand
+export function resolveServingWeightG(unit: string, servingSizes: ServingSize[], foodName: string, foodBrand?: string | null): number | null {
 	if (unit === "g") return 1;
 	if (unit === "kg") return 1000; //other solid foods generally
 
@@ -447,6 +443,10 @@ export function resolveServingWeightG(unit: string, servingSizes: ServingSize[])
 				return gPerMl * VOLUME_UNITS_TO_ML[unit];
 			}
 		}
+
+		//if we don't have a reliable conversion of other serving sizes, do our best guess here based on known estimated density's
+		const gPerMl = estimateDensityForFood(foodName, foodBrand);
+		if (gPerMl != null) return gPerMl * VOLUME_UNITS_TO_ML[unit];
 	}
 
 	return null;

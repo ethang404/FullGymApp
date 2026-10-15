@@ -50,17 +50,6 @@ function roundGrams(grams: number): string {
 	return (Math.round(grams * 100) / 100).toString();
 }
 
-//grams for 1 of a volume unit: derived from sibling servings if possible, else a density guess for the food
-function estimateVolumeWeightGForFood(unit: string, otherServings: ServingSize[], foodName: string, brand: string): number | null {
-	if (VOLUME_UNITS_TO_ML[unit] == null) return null;
-
-	const derived = resolveServingWeightG(unit, otherServings);
-	if (derived != null) return derived;
-
-	const gPerMl = estimateDensityForFood(foodName, brand);
-	return gPerMl != null ? gPerMl * VOLUME_UNITS_TO_ML[unit] : null;
-}
-
 //re-calc weight_g of every auto-filled/blank volume row - called whenever brand, food name, or any serving row changes.
 //repeats until stable since one derived row can feed another's estimate (bounded in case estimates never settle).
 //returns `rows` itself when nothing changed
@@ -81,8 +70,8 @@ function recalcVolumeWeights(rows: ServingSizeRow[], foodName: string, brand: st
 				.filter((r, ri) => ri !== index && r.name.trim() && Number(r.weight_g) > 0)
 				.map((r) => ({ label: r.name.trim(), weight_g: (Number(r.weight_g) || 0) / (Number(r.qty) || 1) }));
 
-			//then estimateVolumeWeightGForFood can convert based new unit off it's siblings in theory
-			const derived = estimateVolumeWeightGForFood(unit, otherServings, foodName, brand);
+			//then resolveServingWeightG can convert based new unit off it's siblings in theory (or the name/brand density guess)
+			const derived = resolveServingWeightG(unit, otherServings, foodName, brand);
 			const qty = Number(row.qty) || 1;
 			const newWeight = derived != null ? roundGrams(qty * derived) : "";
 			//we then mark autoFilled as true or undefined if we couldn't match it
@@ -692,8 +681,9 @@ export default function CreateFood() {
 		setServingSizes((prev) => [...prev, { name: "", qty: "", weight_g: "" }]);
 	};
 
+	//grams for 1 of a volume unit; null for anything else (slice/piece/serving have no derivable weight)
 	const estimateVolumeWeightG = (unit: string, otherServings: ServingSize[]): number | null =>
-		estimateVolumeWeightGForFood(unit, otherServings, foodName, brand);
+		VOLUME_UNITS_TO_ML[unit] != null ? resolveServingWeightG(unit, otherServings, foodName, brand) : null;
 
 	//name/brand feed the density guess, so re-derive auto-filled volume weights as they're typed
 	const handleFoodNameChange = (value: string) => {

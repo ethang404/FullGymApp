@@ -33,4 +33,13 @@ async function estimateGoals(req, res) {
 	}
 }
 
-module.exports = { getMe, updateMe, estimateGoals };
+async function deleteMe(req, res) {
+	try {
+		await service.deleteMe(req.user_id);
+		return res.status(200).json({ message: "Account deleted" });
+	} catch (error) {
+		return handleError(res, error);
+	}
+}
+
+module.exports = { getMe, updateMe, estimateGoals, deleteMe };

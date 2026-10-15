@@ -13,6 +13,8 @@ import { themes, themeLabels, type Theme, type ThemeName } from "@/theme/colors"
 import { AuthContext } from "@/utils/AuthProvider";
 import { useProfile, type EstimateBody } from "@/utils/ProfileProvider";
 import { instance } from "@/utils/AxiosInterceptorHandler";
+import { log } from "@/utils/log";
+import { toast } from "@/utils/toast";
 import Screen from "@/components/Screen";
 import GoogleAuthButton from "@/components/GoogleAuthButton";
 import AppleSignInButton from "@/components/AppleSignInButton";
@@ -77,6 +79,37 @@ export default function Profile() {
 				{ text: "Cancel", style: "cancel" },
 				{ text: "Create account", onPress: () => setUpgradeModalOpen(true) },
 				{ text: "Log out anyway", style: "destructive", onPress: signOut },
+			],
+		);
+	}
+
+	const [deleting, setDeleting] = useState(false);
+
+	// Permanent and can't be undone, so it always asks first. On success the server has already wiped the
+	// account (its tokens stop working immediately), so signing out just clears them from this device.
+	function handleDeleteAccount() {
+		if (deleting) return;
+		Alert.alert(
+			"Delete your account?",
+			"This permanently deletes your account, workouts, food log, recipes and friends. It can't be undone.",
+			[
+				{ text: "Cancel", style: "cancel" },
+				{
+					text: "Delete account",
+					style: "destructive",
+					onPress: async () => {
+						setDeleting(true);
+						try {
+							await instance.delete("/users/me");
+							toast.success("Your account has been deleted.");
+							signOut();
+						} catch (err) {
+							log.error("Couldn't delete account", err);
+							toast.error("Couldn't delete your account. Check your connection and try again.");
+							setDeleting(false);
+						}
+					},
+				},
 			],
 		);
 	}
@@ -334,10 +367,16 @@ export default function Profile() {
 				</View>
 
 				{/* Delete account — set apart from the other rows so it isn't hit by accident */}
-				<TouchableOpacity style={[styles.dangerRow, { marginTop: 32 }]} activeOpacity={0.7}>
+				<TouchableOpacity
+					style={[styles.dangerRow, { marginTop: 32 }, deleting && { opacity: 0.6 }]}
+					onPress={handleDeleteAccount}
+					disabled={deleting}
+					activeOpacity={0.7}
+					accessibilityRole="button"
+				>
 					<FontAwesome5 name="trash-alt" size={15} color={theme.error} />
-					<Text style={styles.dangerText}>Delete account</Text>
-					<FontAwesome5 name="chevron-right" size={12} color={theme.error} />
+					<Text style={styles.dangerText}>{deleting ? "Deleting account…" : "Delete account"}</Text>
+					{deleting ? <ActivityIndicator size="small" color={theme.error} /> : <FontAwesome5 name="chevron-right" size={12} color={theme.error} />}
 				</TouchableOpacity>
 			</ScrollView>
 

@@ -1,5 +1,15 @@
-const usersDB = require("../models/modelInits").users;
+const { Op } = require("sequelize");
+const sequelize = require("../models/db");
+const {
+	users: usersDB,
+	workouts: workoutsDB,
+	diaryEntries: diaryEntriesDB,
+	recipe: recipeDB,
+	food: foodDB,
+	friendships: friendshipsDB,
+} = require("../models/modelInits");
 const { NotFoundError, DataError } = require("../error");
+const { revokeAppleToken } = require("../Auth/appleAuth");
 const { GOAL_DEFAULTS, GOAL_COLUMNS, SEXES, ACTIVITY_LEVELS, GOAL_TYPES } = require("../constants/macroDefaults");
 const { estimateGoals } = require("./goalCalculator");
 
@@ -136,4 +146,43 @@ function estimate(body) {
 	return estimateGoals(body);
 }
 
-module.exports = { getMe, updateMe, estimate, serializeUser };
+// Permanently deletes the account and everything that's only theirs, all or nothing.
+// Same idea as mergeUserInto (Auth/service.js), except the data is removed instead of moved.
+// Each table is cleared explicitly rather than trusting users -> ON DELETE CASCADE to be on the live schema.
+async function deleteMe(user_id) {
+	let appleRefreshToken = null;
+
+	await sequelize.transaction(async (t) => {
+		const user = await usersDB.findByPk(user_id, { transaction: t });
+		if (!user) throw new NotFoundError("User not found");
+		appleRefreshToken = user.apple_refresh_token;
+
+		await friendshipsDB.destroy({
+			where: { [Op.or]: [{ user_id_a: user_id }, { user_id_b: user_id }, { requested_by: user_id }] },
+			transaction: t,
+		});
+
+		// Foods they submitted stay: anyone can log them or use them in recipes. Just drop the link to this user.
+		await foodDB.update({ submitted_by: null }, { where: { submitted_by: user_id }, transaction: t });
+
+		// Diary entries before recipes: a diary row can point at a recipe, and only your own recipes can be logged,
+		// so after this nothing references their recipes. Child rows (exercises/sets, recipe ingredients) cascade.
+		await diaryEntriesDB.destroy({ where: { user_id }, transaction: t });
+		await recipeDB.destroy({ where: { user_id }, transaction: t });
+		await workoutsDB.destroy({ where: { user_id }, transaction: t });
+
+		await user.destroy({ transaction: t });
+	});
+
+	// Apple requires revoking Sign in with Apple tokens on account deletion. Done after the commit so an
+	// Apple outage can't stop someone deleting their account - it just gets logged.
+	if (appleRefreshToken) {
+		try {
+			await revokeAppleToken(appleRefreshToken);
+		} catch (err) {
+			console.error(`Couldn't revoke Apple token for deleted user ${user_id}`, err);
+		}
+	}
+}
+
+module.exports = { getMe, updateMe, estimate, deleteMe, serializeUser };
