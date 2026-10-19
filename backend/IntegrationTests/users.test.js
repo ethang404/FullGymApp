@@ -287,7 +287,6 @@ describe("DELETE /users/me", () => {
 		diaryEntries: DiaryEntriesModel,
 		recipe: RecipeModel,
 		food: FoodModel,
-		friendships: FriendshipsModel,
 	} = require("../models/modelInits");
 
 	const register = async (userName) => {
@@ -302,7 +301,7 @@ describe("DELETE /users/me", () => {
 	let foodId;
 	let workoutId;
 
-	// doomed: a workout (exercise + set), a user-submitted food, a recipe, diary entries for both, and a friendship with keeper
+	// doomed: a workout (exercise + set), a user-submitted food, a recipe, and diary entries for both
 	beforeAll(async () => {
 		doomed = await register("doomed_user");
 		keeper = await register("keeper_user");
@@ -322,12 +321,10 @@ describe("DELETE /users/me", () => {
 
 		const food = await FoodModel.create({ name: "Doomed oats", source: "user_submitted", submitted_by: doomed.id });
 		foodId = food.food_id;
-		const recipe = await RecipeModel.create({ user_id: doomed.id, name: "Doomed stew", visibility: "private" });
+		const recipe = await RecipeModel.create({ user_id: doomed.id, name: "Doomed stew" });
 
 		await DiaryEntriesModel.create({ user_id: doomed.id, food_id: foodId, meal_type: "lunch", logged_at: "2026-10-01", quantity: 1, unit: "g" });
 		await DiaryEntriesModel.create({ user_id: doomed.id, recipe_id: recipe.recipe_id, meal_type: "dinner", logged_at: "2026-10-01", quantity: 1, unit: "serving" });
-
-		await request(app).post("/friends/requests").set({ Authorization: `Bearer ${doomed.token}` }).send({ addressee_user_id: keeper.id });
 	}, 30000);
 
 	test("requires auth", async () => {
@@ -345,7 +342,6 @@ describe("DELETE /users/me", () => {
 		expect(await SetsModel.count({ include: [{ model: ExercisesModel, where: { workout_id: workoutId } }] })).toBe(0);
 		expect(await DiaryEntriesModel.count({ where: { user_id: doomed.id } })).toBe(0);
 		expect(await RecipeModel.count({ where: { user_id: doomed.id } })).toBe(0);
-		expect(await FriendshipsModel.count({ where: { requested_by: doomed.id } })).toBe(0);
 
 		// shared food survives, just unlinked from the deleted user
 		const food = await FoodModel.findByPk(foodId);

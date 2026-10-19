@@ -113,36 +113,17 @@ function MacroBar({
 	);
 }
 
-// Goal-less counterpart to MacroBar - just the total, no progress bar, for a
-// friend's diary where we don't know their goals.
-function MacroStat({ label, current, color, textColor }: { label: string; current: number; color: string; textColor: string }) {
-	return (
-		<View style={{ flex: 1, gap: 6 }}>
-			<Text style={{ fontSize: 10, fontWeight: "700", color }}>{label}</Text>
-			<Text style={{ fontSize: 17, fontWeight: "800", color: textColor }}>
-				{Math.round(current)}
-				<Text style={{ fontSize: 12, fontWeight: "600" }}> g</Text>
-			</Text>
-		</View>
-	);
-}
-
 interface DiarySectionsProps {
 	entries: DiaryEntry[];
-	/** Omit for a read-only view where the viewer's own goals don't apply (e.g. a friend's diary) - renders totals without goal-relative rings/bars. */
-	goals?: MacroGoals;
-	/** Hides the per-meal "+" add button and disables logging entirely. */
-	readOnly?: boolean;
-	onAddMeal?: (mealType: MealType) => void;
+	goals: MacroGoals;
+	onAddMeal: (mealType: MealType) => void;
 	bottomInset?: number;
 	refreshControl?: ReactElement<RefreshControlProps>;
 }
 
-// Shared by Nutrition.tsx (the viewer's own diary, editable) and
-// friends/[friend_user_id].tsx (a friend's diary, read-only) - hero summary card +
-// per-meal sections, computed from `entries` alone so both screens just fetch and hand
-// off data.
-export default function DiarySections({ entries, goals, readOnly, onAddMeal, bottomInset = 0, refreshControl }: DiarySectionsProps) {
+// The Nutrition tab's diary: hero summary card + per-meal sections, computed from `entries`
+// alone so the screen just fetches and hands off data.
+export default function DiarySections({ entries, goals, onAddMeal, bottomInset = 0, refreshControl }: DiarySectionsProps) {
 	const { theme } = useTheme();
 
 	const totals = useMemo(() => calculateTotalMacros(entries), [entries]);
@@ -331,11 +312,9 @@ export default function DiarySections({ entries, goals, readOnly, onAddMeal, bot
 						<Text style={styles.sectionHeaderCalories}>{Math.round(calories)} kcal</Text>
 					</View>
 				</View>
-				{!readOnly && (
-					<TouchableOpacity style={[styles.sectionAddButton, !hasEntries && styles.sectionAddButtonFilled]} hitSlop={8} onPress={() => onAddMeal?.(mealType)}>
-						<FontAwesome5 name="plus" size={12} color={hasEntries ? theme.primary : theme.textInverse} />
-					</TouchableOpacity>
-				)}
+				<TouchableOpacity style={[styles.sectionAddButton, !hasEntries && styles.sectionAddButtonFilled]} hitSlop={8} onPress={() => onAddMeal(mealType)}>
+					<FontAwesome5 name="plus" size={12} color={hasEntries ? theme.primary : theme.textInverse} />
+				</TouchableOpacity>
 			</View>
 		);
 	}
@@ -372,74 +351,56 @@ export default function DiarySections({ entries, goals, readOnly, onAddMeal, bot
 			<View style={styles.heroCardWrapper}>
 				<View style={styles.heroCard}>
 					<View style={styles.summaryCard}>
-						{goals ? (
-							<>
-								<View style={styles.calorieSection}>
-									<View style={styles.headerCardRow}>
-										<Text style={styles.remainingLabel}>Calories eaten</Text>
-										<FontAwesome5 name="apple-alt" size={20} color={theme.primary} />
-									</View>
-									<View style={styles.calorieGroup}>
-										<Text style={styles.remainingValue}>{Math.round(totals.calories).toLocaleString()} </Text>
-										<Text style={styles.remainingUnit}>of {goals.calories.toLocaleString()} kcal</Text>
-									</View>
-									<ProgressBar pct={pctOfGoal(totals.calories, goals.calories)} color={theme.primary} trackColor={theme.border} height={8} />
-								</View>
+						<View style={styles.calorieSection}>
+							<View style={styles.headerCardRow}>
+								<Text style={styles.remainingLabel}>Calories eaten</Text>
+								<FontAwesome5 name="apple-alt" size={20} color={theme.primary} />
+							</View>
+							<View style={styles.calorieGroup}>
+								<Text style={styles.remainingValue}>{Math.round(totals.calories).toLocaleString()} </Text>
+								<Text style={styles.remainingUnit}>of {goals.calories.toLocaleString()} kcal</Text>
+							</View>
+							<ProgressBar pct={pctOfGoal(totals.calories, goals.calories)} color={theme.primary} trackColor={theme.border} height={8} />
+						</View>
 
-								<View style={styles.macroRow}>
-									<MacroBar
-										label="Protein"
-										current={totals.protein}
-										goal={goals.protein}
-										color={theme.macroProtein}
-										textColor={theme.textMuted}
-										trackColor={theme.border}
-										valueColor={theme.text}
-									/>
-									<MacroBar
-										label="Carbs"
-										current={totals.carbs}
-										goal={goals.carbs}
-										color={theme.macroCarbs}
-										textColor={theme.textMuted}
-										trackColor={theme.border}
-										valueColor={theme.text}
-									/>
-									<MacroBar
-										label="Fat"
-										current={totals.fat}
-										goal={goals.fat}
-										color={theme.macroFat}
-										textColor={theme.textMuted}
-										trackColor={theme.border}
-										valueColor={theme.text}
-									/>
-									<MacroBar
-										label="Fiber"
-										current={totals.fiber ?? 0}
-										goal={goals.fiber}
-										color={theme.macroCarbs}
-										textColor={theme.textMuted}
-										trackColor={theme.border}
-										valueColor={theme.text}
-									/>
-								</View>
-							</>
-						) : (
-							<>
-								<View style={styles.calorieSection}>
-									<Text style={styles.remainingLabel}>Calories eaten</Text>
-									<Text style={styles.remainingValue}>{Math.round(totals.calories).toLocaleString()}</Text>
-								</View>
-
-								<View style={styles.macroRow}>
-									<MacroStat label="Protein" current={totals.protein} color={theme.macroProtein} textColor={theme.text} />
-									<MacroStat label="Carbs" current={totals.carbs} color={theme.macroCarbs} textColor={theme.text} />
-									<MacroStat label="Fat" current={totals.fat} color={theme.macroFat} textColor={theme.text} />
-									<MacroStat label="Fiber" current={totals.fiber ?? 0} color={theme.macroCarbs} textColor={theme.text} />
-								</View>
-							</>
-						)}
+						<View style={styles.macroRow}>
+							<MacroBar
+								label="Protein"
+								current={totals.protein}
+								goal={goals.protein}
+								color={theme.macroProtein}
+								textColor={theme.textMuted}
+								trackColor={theme.border}
+								valueColor={theme.text}
+							/>
+							<MacroBar
+								label="Carbs"
+								current={totals.carbs}
+								goal={goals.carbs}
+								color={theme.macroCarbs}
+								textColor={theme.textMuted}
+								trackColor={theme.border}
+								valueColor={theme.text}
+							/>
+							<MacroBar
+								label="Fat"
+								current={totals.fat}
+								goal={goals.fat}
+								color={theme.macroFat}
+								textColor={theme.textMuted}
+								trackColor={theme.border}
+								valueColor={theme.text}
+							/>
+							<MacroBar
+								label="Fiber"
+								current={totals.fiber ?? 0}
+								goal={goals.fiber}
+								color={theme.macroCarbs}
+								textColor={theme.textMuted}
+								trackColor={theme.border}
+								valueColor={theme.text}
+							/>
+						</View>
 					</View>
 				</View>
 			</View>

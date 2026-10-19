@@ -20,7 +20,6 @@ type RecipeFoodCardProps =
 			ingredient?: undefined;
 			onChange?: undefined;
 			onRemove?: undefined;
-			readOnly?: undefined;
 	  }
 	| {
 			mode: "edit";
@@ -29,8 +28,6 @@ type RecipeFoodCardProps =
 			onRemove: (id: string) => void;
 			food?: undefined;
 			onAdd?: undefined;
-			/** Viewing someone else's recipe: hide remove/quantity/serving controls, keep the tap-to-expand summary. */
-			readOnly?: boolean;
 	  };
 
 export default function RecipeFoodCard(props: RecipeFoodCardProps) {
@@ -180,7 +177,6 @@ export default function RecipeFoodCard(props: RecipeFoodCardProps) {
 	);
 
 	const isEdit = props.mode === "edit";
-	const readOnly = props.mode === "edit" && !!props.readOnly;
 
 	return (
 		<>
@@ -197,7 +193,7 @@ export default function RecipeFoodCard(props: RecipeFoodCardProps) {
 						)}
 					</View>
 
-					{isEdit && !readOnly ? (
+					{isEdit ? (
 						<TouchableOpacity style={styles.removeBtn} onPress={() => props.onRemove(props.ingredient.id)} hitSlop={10}>
 							<FontAwesome5 name="times" size={14} color={theme.textMuted} />
 						</TouchableOpacity>
@@ -243,16 +239,7 @@ export default function RecipeFoodCard(props: RecipeFoodCardProps) {
 					</View>
 				)}
 
-				{expanded && readOnly && (
-					<View style={styles.quantityRow}>
-						<Text style={styles.quantityLabel}>Amount</Text>
-						<Text style={styles.quantityInput}>
-							{quantity} {selectedServing.label}
-						</Text>
-					</View>
-				)}
-
-				{expanded && !readOnly && (
+				{expanded && (
 					<View>
 						<View style={styles.quantityRow}>
 							<Text style={styles.quantityLabel}>Amount</Text>

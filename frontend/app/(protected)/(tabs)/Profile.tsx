@@ -91,7 +91,7 @@ export default function Profile() {
 		if (deleting) return;
 		Alert.alert(
 			"Delete your account?",
-			"This permanently deletes your account, workouts, food log, recipes and friends. It can't be undone.",
+			"This permanently deletes your account, workouts, food log and recipes. It can't be undone.",
 			[
 				{ text: "Cancel", style: "cancel" },
 				{
@@ -242,7 +242,7 @@ export default function Profile() {
 					<View style={styles.guestBanner}>
 						<Text style={styles.guestBannerTitle}>You&apos;re using a guest account</Text>
 						<Text style={styles.guestBannerBody}>
-							Your data is saved, but only this phone can get to it. Create an account so you can log in anywhere and add friends.
+							Your data is saved, but only this phone can get to it. Create an account so you can log in anywhere.
 						</Text>
 						<TouchableOpacity style={styles.guestBannerButton} onPress={() => setUpgradeModalOpen(true)} activeOpacity={0.8}>
 							<Text style={styles.guestBannerButtonText}>Create account</Text>
@@ -288,24 +288,8 @@ export default function Profile() {
 					</TouchableOpacity>
 				</View>
 
-				<Text style={styles.sectionLabel}>Community &amp; recipes</Text>
+				<Text style={styles.sectionLabel}>Recipes</Text>
 				<View style={styles.group}>
-					{!isGuest && (
-						<TouchableOpacity style={styles.row} onPress={() => router.push("/Friends")} activeOpacity={0.7}>
-							<View style={styles.rowIcon}>
-								<FontAwesome5 name="user-friends" size={13} color={theme.textSecondary} />
-							</View>
-							<Text style={styles.rowLabel}>Friends</Text>
-							<FontAwesome5 name="chevron-right" size={12} color={theme.textTertiary} />
-						</TouchableOpacity>
-					)}
-					<TouchableOpacity style={styles.row} onPress={() => router.push("/Explore")} activeOpacity={0.7}>
-						<View style={styles.rowIcon}>
-							<FontAwesome5 name="compass" size={13} color={theme.textSecondary} />
-						</View>
-						<Text style={styles.rowLabel}>Explore shared workouts &amp; recipes</Text>
-						<FontAwesome5 name="chevron-right" size={12} color={theme.textTertiary} />
-					</TouchableOpacity>
 					<TouchableOpacity style={[styles.row, styles.rowLast]} onPress={() => router.push("/(protected)/nutrition/DisplayRecipes")} activeOpacity={0.7}>
 						<View style={styles.rowIcon}>
 							<FontAwesome5 name="utensils" size={13} color={theme.textSecondary} />

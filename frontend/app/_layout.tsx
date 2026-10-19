@@ -7,7 +7,6 @@ import { useContext } from "react";
 import LoadingScreen from "@/components/LoadingScreen";
 import { AxiosInterceptorHandler } from "@/utils/AxiosInterceptorHandler";
 import { ProfileProvider } from "@/utils/ProfileProvider";
-import { FriendsProvider } from "@/utils/FriendsProvider";
 import { ToastProvider } from "@/utils/ToastProvider";
 import { useFonts } from "expo-font";
 import { fontAssets } from "@/theme/typography";
@@ -49,9 +48,7 @@ export default function AppLayout() {
 					<AuthProvider>
 						<AxiosInterceptorHandler>
 							<ProfileProvider>
-								<FriendsProvider>
-									<AppStack />
-								</FriendsProvider>
+								<AppStack />
 							</ProfileProvider>
 						</AxiosInterceptorHandler>
 					</AuthProvider>

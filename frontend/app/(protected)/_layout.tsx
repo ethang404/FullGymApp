@@ -24,7 +24,6 @@ export default function ProtectedLayout() {
 		<Stack screenOptions={{ headerShown: false }}>
 			<Stack.Screen name="(tabs)" />
 			<Stack.Screen name="workouts/[workout_id]" />
-			<Stack.Screen name="friends/[friend_user_id]" />
 			<Stack.Screen name="nutrition/CreateRecipe" />
 			<Stack.Screen name="nutrition/DisplayRecipes" />
 		</Stack>

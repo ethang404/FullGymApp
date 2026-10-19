@@ -1,5 +1,3 @@
-import type { ContentVisibility } from "./visibility";
-
 export type SetType = "warmup" | "working";
 
 export interface WorkoutSet {
@@ -30,11 +28,10 @@ export interface WorkoutData {
 	created_at: string;
 	finished_at: string | null;
 	exercises: WorkoutExercise[];
-	visibility: ContentVisibility;
 }
 
-//view = read only, edit = your own saved workout, copy = someone's workout as a starting point, new = blank
-export type WorkoutMode = "new" | "edit" | "copy" | "view";
+//edit = your own saved workout, new = blank
+export type WorkoutMode = "new" | "edit";
 
 //same values as the exercise_catalog.muscle_group enum on the backend
 export const MUSCLE_GROUPS = ["chest", "back", "shoulders", "biceps", "triceps", "legs", "glutes", "core", "full_body", "cardio"] as const;

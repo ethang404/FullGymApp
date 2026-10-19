@@ -3,16 +3,14 @@
 //
 //   ethan / Ethan   the main account. Profile + macro goals filled in, 10 weeks of push/pull/legs history
 //                   with progressive overload (Progress tab, prev/best while logging), 3 recipes, 2 weeks of
-//                   diary entries (Nutrition tab + date navigation), a friend and a pending incoming request.
-//   alice / Alice   Ethan's friend. A private/friends/public workout and recipe each, plus diary entries for
-//                   today and yesterday - as Ethan you should see her friends + public things, never the private ones.
-//   bob / Bob       sent Ethan a friend request (Ethan has it INCOMING). Same private/friends/public spread - as
-//                   Ethan you should only see his public things until you accept.
+//                   diary entries (Nutrition tab + date navigation).
+//   alice / Alice   second account with a little of everything: 3 workouts, 3 recipes, diary for today and yesterday.
+//   bob / Bob       same as Alice - a third account for multi-user testing.
 //
 // Also seeds the full exercise catalog and every food the users need, including the ingredients for
 // https://www.skinnytaste.com/tzatziki/ - so "Import from a link" with that URL matches every ingredient.
 //
-// Safe to re-run: users/foods/friendships are found-or-created, and each user's workouts/recipes/diary are
+// Safe to re-run: users/foods are found-or-created, and each user's workouts/recipes/diary are
 // skipped if that user already has any. To start these three users over from scratch, pass --fresh: it deletes
 // them first (same as deleting the account in the app), then reseeds.
 //
@@ -27,7 +25,6 @@ const bcrypt = require("bcrypt");
 const {
 	users: UsersModel,
 	exercise_catalog: CatalogModel,
-	friendships: FriendshipsModel,
 	food: FoodModel,
 	workouts: WorkoutsModel,
 	exercises: ExercisesModel,
@@ -62,13 +59,6 @@ const PEOPLE = {
 	alice: { userName: "alice", password: "Alice", firstName: "Alice", lastName: "Anderson", profile: {} },
 	bob: { userName: "bob", password: "Bob", firstName: "Bob", lastName: "Baker", profile: {} },
 };
-
-// [requester, addressee, status]
-const FRIEND_LINKS = [
-	["alice", "ethan", "accepted"], //Ethan's friend: sees her friends-only content, she sees his
-	["bob", "ethan", "pending"], //an incoming request waiting on Ethan
-	["alice", "bob", "accepted"],
-];
 
 // ---------------- Foods ----------------
 // nutrient_amount is the amount AT serving_sizes[0]'s weight - CreateFood normalizes to per-100g from there.
@@ -147,7 +137,6 @@ const RECIPES = {
 			name: "Chicken & Rice Bowl",
 			description: "The weekday lunch. Chicken, brown rice and broccoli.",
 			servings: 1,
-			visibility: "public",
 			ingredients: [
 				["Chicken Breast", 1, "serving"],
 				["Brown Rice, Cooked", 1, "serving"],
@@ -158,7 +147,6 @@ const RECIPES = {
 			name: "PB Banana Oats",
 			description: "Oats with peanut butter and banana.",
 			servings: 1,
-			visibility: "private",
 			ingredients: [
 				["Rolled Oats", 1, "serving"],
 				["Banana", 1, "serving"],
@@ -169,7 +157,6 @@ const RECIPES = {
 			name: "Homemade Tzatziki",
 			description: "From skinnytaste.com/tzatziki. Great with the salmon.",
 			servings: 4,
-			visibility: "friends",
 			ingredients: [
 				["Kirkland Signature Nonfat Greek Yogurt, Plain", 1, "cup"],
 				["Cucumber, Raw", 1, "cup"],
@@ -183,14 +170,14 @@ const RECIPES = {
 		},
 	],
 	alice: [
-		{ name: "Alice's Private Bowl", servings: 2, visibility: "private", ingredients: [["Chicken Breast", 1, "serving"]] },
-		{ name: "Alice's Salmon Plate", servings: 1, visibility: "friends", ingredients: [["Salmon, Atlantic, Cooked", 1, "serving"], ["Brown Rice, Cooked", 1, "serving"]] },
-		{ name: "Alice's Overnight Oats", servings: 1, visibility: "public", ingredients: [["Rolled Oats", 1, "serving"], ["Banana", 0.5, "serving"]] },
+		{ name: "Alice's Chicken Bowl", servings: 2, ingredients: [["Chicken Breast", 1, "serving"]] },
+		{ name: "Alice's Salmon Plate", servings: 1, ingredients: [["Salmon, Atlantic, Cooked", 1, "serving"], ["Brown Rice, Cooked", 1, "serving"]] },
+		{ name: "Alice's Overnight Oats", servings: 1, ingredients: [["Rolled Oats", 1, "serving"], ["Banana", 0.5, "serving"]] },
 	],
 	bob: [
-		{ name: "Bob's Private Bowl", servings: 2, visibility: "private", ingredients: [["Brown Rice, Cooked", 1, "serving"]] },
-		{ name: "Bob's Friends Bowl", servings: 2, visibility: "friends", ingredients: [["Chicken Breast", 1, "serving"], ["Broccoli, Steamed", 1, "serving"]] },
-		{ name: "Bob's Protein Shake", servings: 1, visibility: "public", ingredients: [["Whey Protein Powder", 2, "scoop"], ["Banana", 1, "serving"]] },
+		{ name: "Bob's Rice Bowl", servings: 2, ingredients: [["Brown Rice, Cooked", 1, "serving"]] },
+		{ name: "Bob's Chicken & Broccoli", servings: 2, ingredients: [["Chicken Breast", 1, "serving"], ["Broccoli, Steamed", 1, "serving"]] },
+		{ name: "Bob's Protein Shake", servings: 1, ingredients: [["Whey Protein Powder", 2, "scoop"], ["Banana", 1, "serving"]] },
 	],
 };
 
@@ -285,18 +272,6 @@ async function ensureCatalog() {
 	return byName;
 }
 
-async function ensureFriendship(usersByKey, requesterKey, addresseeKey, status) {
-	const requester = usersByKey[requesterKey];
-	const addressee = usersByKey[addresseeKey];
-	//stored with the smaller id first (see friendships.model.js)
-	const [user_id_a, user_id_b] = [requester.user_id, addressee.user_id].sort((a, b) => a - b);
-	const [row, created] = await FriendshipsModel.findOrCreate({
-		where: { user_id_a, user_id_b },
-		defaults: { user_id_a, user_id_b, requested_by: requester.user_id, status },
-	});
-	console.log(`- ${requesterKey} -> ${addresseeKey}: ${created ? `created (${status})` : `already exists (${row.status})`}.`);
-}
-
 async function ensureFood(spec, submitterUserId) {
 	const existing = await FoodModel.findOne({ where: { name: spec.name, brand: spec.brand ?? null, is_deleted: false } });
 	if (existing) return existing;
@@ -316,7 +291,6 @@ async function bulkInsertWorkouts(user, payloads) {
 				workout_date: p.workout_date,
 				notes: p.notes,
 				finished_at: p.finished_at,
-				visibility: p.visibility,
 			})),
 			{ transaction, returning: true },
 		);
@@ -380,9 +354,6 @@ async function seedEthanWorkouts(user, catalogByName) {
 		for (let i = 0; i < sessionTypes.length; i++) {
 			const sessionType = sessionTypes[i];
 			const workoutDate = daysAgo(week * 7 + 6 - i * 2); //Mon/Wed/Fri-style, the newest session 2 days ago
-			//this week's sessions are visible to friends and the very latest is public, so Alice/Explore have
-			//something of Ethan's to show; older history stays private
-			const visibility = week === 0 ? (i === sessionTypes.length - 1 ? "public" : "friends") : "private";
 
 			const exercises = SPLIT[sessionType].map((slot, index) => {
 				const [base, perWeek] = PROGRESSION[slot.name] ?? [0, 0];
@@ -411,7 +382,6 @@ async function seedEthanWorkouts(user, catalogByName) {
 				workout_date: workoutDate,
 				notes: "",
 				finished_at: finishedAtFor(workoutDate, randInt(45, 75)),
-				visibility,
 				exercises,
 			});
 		}
@@ -422,16 +392,15 @@ async function seedEthanWorkouts(user, catalogByName) {
 	console.log(`- Created ${payloads.length} workouts (${setCount} sets) over ${WEEKS_BACK} weeks for ${user.user_name}.`);
 }
 
-// Alice and Bob: one workout at each visibility, so you can check what Ethan can and can't see
-async function seedVisibilityWorkouts(user, catalogByName) {
+// Alice and Bob: three short full-body sessions over the last few days
+async function seedSampleWorkouts(user, catalogByName) {
 	if (await alreadyHas(WorkoutsModel, user, "workouts")) return;
 
-	const session = (name, date, visibility) => ({
+	const session = (name, date) => ({
 		workout_name: name,
 		workout_date: date,
 		notes: "",
 		finished_at: finishedAtFor(date, 60),
-		visibility,
 		exercises: [
 			{
 				catalog_id: catalogByName["Barbell Bench Press"].catalog_id,
@@ -457,11 +426,11 @@ async function seedVisibilityWorkouts(user, catalogByName) {
 	});
 
 	await bulkInsertWorkouts(user, [
-		session(`${user.first_name}'s private session`, daysAgo(3), "private"),
-		session(`${user.first_name}'s friends session`, daysAgo(1), "friends"),
-		session(`${user.first_name}'s public session`, daysAgo(0), "public"),
+		session("Full body A", daysAgo(3)),
+		session("Full body B", daysAgo(1)),
+		session("Full body C", daysAgo(0)),
 	]);
-	console.log(`- Created 3 workouts (private/friends/public) for ${user.user_name}.`);
+	console.log(`- Created 3 workouts for ${user.user_name}.`);
 }
 
 async function seedRecipes(user, specs, foodsByName) {
@@ -477,7 +446,6 @@ async function seedRecipes(user, specs, foodsByName) {
 				name: spec.name,
 				description: spec.description ?? null,
 				servings: spec.servings,
-				visibility: spec.visibility,
 				ingredients: spec.ingredients.map(([food, quantity, unit]) => ({ food_id: foodsByName[food].id, quantity, unit })),
 			},
 			user.user_id,
@@ -488,12 +456,11 @@ async function seedRecipes(user, specs, foodsByName) {
 }
 
 // Two weeks of Ethan eating roughly to his goals: recipes for breakfast and lunch, foods for dinner and snacks.
-// Meals are friends-visible (Alice can open his diary), snacks private.
 async function seedEthanDiary(user, foodsByName, recipesByName) {
 	if (await alreadyHas(DiaryEntryModel, user, "diary entries")) return;
 
-	const food = (name, meal_type, quantity, unit, visibility = "friends") => ({ food_id: foodsByName[name].id, meal_type, quantity, unit, visibility });
-	const recipe = (name, meal_type, quantity = 1) => ({ recipe_id: recipesByName[name].recipe_id, meal_type, quantity, unit: "serving", visibility: "friends" });
+	const food = (name, meal_type, quantity, unit) => ({ food_id: foodsByName[name].id, meal_type, quantity, unit });
+	const recipe = (name, meal_type, quantity = 1) => ({ recipe_id: recipesByName[name].recipe_id, meal_type, quantity, unit: "serving" });
 
 	const rows = [];
 	for (let day = 13; day >= 0; day--) {
@@ -505,8 +472,8 @@ async function seedEthanDiary(user, foodsByName, recipesByName) {
 			...(day % 2 === 0
 				? [food("Salmon, Atlantic, Cooked", "dinner", 1, "serving"), food("Brown Rice, Cooked", "dinner", 1, "serving"), recipe("Homemade Tzatziki", "dinner", 0.5)]
 				: [food("Chicken Breast", "dinner", 1.5, "serving"), food("Broccoli, Steamed", "dinner", 2, "serving")]),
-			food("Whey Protein Powder", "snack", 1, "scoop", "private"),
-			...(day % 3 === 0 ? [food("Eggs, Whole, Large", "snack", 2, "egg", "private")] : []),
+			food("Whey Protein Powder", "snack", 1, "scoop"),
+			...(day % 3 === 0 ? [food("Eggs, Whole, Large", "snack", 2, "egg")] : []),
 		];
 		for (const entry of entries) rows.push({ ...entry, logged_at, user_id: user.user_id });
 	}
@@ -516,13 +483,13 @@ async function seedEthanDiary(user, foodsByName, recipesByName) {
 	console.log(`- Logged ${rows.length} diary entries over 14 days for ${user.user_name}.`);
 }
 
-// Today + yesterday, one friends-visible and one private entry each - Ethan should only see the friends ones
-async function seedFriendDiary(user, foodsByName) {
+// Today + yesterday: oats for breakfast and a banana snack
+async function seedSimpleDiary(user, foodsByName) {
 	if (await alreadyHas(DiaryEntryModel, user, "diary entries")) return;
 
 	const rows = [daysAgo(1), daysAgo(0)].flatMap((logged_at) => [
-		{ user_id: user.user_id, food_id: foodsByName["Rolled Oats"].id, meal_type: "breakfast", logged_at, quantity: 1, unit: "serving", visibility: "friends" },
-		{ user_id: user.user_id, food_id: foodsByName["Banana"].id, meal_type: "snack", logged_at, quantity: 1, unit: "serving", visibility: "private" },
+		{ user_id: user.user_id, food_id: foodsByName["Rolled Oats"].id, meal_type: "breakfast", logged_at, quantity: 1, unit: "serving" },
+		{ user_id: user.user_id, food_id: foodsByName["Banana"].id, meal_type: "snack", logged_at, quantity: 1, unit: "serving" },
 	]);
 	assertDiaryUnits(rows, foodsByName);
 	await DiaryEntryModel.bulkCreate(rows);
@@ -563,9 +530,6 @@ async function runSeed(fresh) {
 	const usersByKey = {};
 	for (const [key, person] of Object.entries(PEOPLE)) usersByKey[key] = await ensureUser(person);
 
-	console.log("Friendships...");
-	for (const [requester, addressee, status] of FRIEND_LINKS) await ensureFriendship(usersByKey, requester, addressee, status);
-
 	console.log("Exercise catalog...");
 	const catalogByName = await ensureCatalog();
 
@@ -576,8 +540,8 @@ async function runSeed(fresh) {
 
 	console.log("Workouts...");
 	await seedEthanWorkouts(usersByKey.ethan, catalogByName);
-	await seedVisibilityWorkouts(usersByKey.alice, catalogByName);
-	await seedVisibilityWorkouts(usersByKey.bob, catalogByName);
+	await seedSampleWorkouts(usersByKey.alice, catalogByName);
+	await seedSampleWorkouts(usersByKey.bob, catalogByName);
 
 	console.log("Recipes...");
 	const ethanRecipes = await seedRecipes(usersByKey.ethan, RECIPES.ethan, foodsByName);
@@ -586,8 +550,8 @@ async function runSeed(fresh) {
 
 	console.log("Diary...");
 	await seedEthanDiary(usersByKey.ethan, foodsByName, ethanRecipes);
-	await seedFriendDiary(usersByKey.alice, foodsByName);
-	await seedFriendDiary(usersByKey.bob, foodsByName);
+	await seedSimpleDiary(usersByKey.alice, foodsByName);
+	await seedSimpleDiary(usersByKey.bob, foodsByName);
 
 	console.log(`\nDemo data ready. Log in as ${Object.values(PEOPLE).map((p) => `${p.userName} / ${p.password}`).join(", ")}.`);
 }

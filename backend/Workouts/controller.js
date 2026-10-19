@@ -48,7 +48,6 @@ function serializeWorkout(workout) {
 		notes: w.notes ?? "",
 		created_at: w.createdAt, //Sequelize keeps timestamps camelCase on the object even with underscored: true (the column is created_at)
 		finished_at: w.finished_at,
-		visibility: w.visibility,
 		exercises: (w.exercises ?? []).map((e) => ({
 			exercise_id: e.exercise_id,
 			catalog_id: e.catalog_id,

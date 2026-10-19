@@ -8,9 +8,6 @@ const { Op, QueryTypes } = require("sequelize");
 const sequelize = require("../models/db");
 
 const { GeneralError, NotFoundError, DataError, ForbiddenError } = require("../error");
-const { canViewContent } = require("../utils/friendship");
-
-const WORKOUT_VISIBILITIES = ["private", "friends", "public"];
 
 const exerciseInclude = {
 	model: ExercisesModel,
@@ -63,7 +60,9 @@ async function GetWorkouts(user_id, filter = "all") {
 }
 
 async function GetWorkout(workout_id, user_id) {
-	const workout = await WorkoutsModel.findByPk(workout_id, {
+	// Owner-only: someone else's workout is a 404, same as one that doesn't exist.
+	const workout = await WorkoutsModel.findOne({
+		where: { workout_id, user_id },
 		include: [exerciseInclude],
 		order: [
 			[ExercisesModel, "order_number", "ASC"],
@@ -71,10 +70,7 @@ async function GetWorkout(workout_id, user_id) {
 		],
 	});
 
-	// NotFoundError for both "doesn't exist" and "exists but not visible to you" -
-	// never leak existence of a private workout via a 403-vs-404 distinction.
 	if (!workout) throw new NotFoundError("No workout found with that workout ID");
-	if (!(await canViewContent(workout.user_id, user_id, workout.visibility))) throw new NotFoundError("No workout found with that workout ID");
 	return workout;
 }
 
@@ -85,7 +81,6 @@ async function CreateWorkout(data, user_id) {
 		if (!user) throw new GeneralError("No user found or authentication expired"); //this shouldn't even hit
 
 		if (!data.workout_name || !data.workout_date) throw new DataError("Workout Name and Workout Date required");
-		if (data.visibility != null && !WORKOUT_VISIBILITIES.includes(data.visibility)) throw new DataError("Invalid visibility");
 
 		var workout = await user.createWorkout(
 			{
@@ -93,7 +88,6 @@ async function CreateWorkout(data, user_id) {
 				workout_date: data.workout_date,
 				notes: data.notes,
 				finished_at: data.finished_at,
-				visibility: data.visibility ?? "private",
 			},
 			{ transaction: t },
 		);
@@ -146,7 +140,6 @@ async function EditWorkout(data, workout_id, user_id) {
 		// Pre-existing gap: this endpoint previously had no ownership check at all (any
 		// authenticated user could edit any workout by id). Enforcing it now.
 		if (workout_obj.user_id !== user_id) throw new ForbiddenError("Not your workout");
-		if (data.visibility != null && !WORKOUT_VISIBILITIES.includes(data.visibility)) throw new DataError("Invalid visibility");
 
 		await workout_obj.update(
 			{
@@ -154,7 +147,6 @@ async function EditWorkout(data, workout_id, user_id) {
 				workout_date: data.workout_date,
 				notes: data.notes,
 				finished_at: data.finished_at,
-				visibility: data.visibility ?? workout_obj.visibility,
 			},
 			{ transaction: t },
 		);
@@ -632,7 +624,7 @@ const PREVIOUS_SETS_SQL = `
 
 //Best weight + last session's sets for each catalog exercise, for the prev/best columns while logging.
 //exclude_workout_id is the workout being edited (null for a new workout) - it's skipped, and only workouts
-//on or before its date count. Always the logged-in user's history, even when copying a friend's workout.
+//on or before its date count. Always the logged-in user's history.
 async function getExerciseStats(user_id, catalog_ids, exclude_workout_id = null) {
 	let beforeDate = null;
 	if (exclude_workout_id) {

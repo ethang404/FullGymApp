@@ -1,4 +1,3 @@
-const { Op } = require("sequelize");
 const sequelize = require("../models/db");
 const {
 	users: usersDB,
@@ -6,7 +5,6 @@ const {
 	diaryEntries: diaryEntriesDB,
 	recipe: recipeDB,
 	food: foodDB,
-	friendships: friendshipsDB,
 } = require("../models/modelInits");
 const { NotFoundError, DataError } = require("../error");
 const { revokeAppleToken } = require("../Auth/appleAuth");
@@ -156,11 +154,6 @@ async function deleteMe(user_id) {
 		const user = await usersDB.findByPk(user_id, { transaction: t });
 		if (!user) throw new NotFoundError("User not found");
 		appleRefreshToken = user.apple_refresh_token;
-
-		await friendshipsDB.destroy({
-			where: { [Op.or]: [{ user_id_a: user_id }, { user_id_b: user_id }, { requested_by: user_id }] },
-			transaction: t,
-		});
 
 		// Foods they submitted stay: anyone can log them or use them in recipes. Just drop the link to this user.
 		await foodDB.update({ submitted_by: null }, { where: { submitted_by: user_id }, transaction: t });

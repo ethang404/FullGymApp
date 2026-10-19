@@ -1,10 +1,9 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("./db");
 
-// Always stored with user_id_a < user_id_b (see Friends/service.js) so a single
+// Always stored with user_id_a < user_id_b so a single
 // unique index on (user_id_a, user_id_b) blocks both exact duplicates and
-// reciprocal A->B / B->A rows. requested_by records who sent the request, since
-// that's not derivable from the a/b ordering.
+// reciprocal A->B / B->A rows. So we don't have rows for John/Steve AND Steve/John
 const friendships = sequelize.define(
 	"friendships",
 	{
@@ -22,6 +21,7 @@ const friendships = sequelize.define(
 			allowNull: false,
 		},
 		requested_by: {
+			//between a/b, who requested
 			type: DataTypes.INTEGER,
 			allowNull: false,
 		},

@@ -11,7 +11,6 @@ import {
 	Alert,
 	KeyboardAvoidingView,
 	Platform,
-	ScrollView,
 	type StyleProp,
 	type TextStyle,
 } from "react-native";
@@ -29,15 +28,12 @@ import type { Theme } from "@/theme/colors";
 import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
 import { toast } from "@/utils/toast";
-import { useProfile } from "@/utils/ProfileProvider";
 import { todayISO, formatMediumDate } from "@/utils/date";
 import Screen from "@/components/Screen";
 import { ScreenState } from "@/components/ScreenState";
 import { WorkoutCelebration } from "@/components/WorkoutCelebration";
 import { haptics } from "@/utils/haptics";
-import Pills from "@/components/Pills";
 import * as types from "@/types/workouts";
-import { CONTENT_VISIBILITIES, CONTENT_VISIBILITY_LABELS, type ContentVisibility } from "@/types/visibility";
 
 import LoadingScreen from "@/components/LoadingScreen";
 import { ExercisePicker } from "@/features/workouts/components/ExercisePicker";
@@ -52,7 +48,6 @@ function makeEmptyWorkout(): types.WorkoutData {
 		created_at: new Date().toISOString(), //an exact moment, so UTC is right here
 		finished_at: null,
 		exercises: [],
-		visibility: "private",
 	};
 }
 
@@ -87,24 +82,6 @@ function pairWithPrevious(sets: types.WorkoutSet[], previous: types.PreviousSet[
 
 // ---------------- Fetching ----------------
 
-//Turn someone's workout into the start of a new one of our own.
-//No database ids (so saving creates new rows instead of editing theirs), today's date, private, not finished,
-//and it keeps the plan (exercises, set count, warmup vs working) but not their numbers.
-function asCopy(workout: types.WorkoutData): types.WorkoutData {
-	return {
-		...workout,
-		workout_date: todayISO(),
-		finished_at: null,
-		visibility: "private",
-		exercises: workout.exercises.map((ex) => ({
-			...ex,
-			exercise_id: undefined,
-			tempId: randomUUID(),
-			sets: ex.sets.map((s) => ({ ...s, set_id: undefined, tempId: randomUUID(), weight: null, reps: null, reps_in_reserve: null, notes: "" })),
-		})),
-	};
-}
-
 function useWorkout(workout_id: string | undefined, mode: types.WorkoutMode) {
 	const shouldFetch = mode !== "new" && !!workout_id; // "new" mode: nothing to fetch (new workouts open with workout_id "new")
 
@@ -124,7 +101,7 @@ function useWorkout(workout_id: string | undefined, mode: types.WorkoutMode) {
 			try {
 				const resp = await instance.get(`/workouts/${workout_id}`);
 				const found: types.WorkoutData = resp.data.workout;
-				if (!cancelled) setWorkout(mode === "copy" ? asCopy(found) : found);
+				if (!cancelled) setWorkout(found);
 			} catch (err) {
 				log.error("Couldn't get workout", err);
 				if (!cancelled) setError(true);
@@ -288,104 +265,75 @@ function SetRow({
 	set,
 	label,
 	previous,
-	editable,
 	onChange,
 	onRemove,
 }: {
 	set: types.WorkoutSet;
 	label: string; // "W", "1", "2"...
 	previous: types.PreviousSet | null; // the matching set from last time, if any
-	editable: boolean;
-	onChange?: (patch: Partial<types.WorkoutSet>) => void;
-	onRemove?: () => void;
+	onChange: (patch: Partial<types.WorkoutSet>) => void;
+	onRemove: () => void;
 }) {
 	const { theme } = useTheme();
 	const styles = useMemoStyles(theme);
 
 	return (
 		<View style={styles.setRow}>
-			{editable && (
-				<View style={{ width: COL.grip }}>
-					<DragGrip label={`Drag set ${label} to reorder`} />
-				</View>
-			)}
-
-			<View style={[styles.typeCell, { width: COL.type }]}>
-				{editable ? (
-					<SetTypePicker label={label} value={set.set_type} onChange={(set_type) => onChange?.({ set_type })} />
-				) : (
-					<Text style={styles.typeLabel}>{label}</Text>
-				)}
+			<View style={{ width: COL.grip }}>
+				<DragGrip label={`Drag set ${label} to reorder`} />
 			</View>
 
-			{editable && (
-				<Text style={[styles.prevText, { flex: 1 }]} numberOfLines={1}>
-					{previous ? `${formatNumber(previous.weight)} × ${formatNumber(previous.reps)}` : "–"}
-				</Text>
-			)}
-			{!editable && <View style={{ flex: 1 }} />}
+			<View style={[styles.typeCell, { width: COL.type }]}>
+				<SetTypePicker label={label} value={set.set_type} onChange={(set_type) => onChange({ set_type })} />
+			</View>
 
-			{/* editable: text boxes with last time's numbers as placeholders. view only: plain numbers */}
-			{editable ? (
-				<>
-					<View style={{ width: COL.lbs }}>
-						<NumberField
-							value={set.weight}
-							onChangeValue={(weight) => onChange?.({ weight })}
-							placeholder={previous?.weight?.toString()}
-							decimal
-							style={styles.input}
-						/>
-					</View>
-					<View style={{ width: COL.reps }}>
-						<NumberField value={set.reps} onChangeValue={(reps) => onChange?.({ reps })} placeholder={previous?.reps?.toString()} style={styles.input} />
-					</View>
-					<View style={{ width: COL.rir }}>
-						<NumberField
-							value={set.reps_in_reserve}
-							onChangeValue={(reps_in_reserve) => onChange?.({ reps_in_reserve })}
-							placeholder={previous?.reps_in_reserve?.toString()}
-							style={[styles.input, styles.rirInput]}
-						/>
-					</View>
+			<Text style={[styles.prevText, { flex: 1 }]} numberOfLines={1}>
+				{previous ? `${formatNumber(previous.weight)} × ${formatNumber(previous.reps)}` : "–"}
+			</Text>
 
-					<View style={{ width: COL.trash, alignItems: "center" }}>
-						<Pressable onPress={onRemove} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Remove set ${label}`}>
-							<Ionicons name="trash-outline" size={18} color={theme.textTertiary} />
-						</Pressable>
-					</View>
-				</>
-			) : (
-				<>
-					<Text style={[styles.valueText, { width: COL.lbs }]}>{formatNumber(set.weight)}</Text>
-					<Text style={[styles.valueText, { width: COL.reps }]}>{formatNumber(set.reps)}</Text>
-					<Text style={[styles.valueText, styles.rirText, { width: COL.rir }]}>{formatNumber(set.reps_in_reserve)}</Text>
-				</>
-			)}
+			{/* text boxes with last time's numbers as placeholders */}
+			<View style={{ width: COL.lbs }}>
+				<NumberField value={set.weight} onChangeValue={(weight) => onChange({ weight })} placeholder={previous?.weight?.toString()} decimal style={styles.input} />
+			</View>
+			<View style={{ width: COL.reps }}>
+				<NumberField value={set.reps} onChangeValue={(reps) => onChange({ reps })} placeholder={previous?.reps?.toString()} style={styles.input} />
+			</View>
+			<View style={{ width: COL.rir }}>
+				<NumberField
+					value={set.reps_in_reserve}
+					onChangeValue={(reps_in_reserve) => onChange({ reps_in_reserve })}
+					placeholder={previous?.reps_in_reserve?.toString()}
+					style={[styles.input, styles.rirInput]}
+				/>
+			</View>
+
+			<View style={{ width: COL.trash, alignItems: "center" }}>
+				<Pressable onPress={onRemove} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Remove set ${label}`}>
+					<Ionicons name="trash-outline" size={18} color={theme.textTertiary} />
+				</Pressable>
+			</View>
 		</View>
 	);
 }
 
-//Takes in an exercise, if we can edit, then show values grabable and dropdown for working/warmups
+//Takes in an exercise and shows its sets: draggable rows with the working/warmup dropdown
 function RenderSets({
-	editable,
 	exercise,
 	previousSets = [],
 	onChangeSet,
 	onReorderSets,
 	onDeleteSet,
 }: {
-	editable: boolean;
 	exercise: types.WorkoutExercise;
 	previousSets?: types.PreviousSet[];
-	onChangeSet?: (setKey: string, patch: Partial<types.WorkoutSet>) => void;
-	onReorderSets?: (event: ReorderableListReorderEvent) => void;
-	onDeleteSet?: (setKey: string) => void;
+	onChangeSet: (setKey: string, patch: Partial<types.WorkoutSet>) => void;
+	onReorderSets: (event: ReorderableListReorderEvent) => void;
+	onDeleteSet: (setKey: string) => void;
 }) {
 	const { theme } = useTheme();
 	const styles = useMemoStyles(theme);
 
-	if (exercise.sets.length === 0) return <Text style={styles.emptyText}>{editable ? "No sets yet. Add one below." : "No sets logged."}</Text>;
+	if (exercise.sets.length === 0) return <Text style={styles.emptyText}>No sets yet. Add one below.</Text>;
 
 	const labels = setLabels(exercise.sets);
 	const paired = pairWithPrevious(exercise.sets, previousSets);
@@ -393,43 +341,34 @@ function RenderSets({
 	return (
 		<View>
 			<View style={styles.setHeader}>
-				{editable && <View style={{ width: COL.grip }} />}
+				<View style={{ width: COL.grip }} />
 				<Text style={[styles.headerText, { width: COL.type }]}>Type</Text>
-				<Text style={[styles.headerText, { flex: 1 }]}>{editable ? "Prev" : ""}</Text>
+				<Text style={[styles.headerText, { flex: 1 }]}>Prev</Text>
 				<Text style={[styles.headerText, styles.headerCenter, { width: COL.lbs }]}>Lbs</Text>
 				<Text style={[styles.headerText, styles.headerCenter, { width: COL.reps }]}>Reps</Text>
 				<Text style={[styles.headerText, styles.headerCenter, { width: COL.rir }]}>RIR</Text>
-				{editable && <View style={{ width: COL.trash }} />}
+				<View style={{ width: COL.trash }} />
 			</View>
 
-			{editable ? (
-				//drag a row by its grip; labels/prev follow the new array order automatically
-				<ReorderableList
-					data={exercise.sets}
-					keyExtractor={setKey}
-					onReorder={(event) => onReorderSets?.(event)}
-					scrollEnabled={false} //grows to fit its rows; the exercise list does the scrolling
-					keyboardShouldPersistTaps="handled"
-					renderItem={({ item, index }) => (
-						<View style={styles.setRowGap}>
-							<SetRow
-								set={item}
-								label={labels[index]}
-								previous={paired[index]}
-								editable
-								onChange={(patch) => onChangeSet?.(setKey(item), patch)}
-								onRemove={() => onDeleteSet?.(setKey(item))}
-							/>
-						</View>
-					)}
-				/>
-			) : (
-				exercise.sets.map((set, i) => (
-					<View key={setKey(set)} style={styles.setRowGap}>
-						<SetRow set={set} label={labels[i]} previous={paired[i]} editable={false} />
+			{/* drag a row by its grip; labels/prev follow the new array order automatically */}
+			<ReorderableList
+				data={exercise.sets}
+				keyExtractor={setKey}
+				onReorder={onReorderSets}
+				scrollEnabled={false} //grows to fit its rows; the exercise list does the scrolling
+				keyboardShouldPersistTaps="handled"
+				renderItem={({ item, index }) => (
+					<View style={styles.setRowGap}>
+						<SetRow
+							set={item}
+							label={labels[index]}
+							previous={paired[index]}
+							onChange={(patch) => onChangeSet(setKey(item), patch)}
+							onRemove={() => onDeleteSet(setKey(item))}
+						/>
 					</View>
-				))
-			)}
+				)}
+			/>
 		</View>
 	);
 }
@@ -440,7 +379,6 @@ function ExerciseCard({
 	exercise,
 	index,
 	total,
-	editable,
 	stats,
 	onChangeSet,
 	onReorderSets,
@@ -451,13 +389,12 @@ function ExerciseCard({
 	exercise: types.WorkoutExercise;
 	index: number;
 	total: number;
-	editable: boolean;
 	stats?: types.ExerciseStats;
-	onChangeSet?: (setKey: string, patch: Partial<types.WorkoutSet>) => void;
-	onReorderSets?: (event: ReorderableListReorderEvent) => void;
-	onAddSet?: () => void;
-	onRemove?: () => void;
-	onDeleteSet?: (setKey: string) => void;
+	onChangeSet: (setKey: string, patch: Partial<types.WorkoutSet>) => void;
+	onReorderSets: (event: ReorderableListReorderEvent) => void;
+	onAddSet: () => void;
+	onRemove: () => void;
+	onDeleteSet: (setKey: string) => void;
 }) {
 	const { theme } = useTheme();
 	const styles = useMemoStyles(theme);
@@ -466,7 +403,7 @@ function ExerciseCard({
 	//only ask first if there's something to lose; an exercise you just added by mistake goes straight away
 	const confirmRemove = () => {
 		const hasData = exercise.sets.some((s) => s.weight != null || s.reps != null || s.reps_in_reserve != null);
-		if (!hasData) return onRemove?.();
+		if (!hasData) return onRemove();
 		Alert.alert(`Remove ${name}?`, "The sets you've logged for it will be removed too.", [
 			{ text: "Cancel", style: "cancel" },
 			{ text: "Remove", style: "destructive", onPress: onRemove },
@@ -479,23 +416,20 @@ function ExerciseCard({
 				<View style={{ flex: 1 }}>
 					<Text style={styles.cardEyebrow}>
 						Exercise {index + 1} of {total}
-						{editable && stats?.best_weight != null && <Text style={styles.cardBest}>{`  ·  Best: ${formatNumber(stats.best_weight)} lbs`}</Text>}
+						{stats?.best_weight != null && <Text style={styles.cardBest}>{`  ·  Best: ${formatNumber(stats.best_weight)} lbs`}</Text>}
 					</Text>
 					<Text style={styles.exerciseName}>{name}</Text>
 				</View>
-				{editable && (
-					<View style={styles.cardActions}>
-						<Pressable onPress={confirmRemove} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Remove ${name}`}>
-							<Ionicons name="trash-outline" size={18} color={theme.textTertiary} />
-						</Pressable>
-						{/* sits outside the sets list, so it drags the whole card rather than a set */}
-						<DragGrip label={`Drag ${name} to reorder`} />
-					</View>
-				)}
+				<View style={styles.cardActions}>
+					<Pressable onPress={confirmRemove} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Remove ${name}`}>
+						<Ionicons name="trash-outline" size={18} color={theme.textTertiary} />
+					</Pressable>
+					{/* sits outside the sets list, so it drags the whole card rather than a set */}
+					<DragGrip label={`Drag ${name} to reorder`} />
+				</View>
 			</View>
 
 			<RenderSets
-				editable={editable}
 				exercise={exercise}
 				previousSets={stats?.previous_sets}
 				onChangeSet={onChangeSet}
@@ -503,49 +437,20 @@ function ExerciseCard({
 				onDeleteSet={onDeleteSet}
 			/>
 
-			{editable && (
-				<Pressable style={styles.addSetButton} onPress={onAddSet} accessibilityRole="button">
-					<Ionicons name="add" size={18} color={theme.textSecondary} />
-					<Text style={styles.addSetText}>Add set</Text>
-				</Pressable>
-			)}
+			<Pressable style={styles.addSetButton} onPress={onAddSet} accessibilityRole="button">
+				<Ionicons name="add" size={18} color={theme.textSecondary} />
+				<Text style={styles.addSetText}>Add set</Text>
+			</Pressable>
 		</View>
 	);
 }
 
-// ---------------- Screens ----------------
+// ---------------- Screen ----------------
 
-//Render view only
-function ViewWorkout({ workout }: { workout: types.WorkoutData }) {
-	const { theme } = useTheme();
-	const styles = useMemoStyles(theme);
-
-	return (
-		<Screen>
-			<ScrollView contentContainerStyle={styles.content}>
-				<View style={styles.headerRow}>
-					<Pressable onPress={() => router.back()} hitSlop={12} accessibilityLabel="Go back">
-						<Ionicons name="chevron-back" size={24} color={theme.primary} />
-					</Pressable>
-					<View style={{ flex: 1 }}>
-						<Text style={styles.title}>{workout.workout_name || "Workout"}</Text>
-						<Text style={styles.subtitle}>{formatMediumDate(workout.workout_date)}</Text>
-					</View>
-				</View>
-
-				{workout.exercises.length === 0 && <Text style={styles.emptyText}>No exercises in this workout.</Text>}
-				{workout.exercises.map((exercise, i) => (
-					<ExerciseCard key={exerciseKey(exercise)} exercise={exercise} index={i} total={workout.exercises.length} editable={false} />
-				))}
-			</ScrollView>
-		</Screen>
-	);
-}
-
-//space between exercise cards: they live in a list now, so styles.content's gap doesn't reach them
+//space between exercise cards: the reorderable list measures its cells, so it can't use a gap
 const ExerciseGap = () => <View style={{ height: 14 }} />;
 
-//new / edit / copy
+//new / edit
 function EditWorkout({
 	workout,
 	setWorkout,
@@ -626,7 +531,7 @@ function EditWorkout({
 			exercises: w.exercises.map((e) => (exerciseKey(e) !== exKey ? e : { ...e, sets: renumber(reorderItems(e.sets, from, to)) })),
 		}));
 
-	const isEditing = workoutId != null; //saved workout: PUT over it. Otherwise (new/copy) POST a new one
+	const isEditing = workoutId != null; //saved workout: PUT over it. Otherwise (new) POST a new one
 
 	const save = async () => {
 		if (saving) return;
@@ -688,12 +593,6 @@ function EditWorkout({
 									<Text style={styles.subtitle}>{formatMediumDate(workout.workout_date)}</Text>
 								</View>
 							</View>
-							<Pills
-								options={CONTENT_VISIBILITIES}
-								value={workout.visibility}
-								onSelect={(visibility: ContentVisibility) => setWorkout((w) => ({ ...w, visibility }))}
-								labels={CONTENT_VISIBILITY_LABELS}
-							/>
 						</View>
 					}
 					ListEmptyComponent={<Text style={styles.emptyText}>No exercises yet. Add one below.</Text>}
@@ -719,7 +618,6 @@ function EditWorkout({
 								exercise={exercise}
 								index={index}
 								total={workout.exercises.length}
-								editable
 								stats={exercise.catalog_id != null ? stats[exercise.catalog_id] : undefined}
 								onChangeSet={(sKey, patch) => updateSet(exKey, sKey, patch)}
 								onReorderSets={(event) => reorderSets(exKey, event)}
@@ -751,15 +649,11 @@ export default function Workout() {
 	const params = useLocalSearchParams<{
 		workout_id?: string;
 		mode?: types.WorkoutMode;
-		//view = just viewing a workout
-		//copy = grabbing someones workout and making our own from it (dont copy weights/sets/reps)
 		//edit = modifiyng an old workout
 		//new = no fetch, blank
 	}>();
 	const mode = params.mode ?? "edit"; // Home's recent workouts link doesn't pass a mode
 	const { workout_id } = params;
-
-	const { profile } = useProfile();
 
 	const { workout, setWorkout, loading, error, retry } = useWorkout(workout_id, mode);
 
@@ -775,16 +669,12 @@ export default function Workout() {
 			</Screen>
 		);
 
-	//render no buttons or anything for control
-	if (mode === "view") return <ViewWorkout workout={workout} />;
-
 	return <EditWorkout workout={workout} setWorkout={setWorkout} workoutId={mode === "edit" ? Number(workout_id) : undefined} />;
 }
 
 function createStyles(theme: Theme) {
 	return StyleSheet.create({
 		safeArea: { flex: 1, backgroundColor: theme.background },
-		content: { padding: 16, paddingBottom: 48, gap: 14 },
 		//no gap here: the reorderable list measures its cells, so spacing comes from ExerciseGap / listHeader instead
 		listContent: { padding: 16, paddingBottom: 48 },
 		listHeader: { marginBottom: 14, gap: 12 },
@@ -847,10 +737,7 @@ function createStyles(theme: Theme) {
 			borderColor: theme.border,
 		},
 		typePillText: { fontSize: 13, fontWeight: "700", color: theme.primary },
-		typeLabel: { fontSize: 14, fontWeight: "700", color: theme.primary, paddingLeft: 4 },
 		prevText: { fontSize: 14, color: theme.textMuted },
-		valueText: { fontSize: 16, fontWeight: "700", color: theme.text, textAlign: "center" },
-		rirText: { color: theme.primary },
 		input: {
 			marginHorizontal: 3,
 			height: 34,

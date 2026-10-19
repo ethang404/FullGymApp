@@ -2,7 +2,6 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 
-const { Op } = require("sequelize");
 const sequelize = require("../models/db");
 const {
 	users: usersDB,
@@ -10,7 +9,6 @@ const {
 	diaryEntries: diaryEntriesDB,
 	recipe: recipeDB,
 	food: foodDB,
-	friendships: friendshipsDB,
 } = require("../models/modelInits");
 const { UnauthorizedError, GeneralError, DataError, ForbiddenError } = require("../error");
 const { verifyAppleIdentityToken, exchangeAppleAuthorizationCode } = require("./appleAuth");
@@ -375,12 +373,6 @@ async function mergeUserInto(fromId, toId) {
 		await diaryEntriesDB.update({ user_id: toId }, { where: { user_id: fromId }, transaction: t });
 		await recipeDB.update({ user_id: toId }, { where: { user_id: fromId }, transaction: t });
 		await foodDB.update({ submitted_by: toId }, { where: { submitted_by: fromId }, transaction: t });
-
-		// Guests are blocked from Friends so there shouldn't be any, but clear them in case
-		await friendshipsDB.destroy({
-			where: { [Op.or]: [{ user_id_a: fromId }, { user_id_b: fromId }, { requested_by: fromId }] },
-			transaction: t,
-		});
 
 		await usersDB.destroy({ where: { user_id: fromId }, transaction: t });
 	});
