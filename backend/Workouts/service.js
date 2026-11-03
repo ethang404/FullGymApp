@@ -7,7 +7,8 @@ const ExerciseCatalogModel = require("../models/modelInits").exercise_catalog;
 const { Op, QueryTypes } = require("sequelize");
 const sequelize = require("../models/db");
 
-const { GeneralError, NotFoundError, DataError, ForbiddenError } = require("../error");
+const { GeneralError, NotFoundError, DataError } = require("../error");
+const { serializeWorkoutListItem, serializeWorkout } = require("../serializers/workouts");
 
 const exerciseInclude = {
 	model: ExercisesModel,
@@ -30,13 +31,24 @@ async function validateCatalogExercise(catalog_id) {
 	return catalogEntry;
 }
 
+//exercises and sets must be arrays (empty is fine) - edit deletes anything missing from them, so a missing list would wipe the workout
+function assertExercisesShape(data) {
+	if (!Array.isArray(data.exercises)) throw new DataError("exercises must be an array");
+	for (let exercise of data.exercises) {
+		if (!Array.isArray(exercise.sets)) throw new DataError("Each exercise needs a sets array");
+	}
+}
+
+//list shape (serializeWorkoutListItem) - ready to send
 async function GetWorkouts(user_id, filter = "all") {
 	let workouts;
 	let now = new Date();
 	let startDate = new Date();
 
-	if (filter == "all")
-		return await WorkoutsModel.findAll({
+	if (!["all", "week", "month", "year"].includes(filter)) throw new DataError("Filter needs to be 'all','week','month', or 'year', ");
+
+	if (filter == "all") {
+		workouts = await WorkoutsModel.findAll({
 			where: { user_id: user_id },
 			include: [exerciseInclude],
 			order: [
@@ -44,7 +56,8 @@ async function GetWorkouts(user_id, filter = "all") {
 				[ExercisesModel, SetsModel, "order_number", "ASC"],
 			],
 		});
-	else if (filter == "week") startDate.setDate(startDate.getDate() - 7);
+		return workouts.map(serializeWorkoutListItem);
+	} else if (filter == "week") startDate.setDate(startDate.getDate() - 7);
 	else if (filter == "month") startDate.setDate(startDate.getDate() - 30);
 	else if (filter == "year") startDate.setDate(startDate.getDate() - 365);
 
@@ -56,7 +69,7 @@ async function GetWorkouts(user_id, filter = "all") {
 			[ExercisesModel, SetsModel, "order_number", "ASC"],
 		],
 	});
-	return workouts;
+	return workouts.map(serializeWorkoutListItem);
 }
 
 async function GetWorkout(workout_id, user_id) {
@@ -71,10 +84,11 @@ async function GetWorkout(workout_id, user_id) {
 	});
 
 	if (!workout) throw new NotFoundError("No workout found with that workout ID");
-	return workout;
+	return serializeWorkout(workout); //editor shape - same one POST/PUT accept
 }
 
 async function CreateWorkout(data, user_id) {
+	assertExercisesShape(data);
 	return await sequelize.transaction(async (t) => {
 		//createWorkout
 		const user = await UsersModel.findOne({ where: { user_id: user_id }, transaction: t });
@@ -134,12 +148,11 @@ async function CreateWorkout(data, user_id) {
 }
 
 async function EditWorkout(data, workout_id, user_id) {
+	assertExercisesShape(data); //before the transaction - nothing gets deleted on a bad body
 	return await sequelize.transaction(async (t) => {
-		let workout_obj = await WorkoutsModel.findByPk(workout_id, { transaction: t });
+		//owner-only: someone else's workout is a 404, same as GetWorkout
+		let workout_obj = await WorkoutsModel.findOne({ where: { workout_id, user_id }, transaction: t });
 		if (!workout_obj) throw new NotFoundError("No workout found with that id"); // checked before .update() so a bad id throws this instead of a raw TypeError
-		// Pre-existing gap: this endpoint previously had no ownership check at all (any
-		// authenticated user could edit any workout by id). Enforcing it now.
-		if (workout_obj.user_id !== user_id) throw new ForbiddenError("Not your workout");
 
 		await workout_obj.update(
 			{
@@ -190,7 +203,10 @@ async function EditWorkout(data, workout_id, user_id) {
 		}
 
 		for (let exercise of data.exercises) {
-			let exercise_obj = exercise.exercise_id ? await ExercisesModel.findByPk(exercise.exercise_id, { transaction: t }) : null;
+			//scoped to THIS workout - an exercise_id from someone else's workout is treated like a new exercise, never edited
+			let exercise_obj = exercise.exercise_id
+				? await ExercisesModel.findOne({ where: { exercise_id: exercise.exercise_id, workout_id: workout_obj.workout_id }, transaction: t })
+				: null;
 
 			if (exercise_obj == null) {
 				//we have a new exercise
@@ -239,7 +255,8 @@ async function EditWorkout(data, workout_id, user_id) {
 
 				//loop over data exercise's sets to update/add
 				for (let set of exercise.sets) {
-					let set_obj = set.set_id ? await SetsModel.findByPk(set.set_id, { transaction: t }) : null;
+					//same idea - only sets that belong to this exercise can be edited
+					let set_obj = set.set_id ? await SetsModel.findOne({ where: { set_id: set.set_id, exercise_id: exercise_obj.exercise_id }, transaction: t }) : null;
 					if (set_obj == null) {
 						//we have a new set for exercise
 						await exercise_obj.createSet(
@@ -288,10 +305,9 @@ async function EditWorkout(data, workout_id, user_id) {
 }
 
 async function DeleteWorkout(workout_id, user_id) {
-	const workout = await WorkoutsModel.findByPk(workout_id);
+	//owner-only: someone else's workout is a 404, same as GetWorkout
+	const workout = await WorkoutsModel.findOne({ where: { workout_id, user_id } });
 	if (!workout) throw new NotFoundError("No workout found with that id");
-	// Pre-existing gap, same as EditWorkout: no ownership check existed here before.
-	if (workout.user_id !== user_id) throw new ForbiddenError("Not your workout");
 	await workout.destroy();
 }
 
@@ -679,4 +695,5 @@ module.exports = {
 	exerciseOverTime,
 	getVolumeByMuscleGroup,
 	getExerciseStats,
+	getWorkoutsInRange, //Friends overview
 };

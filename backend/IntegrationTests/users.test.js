@@ -320,7 +320,7 @@ describe("DELETE /users/me", () => {
 		workoutId = workoutResp.body.workout?.workout_id ?? (await WorkoutsModel.findOne({ where: { user_id: doomed.id } })).workout_id;
 
 		const food = await FoodModel.create({ name: "Doomed oats", source: "user_submitted", submitted_by: doomed.id });
-		foodId = food.food_id;
+		foodId = food.id;
 		const recipe = await RecipeModel.create({ user_id: doomed.id, name: "Doomed stew" });
 
 		await DiaryEntriesModel.create({ user_id: doomed.id, food_id: foodId, meal_type: "lunch", logged_at: "2026-10-01", quantity: 1, unit: "g" });

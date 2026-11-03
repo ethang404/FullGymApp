@@ -27,6 +27,7 @@ async function verifyToken(req, res, next) {
 			return res.status(401).json({ message: "User no longer exists" });
 		}
 		if (isRevokedGuestToken(payload, user)) {
+			//if token says we're a guest, but we aren't anymore (upgraded)
 			return res.status(401).json({ message: "Guest session has ended, please sign in again" });
 		}
 	} catch (err) {

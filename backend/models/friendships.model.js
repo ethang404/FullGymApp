@@ -36,6 +36,14 @@ const friendships = sequelize.define(
 		timestamps: true,
 		underscored: true,
 		indexes: [{ unique: true, fields: ["user_id_a", "user_id_b"] }, { fields: ["requested_by"] }],
+		validate: {
+			userOrder() {
+				const correctOrder = this.user_id_a && this.user_id_b && this.user_id_a < this.user_id_b;
+				if (!correctOrder) {
+					throw new Error("User_id_a must be < than User_id_b. And both must be defined");
+				}
+			},
+		},
 	},
 );
 

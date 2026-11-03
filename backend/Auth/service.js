@@ -10,7 +10,7 @@ const {
 	recipe: recipeDB,
 	food: foodDB,
 } = require("../models/modelInits");
-const { UnauthorizedError, GeneralError, DataError, ForbiddenError } = require("../error");
+const { UnauthorizedError, GeneralError, DataError, ForbiddenError, ConflictError } = require("../error");
 const { verifyAppleIdentityToken, exchangeAppleAuthorizationCode } = require("./appleAuth");
 const { verifyGoogleIdToken } = require("./googleAuth");
 
@@ -80,6 +80,10 @@ async function register(userData) {
 		throw new DataError("Missing required fields for registration");
 	}
 
+	//409 so the app can say "that username is taken" instead of a generic failure
+	const existing = await usersDB.findOne({ where: { user_name: userName } });
+	if (existing) throw new ConflictError("Username is already taken");
+
 	const saltRounds = 10;
 	const salt = await bcrypt.genSalt(saltRounds);
 	const hash = await bcrypt.hash(password + process.env.PEPPER, salt);
@@ -92,7 +96,9 @@ async function register(userData) {
 			password: hash,
 		});
 		return user;
-	} catch {
+	} catch (error) {
+		//two sign-ups racing for the same name: the unique index catches the second one
+		if (error.name === "SequelizeUniqueConstraintError") throw new ConflictError("Username is already taken");
 		throw new GeneralError("Failed to register user");
 	}
 }
@@ -144,7 +150,7 @@ async function upgradeGuest(user_id, userData) {
 	if (!user.is_guest) throw new ForbiddenError("Only guest accounts can be upgraded");
 
 	const existing = await usersDB.findOne({ where: { user_name: userName } });
-	if (existing) throw new DataError("Username is already taken");
+	if (existing) throw new ConflictError("Username is already taken"); //409, same as register
 
 	const saltRounds = 10;
 	const salt = await bcrypt.genSalt(saltRounds);

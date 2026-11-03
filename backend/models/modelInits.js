@@ -7,6 +7,13 @@ const { diaryEntries } = require("./diaryEntries.model");
 const recipe = require("./recipe.model");
 const recipeIngredient = require("./recipeIngredient.model");
 const friendships = require("./friendships.model");
+const friend_permissions = require("./friend_permissions.model");
+const blocked_users = require("./blocked.model");
+const groups = require("./groups.model");
+const group_members = require("./group_members.model");
+const posts = require("./posts.model");
+const post_comments = require("./post_comments.model");
+const post_likes = require("./post_likes.model");
 
 const exercise_catalog = require("./exerciseCatalog");
 
@@ -249,11 +256,301 @@ function defineRelationships() {
 	});
 
 	//friendships is self-referential on users via two FKs (always stored user_id_a < user_id_b) plus
-	//requested_by to track who sent the request. Aliased belongsTo so services can `include` display info.
-	//we do the as to easily handle each user association
-	friendships.belongsTo(users, { as: "userA", foreignKey: { name: "user_id_a", allowNull: false } });
-	friendships.belongsTo(users, { as: "userB", foreignKey: { name: "user_id_b", allowNull: false } });
-	friendships.belongsTo(users, { as: "requester", foreignKey: { name: "requested_by", allowNull: false } });
+	//requested_by to track who sent the request. We link each FK to users table so it's in the include for us
+	//so we can extract name.
+	//Without the alias, sequelize doesn't know which FK to join on for include since we have multiple
+	friendships.belongsTo(users, { as: "userA", onDelete: "CASCADE", foreignKey: { name: "user_id_a", allowNull: false } });
+	friendships.belongsTo(users, { as: "userB", onDelete: "CASCADE", foreignKey: { name: "user_id_b", allowNull: false } });
+	friendships.belongsTo(users, { as: "requester", onDelete: "CASCADE", foreignKey: { name: "requested_by", allowNull: false } });
+
+	//friendship has up to 2 share rows (one per side). Unfriending -> share settings go with it
+	friendships.hasMany(friend_permissions, {
+		as: "permissions",
+		foreignKey: {
+			name: "friendship_id",
+			allowNull: false,
+		},
+		onDelete: "CASCADE",
+	});
+
+	friend_permissions.belongsTo(friendships, {
+		foreignKey: {
+			name: "friendship_id",
+			allowNull: false,
+		},
+	});
+
+	//user owns many permissions (one per friend)
+	users.hasMany(friend_permissions, {
+		as: "friendPermissions",
+		foreignKey: {
+			name: "owner_id",
+			allowNull: false,
+		},
+		onDelete: "CASCADE",
+	});
+
+	friend_permissions.belongsTo(users, {
+		as: "owner",
+		foreignKey: {
+			name: "owner_id",
+			allowNull: false,
+		},
+	});
+
+	//blocked_users has two FKs to users (blocker + blocked), so both sides are aliased.
+	//Either user deleting their account removes the block
+	users.hasMany(blocked_users, {
+		as: "blocks",
+		foreignKey: {
+			name: "blocker_id",
+			allowNull: false,
+		},
+		onDelete: "CASCADE",
+	});
+
+	blocked_users.belongsTo(users, {
+		as: "blocker",
+		foreignKey: {
+			name: "blocker_id",
+			allowNull: false,
+		},
+	});
+
+	users.hasMany(blocked_users, {
+		as: "blockedBy",
+		foreignKey: {
+			name: "blocked_user_id",
+			allowNull: false,
+		},
+		onDelete: "CASCADE",
+	});
+
+	blocked_users.belongsTo(users, {
+		as: "blockedUser",
+		foreignKey: {
+			name: "blocked_user_id",
+			allowNull: false,
+		},
+	});
+
+	//user creates many groups. SET NULL so deleting the creator keeps the group alive for other members
+	users.hasMany(groups, {
+		as: "createdGroups",
+		foreignKey: {
+			name: "created_by",
+			allowNull: true,
+		},
+		onDelete: "SET NULL",
+	});
+
+	groups.belongsTo(users, {
+		as: "creator",
+		foreignKey: {
+			name: "created_by",
+			allowNull: true,
+		},
+		onDelete: "SET NULL",
+	});
+
+	//group has many members (join table between groups and users)
+	groups.hasMany(group_members, {
+		as: "memberships",
+		foreignKey: {
+			name: "group_id",
+			allowNull: false,
+		},
+		onDelete: "CASCADE",
+	});
+
+	group_members.belongsTo(groups, {
+		foreignKey: {
+			name: "group_id",
+			allowNull: false,
+		},
+	});
+
+	//user has many group memberships
+	users.hasMany(group_members, {
+		as: "groupMemberships",
+		foreignKey: {
+			name: "user_id",
+			allowNull: false,
+		},
+		onDelete: "CASCADE",
+	});
+
+	//aliased since group_members has two FKs to users (member + inviter)
+	group_members.belongsTo(users, {
+		as: "user",
+		foreignKey: {
+			name: "user_id",
+			allowNull: false,
+		},
+	});
+
+	group_members.belongsTo(users, {
+		as: "inviter",
+		foreignKey: {
+			name: "invited_by",
+			allowNull: true,
+		},
+		onDelete: "SET NULL",
+	});
+
+	//https://sequelize.org/docs/v6/advanced-association-concepts/advanced-many-to-many/
+
+	//many-to-many shortcuts so services can do givenGroup.getMembers() / givenUser.getGroups() or include either side
+	//Basically instead of doing .belongsTo and hasMany from users->groups->groupMembers, we can do it like this
+	//through junction table (group_members)
+	groups.belongsToMany(users, { through: group_members, as: "members", foreignKey: "group_id", otherKey: "user_id" });
+	users.belongsToMany(groups, { through: group_members, as: "groups", foreignKey: "user_id", otherKey: "group_id" });
+
+	//user has many posts
+	users.hasMany(posts, {
+		foreignKey: {
+			name: "user_id",
+			allowNull: false,
+		},
+		onDelete: "CASCADE",
+	});
+
+	posts.belongsTo(users, {
+		foreignKey: {
+			name: "user_id",
+			allowNull: false,
+		},
+	});
+
+	//group has many posts-when id not null. Group deleted -> its posts go with it
+	groups.hasMany(posts, {
+		foreignKey: {
+			name: "group_id",
+			allowNull: true,
+		},
+		onDelete: "CASCADE",
+	});
+
+	posts.belongsTo(groups, {
+		foreignKey: {
+			name: "group_id",
+			allowNull: true,
+		},
+	});
+
+	//a post can share a workout, a recipe, or a diary entry.
+	//Deleting the shared workout/recipe/diary entry deletes the post - nothing left to show
+	workouts.hasMany(posts, {
+		foreignKey: {
+			name: "workout_id",
+			allowNull: true,
+		},
+		onDelete: "CASCADE",
+	});
+
+	posts.belongsTo(workouts, {
+		foreignKey: {
+			name: "workout_id",
+			allowNull: true,
+		},
+	});
+
+	recipe.hasMany(posts, {
+		foreignKey: {
+			name: "recipe_id",
+			allowNull: true,
+		},
+		onDelete: "CASCADE",
+	});
+
+	posts.belongsTo(recipe, {
+		foreignKey: {
+			name: "recipe_id",
+			allowNull: true,
+		},
+	});
+
+	diaryEntries.hasMany(posts, {
+		foreignKey: {
+			name: "diary_log_id",
+			allowNull: true,
+		},
+		onDelete: "CASCADE",
+	});
+
+	posts.belongsTo(diaryEntries, {
+		as: "diaryEntry",
+		foreignKey: {
+			name: "diary_log_id",
+			allowNull: true,
+		},
+	});
+
+	//post has many comments
+	posts.hasMany(post_comments, {
+		as: "comments",
+		foreignKey: {
+			name: "post_id",
+			allowNull: false,
+		},
+		onDelete: "CASCADE",
+	});
+
+	post_comments.belongsTo(posts, {
+		foreignKey: {
+			name: "post_id",
+			allowNull: false,
+		},
+	});
+
+	//user has many comments
+	users.hasMany(post_comments, {
+		foreignKey: {
+			name: "user_id",
+			allowNull: false,
+		},
+		onDelete: "CASCADE",
+	});
+
+	post_comments.belongsTo(users, {
+		foreignKey: {
+			name: "user_id",
+			allowNull: false,
+		},
+	});
+
+	//post has many likes
+	posts.hasMany(post_likes, {
+		as: "likes",
+		foreignKey: {
+			name: "post_id",
+			allowNull: false,
+		},
+		onDelete: "CASCADE",
+	});
+
+	post_likes.belongsTo(posts, {
+		foreignKey: {
+			name: "post_id",
+			allowNull: false,
+		},
+	});
+
+	//user has many likes
+	users.hasMany(post_likes, {
+		foreignKey: {
+			name: "user_id",
+			allowNull: false,
+		},
+		onDelete: "CASCADE",
+	});
+
+	post_likes.belongsTo(users, {
+		foreignKey: {
+			name: "user_id",
+			allowNull: false,
+		},
+	});
 }
 
 module.exports = {
@@ -269,4 +566,11 @@ module.exports = {
 	foodNutrient,
 	foodServingSize,
 	friendships,
+	friend_permissions,
+	blocked_users,
+	groups,
+	group_members,
+	posts,
+	post_comments,
+	post_likes,
 };

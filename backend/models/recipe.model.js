@@ -30,6 +30,13 @@ const recipe = sequelize.define(
 			allowNull: false,
 			defaultValue: 1,
 		},
+		//soft delete
+		//keep name/macros, just hide from lists, editing, logging and sharing
+		is_deleted: {
+			type: DataTypes.BOOLEAN,
+			allowNull: false,
+			defaultValue: false,
+		},
 	},
 	{
 		tableName: "recipes",

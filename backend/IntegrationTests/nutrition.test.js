@@ -417,20 +417,26 @@ describe("Recipe Endpoints", () => {
 		expect(entry.nutrients.protein).toBeCloseTo(62 / 3, 1);
 	});
 
-	test("Delete Recipe - cascades to ingredients", async () => {
+	test("Delete Recipe - soft delete: row + ingredients stay, recipe is hidden", async () => {
 		const resp = await request(app).delete(`/nutrition/recipes/${createdRecipeId}`).set("Authorization", `Bearer ${token}`);
 
 		expect(resp.status).toBe(200);
 		expect(resp.body.deleted).toBe(true);
 		expect(resp.body.id).toBe(createdRecipeId);
 
-		// Recipe gone
+		// Row kept and flagged, so diary entries that logged it still have a name + macros
 		const dbRecipe = await RecipeModel.findByPk(createdRecipeId);
-		expect(dbRecipe).toBeNull();
+		expect(dbRecipe.is_deleted).toBe(true);
 
-		// Ingredients cascade deleted
+		// Ingredients kept - old diary entries recalculate their macros from them
 		const dbIngs = await RecipeIngredModel.findAll({ where: { recipe_id: createdRecipeId } });
-		expect(dbIngs.length).toBe(0);
+		expect(dbIngs.length).toBeGreaterThan(0);
+
+		// Gone from everywhere you'd pick it
+		const getResp = await request(app).get(`/nutrition/recipes/${createdRecipeId}`).set("Authorization", `Bearer ${token}`);
+		expect(getResp.status).toBe(404);
+		const again = await request(app).delete(`/nutrition/recipes/${createdRecipeId}`).set("Authorization", `Bearer ${token}`);
+		expect(again.status).toBe(404);
 	});
 });
 

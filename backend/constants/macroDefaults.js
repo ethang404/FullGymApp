@@ -39,7 +39,12 @@ const GOAL_COLUMNS = {
 	fiber: "goal_fiber_g",
 };
 
+const GOAL_KEYS = Object.keys(GOAL_COLUMNS); // calories, protein, carbs, fat, fiber
+const BODY_FIELDS = ["sex", "birth_date", "height_cm", "weight_kg", "activity_level", "goal_type"];
+
 module.exports = {
+	GOAL_KEYS,
+	BODY_FIELDS,
 	GOAL_DEFAULTS,
 	ACTIVITY_MULTIPLIERS,
 	GOAL_TYPE_ADJUST,

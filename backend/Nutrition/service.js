@@ -13,6 +13,7 @@ const {
 } = require("../models/modelInits");
 
 const { NotFoundError, DataError, ForbiddenError } = require("../error");
+const { isValidDate, parseDateRange } = require("../utils/dates");
 const { resolveUnitWeightG } = require("./unitConversion");
 const { importRecipeFromUrl } = require("./recipeImport");
 
@@ -67,12 +68,7 @@ const NUTRIENT_MAP = {
 //map id:display name for saving to recipe ingred and returning to user later
 const ID_TO_DISPLAY = Object.fromEntries(Object.entries(NUTRIENT_MAP).map(([key, val]) => [val.nutrient_id, key]));
 
-/**
- * Validates YYYY-MM-DD date strings
- */
-function isValidDate(str) {
-	return /^\d{4}-\d{2}-\d{2}$/.test(str) && !isNaN(Date.parse(str));
-}
+//isValidDate / parseDateRange live in utils/dates.js (Friends overview uses them too)
 
 // ---------------------------------------------
 // HELPERS
@@ -327,8 +323,7 @@ async function CreateFood(data, user_id) {
 	for (const s of data.serving_sizes) {
 		if (!s.label?.trim()) throw new DataError("Each serving size must have a label");
 		if (s.weight_g == null || isNaN(s.weight_g) || s.weight_g <= 0) throw new DataError("Each serving size must have a valid weight_g");
-		if (s.default_quantity != null && (isNaN(s.default_quantity) || s.default_quantity <= 0))
-			throw new DataError("default_quantity must be a positive number");
+		if (s.default_quantity != null && (isNaN(s.default_quantity) || s.default_quantity <= 0)) throw new DataError("default_quantity must be a positive number");
 	}
 
 	//for each nutrient, convert to a 100g basis for database
@@ -393,7 +388,7 @@ async function getFood(food_id) {
 		],
 	});
 
-	if (!food) throw new DataError("Food ID doesn't exist");
+	if (!food) throw new NotFoundError("Food not found");
 
 	const { foodNutrients, foodServingSizes, ...foodJson } = food.toJSON();
 
@@ -424,7 +419,7 @@ async function getFood(food_id) {
 
 async function addFoodServing(food_id, label, weight_g, default_quantity) {
 	const food = await FoodModel.findByPk(food_id);
-	if (!food) throw new DataError("Food ID doesn't exist");
+	if (!food) throw new NotFoundError("Food not found");
 
 	const newServing = await FoodServingSizeModel.create({
 		food_id,
@@ -456,8 +451,8 @@ async function addDiaryEntry(data, user_id) {
 	if (!unit) throw new DataError("unit is required");
 
 	if (food_id) {
-		// TODO: Fetch food and validate unit via toGrams
-		// TODO: Create DiaryEntry
+		//Fetch food and validate unit via toGrams
+		//Create DiaryEntry
 		const food = await FoodModel.findByPk(food_id, {
 			include: [{ model: FoodServingSizeModel, required: true }],
 		});
@@ -482,7 +477,7 @@ async function addDiaryEntry(data, user_id) {
 		if (unit !== "serving") throw new DataError('Recipe entries must use unit: "serving"');
 
 		const recipe = await RecipeModel.findByPk(recipe_id);
-		if (!recipe) throw new NotFoundError("Recipe not found");
+		if (!recipe || recipe.is_deleted) throw new NotFoundError("Recipe not found");
 		if (recipe.user_id !== user_id) throw new ForbiddenError("Not your recipe");
 
 		const entry = await DiaryEntryModel.create({ user_id, recipe_id, meal_type, logged_at, quantity, unit });
@@ -525,46 +520,49 @@ async function fetchAndSerializeDiaryEntries(where) {
 		],
 	});
 
-	return diary_entries.map((e) => {
-		if (e.food_id) {
-			const raw_nutrients = calcNutrients(e.quantity, e.unit, e.food.foodServingSizes, e.food.foodNutrients, {
-				name: e.food.name,
-				brand: e.food.brand,
-			});
-			return {
-				id: e.id,
-				type: "food",
-				meal_type: e.meal_type,
-				logged_at: e.logged_at,
-				quantity: parseFloat(e.quantity),
-				unit: e.unit,
-				food: {
-					id: e.food.id,
+	return diary_entries
+		.map((e) => {
+			if (e.food_id) {
+				const raw_nutrients = calcNutrients(e.quantity, e.unit, e.food.foodServingSizes, e.food.foodNutrients, {
 					name: e.food.name,
 					brand: e.food.brand,
-				},
-				nutrients: mapNutrients(raw_nutrients),
-			};
-		}
-		if (e.recipe_id) {
-			const scale = parseFloat(e.quantity) / parseFloat(e.recipe.servings);
-			const raw_nutrients = scaleRecipeNutrients(e.recipe.recipeIngredients, scale);
-			return {
-				id: e.id,
-				type: "recipe",
-				meal_type: e.meal_type,
-				logged_at: e.logged_at,
-				quantity: parseFloat(e.quantity),
-				unit: e.unit,
-				recipe: {
-					id: e.recipe.recipe_id,
-					name: e.recipe.name,
-					servings: e.recipe.servings,
-				},
-				nutrients: mapNutrients(raw_nutrients),
-			};
-		}
-	});
+				});
+				return {
+					id: e.id,
+					type: "food",
+					meal_type: e.meal_type,
+					logged_at: e.logged_at,
+					quantity: parseFloat(e.quantity),
+					unit: e.unit,
+					food: {
+						id: e.food.id,
+						name: e.food.name,
+						brand: e.food.brand,
+					},
+					nutrients: mapNutrients(raw_nutrients),
+				};
+			}
+			if (e.recipe_id) {
+				const scale = parseFloat(e.quantity) / parseFloat(e.recipe.servings);
+				const raw_nutrients = scaleRecipeNutrients(e.recipe.recipeIngredients, scale);
+				return {
+					id: e.id,
+					type: "recipe",
+					meal_type: e.meal_type,
+					logged_at: e.logged_at,
+					quantity: parseFloat(e.quantity),
+					unit: e.unit,
+					recipe: {
+						id: e.recipe.recipe_id,
+						name: e.recipe.name,
+						servings: e.recipe.servings,
+						is_deleted: e.recipe.is_deleted, //still counts in your history, frontend can mark it "(deleted)"
+					},
+					nutrients: mapNutrients(raw_nutrients),
+				};
+			}
+		})
+		.filter(Boolean); //rows with neither a food nor a recipe (left over from old hard deletes) are skipped, not sent as null
 }
 
 /**
@@ -572,12 +570,8 @@ async function fetchAndSerializeDiaryEntries(where) {
  * Expected: start_date (YYYY-MM-DD), end_date?, meal_type?
  */
 async function getDiaryEntries(user_id, start_date, end_date, meal_type) {
-	if (!start_date) throw new DataError("start_date is required");
-	if (!isValidDate(start_date)) throw new DataError("start_date must be YYYY-MM-DD");
-
-	if (!end_date) end_date = start_date;
-	if (!isValidDate(end_date)) throw new DataError("end_date must be YYYY-MM-DD");
-	if (end_date < start_date) throw new DataError("end_date cannot be before start_date");
+	//need paranthesis here around variables since already defined
+	({ start_date, end_date } = parseDateRange(start_date, end_date));
 
 	const where = {
 		user_id,
@@ -642,7 +636,13 @@ async function editDiaryEntry(entry_id, data, user_id) {
 			{
 				model: RecipeModel,
 				required: false,
-				include: [{ model: RecipeIngredientModel }],
+				//scaleRecipeNutrients reads each ingredient's food nutrients + serving sizes, so they have to be loaded too
+				include: [
+					{
+						model: RecipeIngredientModel,
+						include: [{ model: FoodModel, include: [{ model: FoodNutrientModel }, { model: FoodServingSizeModel }] }],
+					},
+				],
 			},
 		],
 	});
@@ -714,10 +714,7 @@ async function createRecipe(data, user_id) {
 	if (!Array.isArray(ingredients) || ingredients.length === 0) throw new DataError("At least one ingredient is required");
 
 	const result = await sequelize.transaction(async (t) => {
-		const newRecipe = await RecipeModel.create(
-			{ user_id, name: name.trim(), description: description ?? null, servings: servings ?? 1 },
-			{ transaction: t },
-		);
+		const newRecipe = await RecipeModel.create({ user_id, name: name.trim(), description: description ?? null, servings: servings ?? 1 }, { transaction: t });
 
 		const rows = await buildIngredientRows(ingredients, newRecipe.recipe_id, t);
 
@@ -732,9 +729,11 @@ async function createRecipe(data, user_id) {
 async function deleteRecipe(recipe_id, user_id) {
 	if (isNaN(recipe_id)) throw new DataError("Invalid recipe id");
 	const recipe = await RecipeModel.findByPk(recipe_id);
-	if (!recipe) throw new NotFoundError("Recipe not found");
+	if (!recipe || recipe.is_deleted) throw new NotFoundError("Recipe not found");
 	if (recipe.user_id !== user_id) throw new ForbiddenError("Not your recipe");
-	await recipe.destroy(); // cascades to recipe_ingredients
+
+	//soft delete recipe
+	await recipe.update({ is_deleted: true });
 	return { deleted: true, id: recipe_id };
 }
 
@@ -744,7 +743,7 @@ async function editRecipe(recipe_id, user_id, data) {
 	const recipe = await RecipeModel.findByPk(recipe_id, {
 		include: RecipeIngredientModel,
 	});
-	if (!recipe) throw new NotFoundError("Recipe not found");
+	if (!recipe || recipe.is_deleted) throw new NotFoundError("Recipe not found");
 	if (recipe.user_id !== user_id) throw new ForbiddenError("Not your recipe");
 
 	if (!Array.isArray(data.ingredients) || data.ingredients.length === 0) {
@@ -803,7 +802,7 @@ async function getRecipes(user_id) {
 				required: false,
 			},
 		],
-		where: { user_id },
+		where: { user_id, is_deleted: false },
 	});
 
 	return recipes.map(serializeRecipeSummary);
@@ -854,7 +853,7 @@ async function getRecentLogged(user_id, limit = 20) {
 			: [],
 		seenRecipes.size
 			? RecipeModel.findAll({
-					where: { recipe_id: { [Op.in]: [...seenRecipes] }, user_id },
+					where: { recipe_id: { [Op.in]: [...seenRecipes] }, user_id, is_deleted: false },
 					include: [{ model: RecipeIngredientModel, required: false }],
 				})
 			: [],
@@ -892,9 +891,8 @@ async function getRecentLogged(user_id, limit = 20) {
 }
 
 async function getRecipe(recipe_id, user_id) {
-	// Owner-only: someone else's recipe is a 404, same as one that doesn't exist.
 	const recipe = await RecipeModel.findOne({
-		where: { recipe_id, user_id },
+		where: { recipe_id, user_id, is_deleted: false },
 		include: [
 			{
 				model: RecipeIngredientModel,
@@ -989,6 +987,7 @@ module.exports = {
 	editDiaryEntry,
 	deleteDiaryEntry,
 	getRecentLogged,
+	fetchAndSerializeDiaryEntries, //Posts/service.js uses it to show a shared diary entry
 	// Recipes
 	createRecipe,
 	editRecipe,
