@@ -1,5 +1,6 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("./db");
+const { MEAL_TYPES } = require("../constants/nutrition");
 
 const diaryEntries = sequelize.define(
 	"diaryentries",
@@ -25,7 +26,7 @@ const diaryEntries = sequelize.define(
 			allowNull: true,
 		},
 		meal_type: {
-			type: DataTypes.ENUM("breakfast", "lunch", "dinner", "snack"),
+			type: DataTypes.ENUM(...MEAL_TYPES),
 			allowNull: false,
 		},
 		logged_at: {
@@ -57,17 +58,4 @@ const diaryEntries = sequelize.define(
 	},
 );
 
-// DB-level constraint: exactly one of food_id or recipe_id must be set
-// Run this once after sync - IF NOT EXISTS so safe to call repeatedly
-const addDiaryConstraint = async () => {
-	await sequelize.query(`
-		ALTER TABLE diary_entries
-		ADD CONSTRAINT IF NOT EXISTS chk_food_or_recipe
-		CHECK (
-			(food_id IS NOT NULL AND recipe_id IS NULL) OR
-			(food_id IS NULL AND recipe_id IS NOT NULL)
-		);
-	`);
-};
-
-module.exports = { diaryEntries, addDiaryConstraint };
+module.exports = { diaryEntries };

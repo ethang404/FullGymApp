@@ -21,7 +21,7 @@
 // Run `npm test` BEFORE this script if you want to keep the seeded data around.
 
 require("dotenv").config();
-const bcrypt = require("bcrypt");
+const { hashPassword } = require("../Auth/passwords");
 const {
 	users: UsersModel,
 	exercise_catalog: CatalogModel,
@@ -253,7 +253,7 @@ async function ensureUser(person) {
 		console.log(`- "${person.userName}" already exists (id ${user.user_id}), reusing.`);
 		return user;
 	}
-	const hash = await bcrypt.hash(person.password + process.env.PEPPER, await bcrypt.genSalt(10));
+	const hash = await hashPassword(person.password);
 	user = await UsersModel.create({ first_name: person.firstName, last_name: person.lastName, user_name: person.userName, password: hash });
 	//through the same validation as PATCH /users/me. onboarding_completed so logging in goes straight to the app
 	await usersService.updateMe(user.user_id, { ...person.profile, onboarding_completed: true });

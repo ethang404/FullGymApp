@@ -277,3 +277,43 @@ describe("workout body + ownership", () => {
 		expect((await request(app).get(`/workouts/${workout_id}`).set(bearer(owner))).status).toBe(200);
 	});
 });
+
+describe("error middleware + owner-only nutrition", () => {
+	test("a malformed JSON body is a 400, not a 500", async () => {
+		const user = await registerUser("badjson");
+		const resp = await request(app).post("/workouts").set(bearer(user)).set("Content-Type", "application/json").send('{"workout_name": ');
+		expect(resp.status).toBe(400);
+	});
+
+	test("an unknown workouts filter is a 400 (used to return an empty list)", async () => {
+		const user = await registerUser("filter");
+		const resp = await request(app).get("/workouts?filter=banana").set(bearer(user));
+		expect(resp.status).toBe(400);
+		expect(resp.body.message).toBe("filter must be one of: all, week, month, year");
+	});
+
+	test("someone else's recipe or diary entry is a 404 on edit/delete/log, not a 403", async () => {
+		const owner = await registerUser("owner");
+		const other = await registerUser("other");
+		const recipe = await createRecipe(owner);
+		const entry = await DiaryEntriesModel.create({ user_id: owner.id, recipe_id: recipe.recipe_id, meal_type: "lunch", logged_at: "2026-10-03", quantity: 1, unit: "serving" });
+
+		const as_other = (method, url, body) => request(app)[method](url).set(bearer(other)).send(body);
+
+		expect((await as_other("put", `/nutrition/recipes/${recipe.recipe_id}`, { name: "Mine now", ingredients: [{ food_id: 1, quantity: 1, unit: "g" }] })).status).toBe(404);
+		expect((await as_other("delete", `/nutrition/recipes/${recipe.recipe_id}`)).status).toBe(404);
+		expect((await as_other("post", "/nutrition/diary", { recipe_id: recipe.recipe_id, meal_type: "dinner", logged_at: "2026-10-03", quantity: 1, unit: "serving" })).status).toBe(404);
+		expect((await as_other("put", `/nutrition/diary/${entry.id}`, { quantity: 2 })).status).toBe(404);
+		expect((await as_other("delete", `/nutrition/diary/${entry.id}`)).status).toBe(404);
+
+		//untouched for the owner
+		expect((await request(app).get(`/nutrition/recipes/${recipe.recipe_id}`).set(bearer(owner))).status).toBe(200);
+	});
+
+	test("an invalid meal_type names the allowed values", async () => {
+		const user = await registerUser("meals");
+		const resp = await request(app).get("/nutrition/diary?start_date=2026-10-01&meal_type=brunch").set(bearer(user));
+		expect(resp.status).toBe(400);
+		expect(resp.body.message).toBe("meal_type must be one of: breakfast, lunch, dinner, snack");
+	});
+});

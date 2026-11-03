@@ -1,6 +1,5 @@
-const jwt = require("jsonwebtoken");
 const { users } = require("../models/modelInits");
-const { isRevokedGuestToken } = require("../Auth/service");
+const { verifyJwt, isRevokedGuestToken } = require("../Auth/tokens");
 
 async function verifyToken(req, res, next) {
 	if (!req.headers.authorization) return res.status(401).json({ message: "Missing authorization Token" });
@@ -9,10 +8,7 @@ async function verifyToken(req, res, next) {
 	//if token is valid: next()
 	let payload;
 	try {
-		payload = jwt.verify(accessToken, process.env.JWT_SECRET, {
-			audience: "my-gym-app",
-			issuer: "gym-auth-server",
-		});
+		payload = verifyJwt(accessToken);
 	} catch (err) {
 		console.log("Access Token is invalid.");
 		console.log("Error: " + err);

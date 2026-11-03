@@ -9,6 +9,10 @@ const sequelize = require("../models/db");
 
 const { GeneralError, NotFoundError, DataError } = require("../error");
 const { serializeWorkoutListItem, serializeWorkout } = require("../serializers/workouts");
+const { findOwned } = require("../utils/ownership");
+const { assertOneOf } = require("../utils/validate");
+
+const WORKOUT_FILTERS = ["all", "week", "month", "year"];
 
 const exerciseInclude = {
 	model: ExercisesModel,
@@ -23,9 +27,10 @@ const exerciseInclude = {
 	],
 };
 
-async function validateCatalogExercise(catalog_id) {
+async function validateCatalogExercise(catalog_id, t) {
 	const catalogEntry = await ExerciseCatalogModel.findOne({
 		where: { catalog_id: catalog_id, is_deleted: false },
+		transaction: t,
 	});
 	if (!catalogEntry) throw new NotFoundError(`No active catalog exercise found with id ${catalog_id}`);
 	return catalogEntry;
@@ -45,7 +50,7 @@ async function GetWorkouts(user_id, filter = "all") {
 	let now = new Date();
 	let startDate = new Date();
 
-	if (!["all", "week", "month", "year"].includes(filter)) throw new DataError("Filter needs to be 'all','week','month', or 'year', ");
+	assertOneOf(filter, WORKOUT_FILTERS, "filter");
 
 	if (filter == "all") {
 		workouts = await WorkoutsModel.findAll({
@@ -73,17 +78,13 @@ async function GetWorkouts(user_id, filter = "all") {
 }
 
 async function GetWorkout(workout_id, user_id) {
-	// Owner-only: someone else's workout is a 404, same as one that doesn't exist.
-	const workout = await WorkoutsModel.findOne({
-		where: { workout_id, user_id },
+	const workout = await findOwned(WorkoutsModel, workout_id, user_id, "Workout", {
 		include: [exerciseInclude],
 		order: [
 			[ExercisesModel, "order_number", "ASC"],
 			[ExercisesModel, SetsModel, "order_number", "ASC"],
 		],
 	});
-
-	if (!workout) throw new NotFoundError("No workout found with that workout ID");
 	return serializeWorkout(workout); //editor shape - same one POST/PUT accept
 }
 
@@ -111,8 +112,7 @@ async function CreateWorkout(data, user_id) {
 			if (!exercise.catalog_id) throw new DataError("catalog_id is required for each exercise");
 			await validateCatalogExercise(exercise.catalog_id, t);
 
-			let newExercise;
-			newExercise = await workout.createExercise(
+			const newExercise = await workout.createExercise(
 				{
 					catalog_id: exercise.catalog_id,
 					notes: exercise.notes,
@@ -121,11 +121,8 @@ async function CreateWorkout(data, user_id) {
 				{ transaction: t },
 			);
 
-			if (newExercise) console.log(`Created new exercise with id ${newExercise.exercise_id} (catalog_id ${exercise.catalog_id})`);
-
 			for (let set of exercise.sets) {
-				let newSet;
-				newSet = await newExercise.createSet(
+				await newExercise.createSet(
 					{
 						notes: set.notes,
 						reps: set.reps,
@@ -138,8 +135,6 @@ async function CreateWorkout(data, user_id) {
 					},
 					{ transaction: t },
 				);
-
-				if (newExercise) console.log(`Created new set with id ${newSet.set_id} (for ${exercise.exercise_id})`);
 			}
 		}
 
@@ -150,9 +145,7 @@ async function CreateWorkout(data, user_id) {
 async function EditWorkout(data, workout_id, user_id) {
 	assertExercisesShape(data); //before the transaction - nothing gets deleted on a bad body
 	return await sequelize.transaction(async (t) => {
-		//owner-only: someone else's workout is a 404, same as GetWorkout
-		let workout_obj = await WorkoutsModel.findOne({ where: { workout_id, user_id }, transaction: t });
-		if (!workout_obj) throw new NotFoundError("No workout found with that id"); // checked before .update() so a bad id throws this instead of a raw TypeError
+		let workout_obj = await findOwned(WorkoutsModel, workout_id, user_id, "Workout", { transaction: t });
 
 		await workout_obj.update(
 			{
@@ -184,7 +177,6 @@ async function EditWorkout(data, workout_id, user_id) {
 			//if exercise id in database not found in data: remove
 			let shouldExist = data.exercises.some((exercise) => exercise.exercise_id === dbExercise.exercise_id);
 			if (!shouldExist) {
-				console.log(`Removing exercise: ${dbExercise.exercise_id} from database`);
 				await ExercisesModel.destroy({ where: { exercise_id: dbExercise.exercise_id }, transaction: t });
 			} else {
 				//now check each set id of each exercise we DIDN'T REMOVE to see if it should exist
@@ -192,7 +184,6 @@ async function EditWorkout(data, workout_id, user_id) {
 				for (let dbSet of dbExercise.sets) {
 					shouldExist = exerciseSets.sets.some((set) => set.set_id === dbSet.set_id);
 					if (!shouldExist) {
-						console.log(`Removing set: ${dbSet.set_id} from database`);
 						await SetsModel.destroy({
 							where: { set_id: dbSet.set_id, exercise_id: dbExercise.exercise_id },
 							transaction: t,
@@ -305,9 +296,7 @@ async function EditWorkout(data, workout_id, user_id) {
 }
 
 async function DeleteWorkout(workout_id, user_id) {
-	//owner-only: someone else's workout is a 404, same as GetWorkout
-	const workout = await WorkoutsModel.findOne({ where: { workout_id, user_id } });
-	if (!workout) throw new NotFoundError("No workout found with that id");
+	const workout = await findOwned(WorkoutsModel, workout_id, user_id, "Workout");
 	await workout.destroy();
 }
 

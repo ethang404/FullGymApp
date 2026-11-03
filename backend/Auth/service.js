@@ -1,28 +1,19 @@
-const jwt = require("jsonwebtoken");
-const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 
 const sequelize = require("../models/db");
-const {
-	users: usersDB,
-	workouts: workoutsDB,
-	diaryEntries: diaryEntriesDB,
-	recipe: recipeDB,
-	food: foodDB,
-} = require("../models/modelInits");
+const { users: usersDB, workouts: workoutsDB, diaryEntries: diaryEntriesDB, recipe: recipeDB, food: foodDB } = require("../models/modelInits");
 const { UnauthorizedError, GeneralError, DataError, ForbiddenError, ConflictError } = require("../error");
 const { verifyAppleIdentityToken, exchangeAppleAuthorizationCode } = require("./appleAuth");
 const { verifyGoogleIdToken } = require("./googleAuth");
+const { generateTokens, verifyJwt, isRevokedGuestToken } = require("./tokens");
+const { hashPassword, checkPassword, guestHashPassword } = require("./passwords");
 
 async function refreshToken(token) {
 	if (!token) throw new DataError("Missing refreshToken for refresh");
 
 	let payload;
 	try {
-		payload = jwt.verify(token, process.env.JWT_SECRET, {
-			audience: "my-gym-app",
-			issuer: "gym-auth-server",
-		});
+		payload = verifyJwt(token);
 	} catch {
 		throw new UnauthorizedError("Invalid or expired refresh token");
 	}
@@ -40,39 +31,7 @@ async function refreshToken(token) {
 	return generateTokens(user.user_id, user.is_guest);
 }
 
-//if token says we're a guest, but we aren't anymore (upgraded)
-function isRevokedGuestToken(payload, user) {
-	return payload.guest === true && !user.is_guest;
-}
-
-function generateTokens(user_id, isGuest = false) {
-	const accessOptions = {
-		audience: "my-gym-app",
-		issuer: "gym-auth-server",
-	};
-	// Guests have no username/password to log back in with, so an expired
-	// access token with a lapsed refresh token means permanently losing the
-	// account. So make infinite
-	if (!isGuest) {
-		accessOptions.expiresIn = "1h";
-	}
-
-	// Guest tokens are stamped so they stop working once the account is upgraded
-	// (see isRevokedGuestToken) - otherwise the non-expiring guest access token
-	// would keep working for the now-real account forever.
-	const guestClaim = isGuest ? { guest: true } : {};
-
-	const accessToken = jwt.sign({ user_id, type: "access", ...guestClaim }, process.env.JWT_SECRET, accessOptions);
-	const refreshToken = jwt.sign({ user_id, type: "refresh", ...guestClaim }, process.env.JWT_SECRET, {
-		expiresIn: "30 days",
-		audience: "my-gym-app",
-		issuer: "gym-auth-server",
-	});
-	return {
-		accessToken,
-		refreshToken,
-	};
-}
+//generateTokens / isRevokedGuestToken live in ./tokens.js, password hashing in ./passwords.js
 
 async function register(userData) {
 	const { firstName, lastName, userName, password } = userData;
@@ -84,9 +43,7 @@ async function register(userData) {
 	const existing = await usersDB.findOne({ where: { user_name: userName } });
 	if (existing) throw new ConflictError("Username is already taken");
 
-	const saltRounds = 10;
-	const salt = await bcrypt.genSalt(saltRounds);
-	const hash = await bcrypt.hash(password + process.env.PEPPER, salt);
+	const hash = await hashPassword(password);
 
 	try {
 		const user = await usersDB.create({
@@ -112,18 +69,14 @@ async function login(username, password) {
 
 	if (!user) throw new UnauthorizedError("Invalid credentials with provided username and password");
 
-	const fullPass = password + process.env.PEPPER;
-	const validPassword = await bcrypt.compare(fullPass, user.password);
+	const validPassword = await checkPassword(password, user.password);
 	if (!validPassword) throw new UnauthorizedError("Invalid credentials with provided username and password");
 
 	return user;
 }
 
 async function createGuest() {
-	const saltRounds = 10;
-	const salt = await bcrypt.genSalt(saltRounds);
-	const randomPassword = crypto.randomBytes(24).toString("hex");
-	const hash = await bcrypt.hash(randomPassword + process.env.PEPPER, salt);
+	const hash = await guestHashPassword();
 
 	try {
 		const user = await usersDB.create({
@@ -152,9 +105,7 @@ async function upgradeGuest(user_id, userData) {
 	const existing = await usersDB.findOne({ where: { user_name: userName } });
 	if (existing) throw new ConflictError("Username is already taken"); //409, same as register
 
-	const saltRounds = 10;
-	const salt = await bcrypt.genSalt(saltRounds);
-	const hash = await bcrypt.hash(password + process.env.PEPPER, salt);
+	const hash = await hashPassword(password);
 
 	user.first_name = firstName;
 	user.last_name = lastName;
@@ -195,7 +146,7 @@ async function loginWithApple({ identityToken, authorizationCode, nonce, firstNa
 				first_name: firstName || null,
 				last_name: lastName || null,
 				user_name: await generateUniqueUsername(usernameBase),
-				password: await generateUnusablePassword(),
+				password: await guestHashPassword(),
 				email: payload.email || null,
 				apple_user_id: appleUserId,
 			});
@@ -233,7 +184,7 @@ async function loginWithGoogle({ idToken }) {
 				first_name: payload.given_name || null,
 				last_name: payload.family_name || null,
 				user_name: await generateUniqueUsername(usernameBase),
-				password: await generateUnusablePassword(),
+				password: await guestHashPassword(),
 				email: payload.email || null,
 				google_user_id: googleUserId,
 			});
@@ -384,20 +335,10 @@ async function mergeUserInto(fromId, toId) {
 	});
 }
 
-//Generate random password for OAuth ppl
-async function generateUnusablePassword() {
-	const saltRounds = 10;
-	const salt = await bcrypt.genSalt(saltRounds);
-	const randomPassword = crypto.randomBytes(24).toString("hex");
-	return bcrypt.hash(randomPassword + process.env.PEPPER, salt);
-}
-
 module.exports = {
 	register,
 	refreshToken,
 	login,
-	generateTokens,
-	isRevokedGuestToken,
 	createGuest,
 	upgradeGuest,
 	upgradeGuestWithOAuth,

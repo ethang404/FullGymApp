@@ -12,109 +12,40 @@ const {
 	recipeIngredient: RecipeIngredientModel,
 } = require("../models/modelInits");
 
-const { NotFoundError, DataError, ForbiddenError } = require("../error");
+const { NotFoundError, DataError } = require("../error");
 const { isValidDate, parseDateRange } = require("../utils/dates");
-const { resolveUnitWeightG } = require("./unitConversion");
+const { assertOneOf } = require("../utils/validate");
+const { findOwned } = require("../utils/ownership");
+const { MEAL_TYPES } = require("../constants/nutrition");
+const { NUTRIENT_MAP, MACRO_IDS, toGrams, calcNutrients, mapNutrients } = require("./nutrients");
+const { serializeFood, serializeFoodSearchResult, serializeRecipeSummary, serializeRecipeDetail, serializeDiaryEntry } = require("../serializers/nutrition");
 const { importRecipeFromUrl } = require("./recipeImport");
 
-//Mapping of nutrients to compare against
-const NUTRIENT_MAP = {
-	// ── Core macros ──────────────────────────────────────────
-	calories: { nutrient_id: 1008, nutrient_name: "Energy", unit: "kcal" },
-	protein: { nutrient_id: 1003, nutrient_name: "Protein", unit: "g" },
-	fat: { nutrient_id: 1004, nutrient_name: "Total lipid (fat)", unit: "g" },
-	carbs: { nutrient_id: 1005, nutrient_name: "Carbohydrate, by difference", unit: "g" },
+//nutrient math (NUTRIENT_MAP, calcNutrients...) lives in ./nutrients.js, response shapes in serializers/nutrition.js
 
-	// ── Carb breakdown ───────────────────────────────────────
-	fiber: { nutrient_id: 1079, nutrient_name: "Fiber, total dietary", unit: "g" },
-	sugar: { nutrient_id: 2000, nutrient_name: "Sugars, total including NLEA", unit: "g" },
-	added_sugar: { nutrient_id: 1235, nutrient_name: "Sugars, added", unit: "g" },
-
-	// ── Fat breakdown ────────────────────────────────────────
-	saturated_fat: { nutrient_id: 1258, nutrient_name: "Fatty acids, total saturated", unit: "g" },
-	trans_fat: { nutrient_id: 1257, nutrient_name: "Fatty acids, total trans", unit: "g" },
-	polyunsaturated_fat: { nutrient_id: 1293, nutrient_name: "Fatty acids, total polyunsaturated", unit: "g" },
-	monounsaturated_fat: { nutrient_id: 1292, nutrient_name: "Fatty acids, total monounsaturated", unit: "g" },
-
-	// ── Minerals ─────────────────────────────────────────────
-	sodium: { nutrient_id: 1093, nutrient_name: "Sodium, Na", unit: "mg" },
-	cholesterol: { nutrient_id: 1253, nutrient_name: "Cholesterol", unit: "mg" },
-	calcium: { nutrient_id: 1087, nutrient_name: "Calcium, Ca", unit: "mg" },
-	iron: { nutrient_id: 1089, nutrient_name: "Iron, Fe", unit: "mg" },
-	potassium: { nutrient_id: 1092, nutrient_name: "Potassium, K", unit: "mg" },
-	magnesium: { nutrient_id: 1090, nutrient_name: "Magnesium, Mg", unit: "mg" },
-	phosphorus: { nutrient_id: 1091, nutrient_name: "Phosphorus, P", unit: "mg" },
-	zinc: { nutrient_id: 1095, nutrient_name: "Zinc, Zn", unit: "mg" },
-
-	// ── Vitamins ─────────────────────────────────────────────
-	vitamin_a: { nutrient_id: 1106, nutrient_name: "Vitamin A, RAE", unit: "µg" },
-	vitamin_c: { nutrient_id: 1162, nutrient_name: "Vitamin C, total ascorbic acid", unit: "mg" },
-	vitamin_d: { nutrient_id: 1114, nutrient_name: "Vitamin D (D2 + D3)", unit: "µg" },
-	vitamin_e: { nutrient_id: 1109, nutrient_name: "Vitamin E (alpha-tocopherol)", unit: "mg" },
-	vitamin_k: { nutrient_id: 1185, nutrient_name: "Vitamin K (phylloquinone)", unit: "µg" },
-	vitamin_b6: { nutrient_id: 1175, nutrient_name: "Vitamin B-6", unit: "mg" },
-	vitamin_b12: { nutrient_id: 1178, nutrient_name: "Vitamin B-12", unit: "µg" },
-	folate: { nutrient_id: 1177, nutrient_name: "Folate, total", unit: "µg" },
-	thiamin: { nutrient_id: 1165, nutrient_name: "Thiamin", unit: "mg" },
-	riboflavin: { nutrient_id: 1166, nutrient_name: "Riboflavin", unit: "mg" },
-	niacin: { nutrient_id: 1167, nutrient_name: "Niacin", unit: "mg" },
-
-	// ── Other ────────────────────────────────────────────────
-	water: { nutrient_id: 1051, nutrient_name: "Water", unit: "g" },
-	alcohol: { nutrient_id: 1018, nutrient_name: "Alcohol, ethyl", unit: "g" },
-	caffeine: { nutrient_id: 1057, nutrient_name: "Caffeine", unit: "mg" },
-};
-
-//map id:display name for saving to recipe ingred and returning to user later
-const ID_TO_DISPLAY = Object.fromEntries(Object.entries(NUTRIENT_MAP).map(([key, val]) => [val.nutrient_id, key]));
-
-//isValidDate / parseDateRange live in utils/dates.js (Friends overview uses them too)
+//everything serializeDiaryEntry needs to compute macros for a food or a recipe entry
+//the food nutrients/serving sizes include is written out twice on purpose - sharing one object between both spots breaks the query
+const DIARY_INCLUDE = [
+	{
+		model: FoodModel,
+		required: false,
+		include: [{ model: FoodNutrientModel }, { model: FoodServingSizeModel }],
+	},
+	{
+		model: RecipeModel,
+		required: false,
+		include: [
+			{
+				model: RecipeIngredientModel,
+				include: [{ model: FoodModel, include: [{ model: FoodNutrientModel }, { model: FoodServingSizeModel }] }],
+			},
+		],
+	},
+];
 
 // ---------------------------------------------
 // HELPERS
 // ---------------------------------------------
-
-/**
- * Expected: (quantity, unit, servingSizes, foodMeta?: { name, brand })
- * Resolves the unit to a per-unit gram weight via resolveUnitWeightG (exact
- * serving-size match, fixed mass units, derived volume ratio, or density
- * fallback keyed off foodMeta) and throws if nothing resolves.
- */
-const toGrams = (quantity, unit, servingSizes, foodMeta = {}) => {
-	const perUnitG = resolveUnitWeightG(unit, servingSizes, foodMeta.name, foodMeta.brand);
-	if (perUnitG == null) throw new DataError(`Unit "${unit}" is not available for this food`);
-	return quantity * perUnitG;
-};
-
-//This converts from our database 100g basis to whatever amount the user chose
-const calcNutrients = (quantity, unit, servingSizes, nutrients, foodMeta = {}) => {
-	const grams = toGrams(quantity, unit, servingSizes, foodMeta);
-
-	let result = [];
-	let amount;
-
-	for (let n of nutrients) {
-		amount = (parseFloat(n.amount_per_100g) * grams) / 100;
-		result.push({
-			nutrient_id: n.nutrient_id,
-			name: n.nutrient_name,
-			unit: n.unit,
-			amount: parseFloat(amount.toFixed(4)),
-		});
-	}
-
-	return result;
-};
-
-//given raw nutrient ID's in an array, return macro names with amounts in dictionary
-function mapNutrients(rawNutrients) {
-	const mapped = {};
-	for (const n of rawNutrients) {
-		const key = ID_TO_DISPLAY[n.nutrient_id];
-		if (key) mapped[key] = parseFloat(n.amount) || 0;
-	}
-	return mapped;
-}
 
 //takes in array of food items and calculates nutrients for each
 //used to build out recipe ingredients.
@@ -163,101 +94,6 @@ async function buildIngredientRows(ingredients, recipe_id, t) {
 	return rows;
 }
 
-//sum nutrients to however much the user logged/ate
-//so like if the recipe makes 10 servings, and we ate 1. Scale is 0.1 so we scale ingrediants down
-function scaleRecipeNutrients(recipeIngredients, scale) {
-	const totals = {};
-
-	for (const ing of recipeIngredients ?? []) {
-		const raw_nutrients = calcNutrients(parseFloat(ing.quantity), ing.unit, ing.food.foodServingSizes, ing.food.foodNutrients, {
-			name: ing.food.name,
-			brand: ing.food.brand,
-		});
-
-		for (const n of raw_nutrients) {
-			totals[n.nutrient_id] = (totals[n.nutrient_id] ?? 0) + n.amount;
-		}
-	}
-
-	return Object.entries(totals).map(([nutrient_id, total]) => ({
-		nutrient_id: parseInt(nutrient_id),
-		amount: parseFloat((total * scale).toFixed(4)),
-	}));
-}
-
-// ---------------------------------------------
-// SERIALIZERS (shared response shapes)
-// ---------------------------------------------
-
-/**
- * Shapes a Food model instance (with foodNutrients + foodServingSizes included)
- * into the search-result object the frontend expects (serving_sizes,
- * default_serving w/ macros, nutrients_per_100g). Shared by SearchFoods and
- * getRecentLogged so both return an identical shape.
- */
-function serializeFoodSearchResult(food) {
-	const { foodNutrients, foodServingSizes, ...foodJson } = food.toJSON();
-
-	const servingSizes = (foodServingSizes ?? []).map(({ label, weight_g, default_quantity }) => ({
-		label,
-		weight_g: parseFloat(weight_g),
-		default_quantity: default_quantity != null ? parseFloat(default_quantity) : null,
-	}));
-	const nutrients = foodNutrients ?? [];
-
-	const fallback = { label: "g", weight_g: 100, default_quantity: null }; //use a fallback of 100g basis stored in db if we have no serving size data.
-
-	const displayServing = servingSizes[0] ?? fallback;
-	const usingFallback = servingSizes.length === 0;
-
-	const quantity = usingFallback ? displayServing.weight_g : 1;
-	const unit = displayServing.label;
-
-	return {
-		...foodJson,
-		serving_sizes: servingSizes,
-		default_serving: {
-			label: usingFallback ? "g" : displayServing.label,
-			weight_g: displayServing.weight_g,
-			default_quantity: displayServing.default_quantity ?? null,
-			macros: calcNutrients(quantity, unit, servingSizes, nutrients, { name: foodJson.name, brand: foodJson.brand }),
-		},
-		nutrients_per_100g: nutrients.map((n) => ({
-			//we use this data to convert on frontend for display purposes
-			nutrient_id: n.nutrient_id,
-			name: n.nutrient_name,
-			unit: n.unit,
-			amount_per_100g: parseFloat(n.amount_per_100g),
-		})),
-	};
-}
-
-/**
- * Shapes a Recipe model instance (with recipeIngredients included, macros
- * pre-stored on each ingredient row) into the list summary the frontend expects
- * (id, name, servings, *_per_serving). Shared by getRecipes and getRecentLogged.
- */
-function serializeRecipeSummary(recipe) {
-	const ingredients = recipe.recipeIngredients ?? [];
-	const servings = parseFloat(recipe.servings) || 1;
-
-	const totals = {
-		total_calories: ingredients.reduce((sum, i) => sum + (parseFloat(i.calories) || 0), 0),
-		total_protein: ingredients.reduce((sum, i) => sum + (parseFloat(i.protein) || 0), 0),
-		total_carbs: ingredients.reduce((sum, i) => sum + (parseFloat(i.carbs) || 0), 0),
-		total_fat: ingredients.reduce((sum, i) => sum + (parseFloat(i.fat) || 0), 0),
-	};
-
-	return {
-		...recipe.toJSON(),
-		id: recipe.recipe_id,
-		calories_per_serving: Math.round(totals.total_calories / servings),
-		protein_per_serving: Math.round(totals.total_protein / servings),
-		carbs_per_serving: Math.round(totals.total_carbs / servings),
-		fat_per_serving: Math.round(totals.total_fat / servings),
-	};
-}
-
 // ---------------------------------------------
 // FOODS
 // ---------------------------------------------
@@ -271,9 +107,7 @@ async function SearchFoods(query) {
 
 	const sanitised = query.trim();
 
-	// Only return the 4 main macros in search results for performance. Might include more later
-	const MACRO_IDS = [1008, 1003, 1005, 1004];
-
+	// Only return the 4 main macros (MACRO_IDS) in search results for performance. Might include more later
 	const foods = await FoodModel.findAll({
 		where: {
 			is_deleted: false,
@@ -389,32 +223,7 @@ async function getFood(food_id) {
 	});
 
 	if (!food) throw new NotFoundError("Food not found");
-
-	const { foodNutrients, foodServingSizes, ...foodJson } = food.toJSON();
-
-	const servingSizes = (foodServingSizes ?? []).map(({ label, weight_g, default_quantity }) => ({
-		label,
-		weight_g: parseFloat(weight_g),
-		default_quantity: default_quantity != null ? parseFloat(default_quantity) : null,
-	}));
-
-	let nutrients = foodNutrients ?? [];
-
-	let nutrients_per_100g = nutrients.map((n) => ({
-		//we use this data to convert on frontend for display purposes
-		nutrient_id: n.nutrient_id,
-		name: n.nutrient_name,
-		unit: n.unit,
-		amount_per_100g: parseFloat(n.amount_per_100g),
-	}));
-
-	let retVal = {
-		...foodJson,
-		serving_sizes: servingSizes,
-		nutrients_per_100g,
-	};
-
-	return retVal;
+	return serializeFood(food);
 }
 
 async function addFoodServing(food_id, label, weight_g, default_quantity) {
@@ -444,8 +253,7 @@ async function addDiaryEntry(data, user_id) {
 	if (!food_id && !recipe_id) throw new DataError("Either food_id or recipe_id is required");
 	if (food_id && recipe_id) throw new DataError("Cannot log both a food and a recipe at the same time");
 
-	const validMeals = ["breakfast", "lunch", "dinner", "snack"];
-	if (!meal_type || !validMeals.includes(meal_type)) throw new DataError("Invalid meal_type");
+	assertOneOf(meal_type, MEAL_TYPES, "meal_type");
 	if (!logged_at || !isValidDate(logged_at)) throw new DataError("logged_at must be YYYY-MM-DD");
 	if (quantity == null || isNaN(quantity) || quantity <= 0) throw new DataError("quantity must be a positive number");
 	if (!unit) throw new DataError("unit is required");
@@ -476,9 +284,7 @@ async function addDiaryEntry(data, user_id) {
 	if (recipe_id) {
 		if (unit !== "serving") throw new DataError('Recipe entries must use unit: "serving"');
 
-		const recipe = await RecipeModel.findByPk(recipe_id);
-		if (!recipe || recipe.is_deleted) throw new NotFoundError("Recipe not found");
-		if (recipe.user_id !== user_id) throw new ForbiddenError("Not your recipe");
+		await findOwned(RecipeModel, recipe_id, user_id, "Recipe", { where: { is_deleted: false } });
 
 		const entry = await DiaryEntryModel.create({ user_id, recipe_id, meal_type, logged_at, quantity, unit });
 		return entry;
@@ -489,80 +295,14 @@ async function addDiaryEntry(data, user_id) {
 async function fetchAndSerializeDiaryEntries(where) {
 	const diary_entries = await DiaryEntryModel.findAll({
 		where,
-		include: [
-			{
-				model: FoodModel,
-				required: false,
-				include: [
-					{ model: FoodNutrientModel }, // for macro calculation
-					{ model: FoodServingSizeModel }, // for unit → grams conversion
-				],
-			},
-			{
-				model: RecipeModel,
-				required: false,
-				include: [
-					{
-						model: RecipeIngredientModel,
-						include: [
-							{
-								model: FoodModel,
-								include: [{ model: FoodNutrientModel }, { model: FoodServingSizeModel }],
-							},
-						],
-					},
-				],
-			},
-		],
+		include: DIARY_INCLUDE,
 		order: [
 			["logged_at", "ASC"],
 			["meal_type", "ASC"],
 		],
 	});
 
-	return diary_entries
-		.map((e) => {
-			if (e.food_id) {
-				const raw_nutrients = calcNutrients(e.quantity, e.unit, e.food.foodServingSizes, e.food.foodNutrients, {
-					name: e.food.name,
-					brand: e.food.brand,
-				});
-				return {
-					id: e.id,
-					type: "food",
-					meal_type: e.meal_type,
-					logged_at: e.logged_at,
-					quantity: parseFloat(e.quantity),
-					unit: e.unit,
-					food: {
-						id: e.food.id,
-						name: e.food.name,
-						brand: e.food.brand,
-					},
-					nutrients: mapNutrients(raw_nutrients),
-				};
-			}
-			if (e.recipe_id) {
-				const scale = parseFloat(e.quantity) / parseFloat(e.recipe.servings);
-				const raw_nutrients = scaleRecipeNutrients(e.recipe.recipeIngredients, scale);
-				return {
-					id: e.id,
-					type: "recipe",
-					meal_type: e.meal_type,
-					logged_at: e.logged_at,
-					quantity: parseFloat(e.quantity),
-					unit: e.unit,
-					recipe: {
-						id: e.recipe.recipe_id,
-						name: e.recipe.name,
-						servings: e.recipe.servings,
-						is_deleted: e.recipe.is_deleted, //still counts in your history, frontend can mark it "(deleted)"
-					},
-					nutrients: mapNutrients(raw_nutrients),
-				};
-			}
-		})
-		.filter(Boolean); //rows with neither a food nor a recipe (left over from old hard deletes) are skipped, not sent as null
+	return diary_entries.map(serializeDiaryEntry).filter(Boolean); //rows with neither a food nor a recipe (left over from old hard deletes) are skipped, not sent as null
 }
 
 /**
@@ -579,8 +319,7 @@ async function getDiaryEntries(user_id, start_date, end_date, meal_type) {
 	};
 
 	if (meal_type) {
-		const validMeals = ["breakfast", "lunch", "dinner", "snack"];
-		if (!validMeals.includes(meal_type)) throw new DataError("Invalid meal_type");
+		assertOneOf(meal_type, MEAL_TYPES, "meal_type");
 		where.meal_type = meal_type;
 	}
 
@@ -594,19 +333,14 @@ async function getDiaryEntries(user_id, start_date, end_date, meal_type) {
 async function editDiaryEntry(entry_id, data, user_id) {
 	if (isNaN(entry_id)) throw new DataError("Invalid entry id");
 
-	const entry = await DiaryEntryModel.findByPk(entry_id);
-	if (!entry) throw new NotFoundError("Diary entry not found");
-	if (entry.user_id !== user_id) throw new ForbiddenError("Not your diary entry");
+	const entry = await findOwned(DiaryEntryModel, entry_id, user_id, "Diary entry");
 
 	const quantity = data.quantity ?? entry.quantity;
 	const unit = data.unit ?? entry.unit;
 	const meal_type = data.meal_type ?? entry.meal_type;
 	const logged_at = data.logged_at ?? entry.logged_at;
 
-	if (data.meal_type) {
-		const validMeals = ["breakfast", "lunch", "dinner", "snack"];
-		if (!validMeals.includes(meal_type)) throw new DataError("Invalid meal_type");
-	}
+	if (data.meal_type) assertOneOf(meal_type, MEAL_TYPES, "meal_type");
 	if (data.logged_at && !isValidDate(data.logged_at)) throw new DataError("logged_at must be YYYY-MM-DD");
 	if (data.quantity != null && (isNaN(data.quantity) || data.quantity <= 0)) throw new DataError("quantity must be a positive number");
 
@@ -625,74 +359,14 @@ async function editDiaryEntry(entry_id, data, user_id) {
 
 	await entry.update({ quantity, unit, meal_type, logged_at });
 
-	//Refetch with full joins so we can return calculated nutrients
-	const updated = await DiaryEntryModel.findByPk(entry_id, {
-		include: [
-			{
-				model: FoodModel,
-				required: false,
-				include: [{ model: FoodNutrientModel }, { model: FoodServingSizeModel }],
-			},
-			{
-				model: RecipeModel,
-				required: false,
-				//scaleRecipeNutrients reads each ingredient's food nutrients + serving sizes, so they have to be loaded too
-				include: [
-					{
-						model: RecipeIngredientModel,
-						include: [{ model: FoodModel, include: [{ model: FoodNutrientModel }, { model: FoodServingSizeModel }] }],
-					},
-				],
-			},
-		],
-	});
-
-	if (updated.food_id) {
-		const raw_nutrients = calcNutrients(updated.quantity, updated.unit, updated.food.foodServingSizes, updated.food.foodNutrients, {
-			name: updated.food.name,
-			brand: updated.food.brand,
-		});
-		return {
-			id: updated.id,
-			type: "food",
-			meal_type: updated.meal_type,
-			logged_at: updated.logged_at,
-			quantity: parseFloat(updated.quantity),
-			unit: updated.unit,
-			food: {
-				id: updated.food.id,
-				name: updated.food.name,
-				brand: updated.food.brand,
-			},
-			nutrients: mapNutrients(raw_nutrients),
-		};
-	}
-
-	if (updated.recipe_id) {
-		const scale = parseFloat(updated.quantity) / parseFloat(updated.recipe.servings);
-		const raw_nutrients = scaleRecipeNutrients(updated.recipe.recipeIngredients, scale);
-		return {
-			id: updated.id,
-			type: "recipe",
-			meal_type: updated.meal_type,
-			logged_at: updated.logged_at,
-			quantity: parseFloat(updated.quantity),
-			unit: updated.unit,
-			recipe: {
-				id: updated.recipe.recipe_id,
-				name: updated.recipe.name,
-				servings: parseFloat(updated.recipe.servings),
-			},
-			nutrients: mapNutrients(raw_nutrients),
-		};
-	}
+	//Refetch with full joins so we return calculated nutrients - same shape as GET /diary
+	const [updated] = await fetchAndSerializeDiaryEntries({ id: entry.id });
+	return updated;
 }
 
 async function deleteDiaryEntry(entry_id, user_id) {
 	if (isNaN(entry_id)) throw new DataError("Invalid entry id");
-	const entry = await DiaryEntryModel.findByPk(entry_id);
-	if (!entry) throw new NotFoundError("Diary entry not found");
-	if (entry.user_id !== user_id) throw new ForbiddenError("Not your diary entry");
+	const entry = await findOwned(DiaryEntryModel, entry_id, user_id, "Diary entry");
 	await entry.destroy();
 	return { deleted: true, id: entry_id };
 }
@@ -728,9 +402,8 @@ async function createRecipe(data, user_id) {
 
 async function deleteRecipe(recipe_id, user_id) {
 	if (isNaN(recipe_id)) throw new DataError("Invalid recipe id");
-	const recipe = await RecipeModel.findByPk(recipe_id);
-	if (!recipe || recipe.is_deleted) throw new NotFoundError("Recipe not found");
-	if (recipe.user_id !== user_id) throw new ForbiddenError("Not your recipe");
+	//already deleted is a 404 too
+	const recipe = await findOwned(RecipeModel, recipe_id, user_id, "Recipe", { where: { is_deleted: false } });
 
 	//soft delete recipe
 	await recipe.update({ is_deleted: true });
@@ -740,11 +413,10 @@ async function deleteRecipe(recipe_id, user_id) {
 async function editRecipe(recipe_id, user_id, data) {
 	if (isNaN(recipe_id)) throw new DataError("Invalid recipe id");
 
-	const recipe = await RecipeModel.findByPk(recipe_id, {
+	const recipe = await findOwned(RecipeModel, recipe_id, user_id, "Recipe", {
+		where: { is_deleted: false },
 		include: RecipeIngredientModel,
 	});
-	if (!recipe || recipe.is_deleted) throw new NotFoundError("Recipe not found");
-	if (recipe.user_id !== user_id) throw new ForbiddenError("Not your recipe");
 
 	if (!Array.isArray(data.ingredients) || data.ingredients.length === 0) {
 		throw new DataError("At least one ingredient is required");
@@ -839,8 +511,6 @@ async function getRecentLogged(user_id, limit = 20) {
 		}
 	}
 
-	const MACRO_IDS = [1008, 1003, 1005, 1004];
-
 	const [foods, recipes] = await Promise.all([
 		seenFoods.size
 			? FoodModel.findAll({
@@ -891,88 +561,17 @@ async function getRecentLogged(user_id, limit = 20) {
 }
 
 async function getRecipe(recipe_id, user_id) {
-	const recipe = await RecipeModel.findOne({
-		where: { recipe_id, user_id, is_deleted: false },
+	const recipe = await findOwned(RecipeModel, recipe_id, user_id, "Recipe", {
+		where: { is_deleted: false },
 		include: [
 			{
 				model: RecipeIngredientModel,
 				required: false,
-				include: [
-					{
-						model: FoodModel,
-						include: [{ model: FoodNutrientModel }, { model: FoodServingSizeModel }],
-					},
-				],
+				include: [{ model: FoodModel, include: [{ model: FoodNutrientModel }, { model: FoodServingSizeModel }] }],
 			},
 		],
 	});
-
-	if (!recipe) throw new NotFoundError("Recipe not found");
-
-	const recipeIngredients = recipe.recipeIngredients ?? [];
-
-	const servingsRaw = parseFloat(recipe.servings);
-	const servings = servingsRaw > 0 ? servingsRaw : 1; //handle NaN/0 issues
-
-	// Recompute nutrients live from each ingredient's food data
-	const ingredients = recipeIngredients.map((ing) => {
-		const raw_nutrients = calcNutrients(parseFloat(ing.quantity), ing.unit, ing.food.foodServingSizes, ing.food.foodNutrients, {
-			name: ing.food.name,
-			brand: ing.food.brand,
-		});
-
-		let nutrients_per_100g = ing.food.foodNutrients.map((n) => ({
-			//we use this data to convert on frontend for display purposes
-			nutrient_id: n.nutrient_id,
-			name: n.nutrient_name,
-			unit: n.unit,
-			amount_per_100g: parseFloat(n.amount_per_100g),
-		}));
-
-		const servingSizes = (ing.food.foodServingSizes ?? []).map(({ label, weight_g, default_quantity }) => ({
-			label,
-			weight_g: parseFloat(weight_g),
-			default_quantity: default_quantity != null ? parseFloat(default_quantity) : null,
-		}));
-
-		return {
-			ingredient_id: ing.ingredient_id,
-			food_id: ing.food_id,
-			food_name: ing.food.name,
-			serving_sizes: servingSizes,
-			quantity: parseFloat(ing.quantity),
-			unit: ing.unit,
-			nutrients: mapNutrients(raw_nutrients),
-			nutrients_per_100g,
-		};
-	});
-
-	// Sum every nutrient across all ingredients to show totals for recipe
-	const totals = {};
-	for (const ing of ingredients) {
-		for (const [key, amount] of Object.entries(ing.nutrients)) {
-			totals[key] = (totals[key] ?? 0) + amount;
-		}
-	}
-
-	//divide by serving count to show per serving values
-	const per_serving = {};
-	for (const [key, amount] of Object.entries(totals)) {
-		per_serving[key] = parseFloat((amount / servings).toFixed(2));
-	}
-
-	const { recipeIngredients: _raw, ...recipeJson } = recipe.toJSON();
-
-	return {
-		...recipeJson,
-		calories_per_serving: Math.round(per_serving.calories ?? 0),
-		protein_per_serving: Math.round(per_serving.protein ?? 0),
-		carbs_per_serving: Math.round(per_serving.carbs ?? 0),
-		fat_per_serving: Math.round(per_serving.fat ?? 0),
-		totals,
-		per_serving,
-		ingredients,
-	};
+	return serializeRecipeDetail(recipe);
 }
 
 module.exports = {
@@ -995,5 +594,4 @@ module.exports = {
 	getRecipe,
 	deleteRecipe,
 	importRecipeFromUrl,
-	serializeRecipeSummary,
 };

@@ -15,7 +15,7 @@ const { isBlocked, excludeHiddenUsers } = require("../utils/social");
 const { PUBLIC_USER_ATTRIBUTES } = require("../constants/social");
 const { isActiveMember, isGroupManager } = require("../Groups/permissions");
 const { paginate } = require("../utils/pagination");
-const { cleanText } = require("../utils/validate");
+const { cleanText, assertOneOf } = require("../utils/validate");
 const WorkoutsService = require("../Workouts/service");
 const NutritionService = require("../Nutrition/service");
 
@@ -172,7 +172,7 @@ async function getPublicFeed(user_id, { cursor, limit }) {
 async function createPost(user_id, data) {
 	const { visibility = "public", group_id = null, caption } = data;
 
-	if (!["public", "group"].includes(visibility)) throw new DataError("visibility must be public or group");
+	assertOneOf(visibility, ["public", "group"], "visibility");
 	if (visibility === "group" && group_id == null) throw new DataError("group_id is required for group posts");
 	if (visibility === "public" && group_id != null) throw new DataError("public posts can't have a group_id");
 

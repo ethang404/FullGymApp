@@ -14,6 +14,7 @@ const userRoutes = require("./Users/route");
 const friendRoutes = require("./Friends/route");
 const groupRoutes = require("./Groups/route");
 const postRoutes = require("./Posts/route");
+const { errorHandler } = require("./utils/http");
 
 app.use("/auth", authRoutes);
 app.use("/nutrition", nutritionRoutes);
@@ -26,5 +27,8 @@ app.use("/posts", postRoutes);
 app.get("/", (req, res) => {
 	res.send("Hello World!");
 });
+
+//has to come after every route - Express only sends errors to middleware registered after them
+app.use(errorHandler);
 
 module.exports = app; //abstracted this out so we can pas app without listening for testing using (supertest/jtest)

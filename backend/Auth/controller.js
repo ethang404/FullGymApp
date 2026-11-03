@@ -1,48 +1,34 @@
 const authService = require("./service");
+const { generateTokens } = require("./tokens");
 
 async function refreshToken(req, res) {
-	try {
-		const { accessToken, refreshToken } = await authService.refreshToken(req.body.refreshToken);
-		return res.status(200).json({ accessToken, refreshToken, message: "Successfully refreshed access token" });
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
+	const { accessToken, refreshToken } = await authService.refreshToken(req.body.refreshToken);
+	return res.status(200).json({ accessToken, refreshToken, message: "Successfully refreshed access token" });
 }
 
 async function register(req, res) {
-	try {
-		const user = await authService.register(req.body);
-		const { accessToken, refreshToken } = authService.generateTokens(user.user_id, user.is_guest);
+	const user = await authService.register(req.body);
+	const { accessToken, refreshToken } = generateTokens(user.user_id, user.is_guest);
 
-		return res.status(201).json({
-			message: "User created!",
-			userId: user.user_id,
-			username: user.user_name,
-			accessToken,
-			refreshToken,
-		});
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
+	return res.status(201).json({
+		message: "User created!",
+		userId: user.user_id,
+		username: user.user_name,
+		accessToken,
+		refreshToken,
+	});
 }
 
 async function login(req, res) {
-	try {
-		const { userName, password } = req.body;
-		const user = await authService.login(userName, password);
-		const { accessToken, refreshToken } = authService.generateTokens(user.user_id, user.is_guest);
+	const { userName, password } = req.body;
+	const user = await authService.login(userName, password);
+	const { accessToken, refreshToken } = generateTokens(user.user_id, user.is_guest);
 
-		return res.status(200).json({
-			message: "Login successful",
-			accessToken,
-			refreshToken,
-		});
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
+	return res.status(200).json({
+		message: "Login successful",
+		accessToken,
+		refreshToken,
+	});
 }
 
 async function IsValidToken(req, res) {
@@ -50,64 +36,48 @@ async function IsValidToken(req, res) {
 }
 
 async function createGuest(req, res) {
-	try {
-		const user = await authService.createGuest();
-		const { accessToken, refreshToken } = authService.generateTokens(user.user_id, true);
+	const user = await authService.createGuest();
+	const { accessToken, refreshToken } = generateTokens(user.user_id, true);
 
-		return res.status(201).json({
-			message: "Guest user created!",
-			userId: user.user_id,
-			accessToken,
-			refreshToken,
-			isGuest: true,
-		});
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
+	return res.status(201).json({
+		message: "Guest user created!",
+		userId: user.user_id,
+		accessToken,
+		refreshToken,
+		isGuest: true,
+	});
 }
 
 async function upgradeGuest(req, res) {
-	try {
-		const user = await authService.upgradeGuest(req.user_id, req.body);
-		// user.is_guest is now false - reissue tokens so the old non-expiring
-		// guest access token doesn't keep working forever past the upgrade.
-		const { accessToken, refreshToken } = authService.generateTokens(user.user_id, false);
-		return res.status(200).json({ message: "Account upgraded!", username: user.user_name, accessToken, refreshToken });
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
+	const user = await authService.upgradeGuest(req.user_id, req.body);
+	// user.is_guest is now false - reissue tokens so the old non-expiring
+	// guest access token doesn't keep working forever past the upgrade.
+	const { accessToken, refreshToken } = generateTokens(user.user_id, false);
+	return res.status(200).json({ message: "Account upgraded!", username: user.user_name, accessToken, refreshToken });
 }
 
 // Body: { provider: "google" | "apple", confirmed?: boolean, ...that provider's login fields }
 async function upgradeGuestWithOAuth(req, res) {
-	try {
-		//either w/ confirmation or not we call:
-		const result = await authService.upgradeGuestWithOAuth(req.user_id, req.body);
+	//either w/ confirmation or not we call:
+	const result = await authService.upgradeGuestWithOAuth(req.user_id, req.body);
 
-		// Existing account + guest has data - frontend should ask, then resend with confirmed: true
-		if (result.status === "requiresConfirm") {
-			return res.status(200).json({ requiresConfirm: true, counts: result.counts });
-		}
-
-		// Either way we're now a real account (the guest one after upgrade, or the
-		// existing one after merge), so hand back fresh non-guest tokens.
-		const { user } = result;
-		const { accessToken, refreshToken } = authService.generateTokens(user.user_id, false);
-		return res.status(200).json({
-			message: result.status === "merged" ? "Guest data merged into your account!" : "Account upgraded!",
-			merged: result.status === "merged",
-			userId: user.user_id,
-			username: user.user_name,
-			accessToken,
-			refreshToken,
-		});
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		console.error("upgradeGuestWithOAuth failed", error);
-		return res.status(500).json({ message: "Something went wrong" });
+	// Existing account + guest has data - frontend should ask, then resend with confirmed: true
+	if (result.status === "requiresConfirm") {
+		return res.status(200).json({ requiresConfirm: true, counts: result.counts });
 	}
+
+	// Either way we're now a real account (the guest one after upgrade, or the
+	// existing one after merge), so hand back fresh non-guest tokens.
+	const { user } = result;
+	const { accessToken, refreshToken } = generateTokens(user.user_id, false);
+	return res.status(200).json({
+		message: result.status === "merged" ? "Guest data merged into your account!" : "Account upgraded!",
+		merged: result.status === "merged",
+		userId: user.user_id,
+		username: user.user_name,
+		accessToken,
+		refreshToken,
+	});
 }
 
 //Functions for OAuth logins
@@ -118,14 +88,8 @@ async function googleLogin(req, res) {
 		return res.status(400).json({ message: "idToken is required" });
 	}
 
-	try {
-		const result = await authService.loginWithGoogle({ idToken });
-		return res.json(result);
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		console.error("googleLogin failed", error);
-		return res.status(500).json({ message: "Something went wrong" });
-	}
+	const result = await authService.loginWithGoogle({ idToken });
+	return res.json(result);
 }
 
 async function appleLogin(req, res) {
@@ -135,20 +99,14 @@ async function appleLogin(req, res) {
 		return res.status(400).json({ message: "identityToken and nonce are required" });
 	}
 
-	try {
-		const result = await authService.loginWithApple({
-			identityToken,
-			authorizationCode: typeof authorizationCode === "string" ? authorizationCode : null,
-			nonce,
-			firstName: firstName ?? null,
-			lastName: lastName ?? null,
-		});
-		return res.json(result);
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		console.error("appleLogin failed", error);
-		return res.status(500).json({ message: "Something went wrong" });
-	}
+	const result = await authService.loginWithApple({
+		identityToken,
+		authorizationCode: typeof authorizationCode === "string" ? authorizationCode : null,
+		nonce,
+		firstName: firstName ?? null,
+		lastName: lastName ?? null,
+	});
+	return res.json(result);
 }
 
 module.exports = { register, refreshToken, login, IsValidToken, createGuest, upgradeGuest, upgradeGuestWithOAuth, googleLogin, appleLogin };

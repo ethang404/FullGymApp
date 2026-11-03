@@ -3,7 +3,7 @@ const { Op } = require("sequelize");
 const { users: userModel, groups: groupsModel, group_members: membersModel } = require("../models/modelInits");
 const sequelize = require("../models/db");
 const { isBlocked } = require("../utils/social");
-const { cleanText } = require("../utils/validate");
+const { cleanText, assertOneOf } = require("../utils/validate");
 const { PUBLIC_USER_ATTRIBUTES } = require("../constants/social");
 //who-can-do-what helpers live in permissions.js so Posts can use them too
 const {
@@ -99,7 +99,7 @@ async function createGroup(user_id, data) {
 	if (!name) throw new DataError("group name is required");
 
 	//model defaults to "open". Checked here so a bad value is a 400, not a DB 500
-	if (join_policy !== undefined && !JOIN_POLICIES.includes(join_policy)) throw new DataError("invalid join policy");
+	if (join_policy !== undefined) assertOneOf(join_policy, JOIN_POLICIES, "join_policy");
 
 	return sequelize.transaction(async (t) => {
 		const newGroup = await groupsModel.create({ name, description, join_policy, created_by: user_id }, { transaction: t });
@@ -136,7 +136,7 @@ async function updateGroup(group_id, user_id, patch) {
 		name = cleanText(patch.name, MAX_NAME_LENGTH, "group name");
 		if (!name) throw new DataError("group name can't be empty");
 	}
-	if (join_policy !== undefined && !JOIN_POLICIES.includes(join_policy)) throw new DataError("invalid join policy");
+	if (join_policy !== undefined) assertOneOf(join_policy, JOIN_POLICIES, "join_policy");
 
 	//update skips keys that are undefined, so only the fields that were sent change
 	await group.update({ name, description, join_policy });
@@ -246,7 +246,7 @@ async function updateMemberRole(group_id, user_id, member_id, role) {
 	//others (members) can become admins, or admins can become members
 
 	if (role === "owner") throw new DataError("Use transfer ownership to make someone the owner");
-	if (!["admin", "member"].includes(role)) throw new DataError("role must be admin or member"); //can't become owner for instance
+	assertOneOf(role, ["admin", "member"], "role"); //can't become owner for instance
 	if (member_id === user_id) throw new DataError("You can't change your own role");
 
 	await findGroupOr404(group_id);

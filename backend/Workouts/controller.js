@@ -13,13 +13,8 @@ async function getWorkoutsList(req, res) {
 
 async function getWorkout(req, res) {
 	let workoutId = req.params.id;
-	try {
-		let workout = await service.GetWorkout(workoutId, req.user_id);
-		return res.status(200).json({ workout });
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
+	let workout = await service.GetWorkout(workoutId, req.user_id);
+	return res.status(200).json({ workout });
 }
 
 async function createWorkout(req, res) {
@@ -57,13 +52,8 @@ async function createWorkout(req, res) {
 	}
 	*/
 	const user_id = req.user_id;
-	try {
-		let workout = await service.CreateWorkout(req.body, user_id); //workout object (might) also contain exercises/sets
-		return res.status(200).json({ workout });
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
+	let workout = await service.CreateWorkout(req.body, user_id); //workout object (might) also contain exercises/sets
+	return res.status(200).json({ workout });
 }
 
 async function editWorkout(req, res) {
@@ -73,37 +63,21 @@ async function editWorkout(req, res) {
 	//Theres a scenario where we delete data from a workout or just edit it
 	//so send entire workout object, and if it doesn't match up, set this data as the true value.
 	let workoutId = req.params.id;
-	try {
-		let modified_workout = await service.EditWorkout(req.body, workoutId, req.user_id); //workout object (might) also contain exercises/sets
-		return res.status(200).json({ modified_workout });
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
+	let modified_workout = await service.EditWorkout(req.body, workoutId, req.user_id); //workout object (might) also contain exercises/sets
+	return res.status(200).json({ modified_workout });
 }
 
 async function deleteWorkout(req, res) {
 	let workout_id = req.params.id;
-	try {
-		await service.DeleteWorkout(workout_id, req.user_id); //successfully deleted
-		return res.status(200).json({ message: "Workout deleted successfully" });
-	} catch (error) {
-		//failed to delete
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
+	await service.DeleteWorkout(workout_id, req.user_id); //successfully deleted
+	return res.status(200).json({ message: "Workout deleted successfully" });
 }
 
 async function searchCatalog(req, res) {
 	let { search, muscle_group } = req.query;
 
-	try {
-		let exercises = await service.SearchCatalogExercises({ search, muscle_group });
-		return res.status(200).json({ exercises });
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
+	let exercises = await service.SearchCatalogExercises({ search, muscle_group });
+	return res.status(200).json({ exercises });
 }
 
 //shared by every /progress endpoint: turns the ?filter= query param into a concrete
@@ -125,26 +99,16 @@ async function getBiggestChanges(req, res) {
 	const user_id = req.user_id;
 	const { startDate, now } = getDateRangeFromRequest(req);
 
-	try {
-		const changes = await service.getBiggest5Changes(user_id, startDate, now);
-		return res.status(200).json({ changes });
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
+	const changes = await service.getBiggest5Changes(user_id, startDate, now);
+	return res.status(200).json({ changes });
 }
 
 async function getLoggedLifts(req, res) {
 	const user_id = req.user_id;
 	const { startDate, now } = getDateRangeFromRequest(req);
 
-	try {
-		const lifts = await service.getLoggedLifts(user_id, startDate, now);
-		return res.status(200).json({ lifts });
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
+	const lifts = await service.getLoggedLifts(user_id, startDate, now);
+	return res.status(200).json({ lifts });
 }
 
 async function getExerciseHistory(req, res) {
@@ -152,13 +116,8 @@ async function getExerciseHistory(req, res) {
 	const user_id = req.user_id;
 	const { startDate, now } = getDateRangeFromRequest(req);
 
-	try {
-		const history = await service.exerciseOverTime(user_id, startDate, now, catalog_id);
-		return res.status(200).json(history);
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
+	const history = await service.exerciseOverTime(user_id, startDate, now, catalog_id);
+	return res.status(200).json(history);
 }
 
 //e.g. /workouts/exercise-stats?catalog_ids=1,4,7&exclude_workout_id=28
@@ -184,26 +143,16 @@ async function getExerciseStats(req, res) {
 		if (!Number.isInteger(excludeWorkoutId) || excludeWorkoutId <= 0) return res.status(400).json({ message: "exclude_workout_id must be a workout id" });
 	}
 
-	try {
-		const stats = await service.getExerciseStats(req.user_id, catalogIds, excludeWorkoutId);
-		return res.status(200).json({ stats });
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
+	const stats = await service.getExerciseStats(req.user_id, catalogIds, excludeWorkoutId);
+	return res.status(200).json({ stats });
 }
 
 async function getVolumeByMuscleGroup(req, res) {
 	const user_id = req.user_id;
 	const { startDate, now } = getDateRangeFromRequest(req);
 
-	try {
-		const volume = await service.getVolumeByMuscleGroup(user_id, startDate, now);
-		return res.status(200).json(volume);
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
+	const volume = await service.getVolumeByMuscleGroup(user_id, startDate, now);
+	return res.status(200).json(volume);
 }
 
 async function createCatalogExercise(req, res) {
@@ -213,13 +162,8 @@ async function createCatalogExercise(req, res) {
 		muscle_group: "chest"
 	}
 	*/
-	try {
-		let exercise = await service.CreateCatalogExercise(req.body);
-		return res.status(200).json({ exercise });
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
+	let exercise = await service.CreateCatalogExercise(req.body);
+	return res.status(200).json({ exercise });
 }
 
 module.exports = {
