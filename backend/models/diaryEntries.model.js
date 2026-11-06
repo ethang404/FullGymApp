@@ -1,6 +1,6 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("./db");
-const { MEAL_TYPES } = require("../constants/nutrition");
+const { MEAL_TYPES } = require("../constants");
 
 const diaryEntries = sequelize.define(
 	"diaryentries",

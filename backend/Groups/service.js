@@ -4,7 +4,7 @@ const { users: userModel, groups: groupsModel, group_members: membersModel } = r
 const sequelize = require("../models/db");
 const { isBlocked } = require("../utils/social");
 const { cleanText, assertOneOf } = require("../utils/validate");
-const { PUBLIC_USER_ATTRIBUTES } = require("../constants/social");
+const { PUBLIC_USER_ATTRIBUTES } = require("../constants");
 //who-can-do-what helpers live in permissions.js so Posts can use them too
 const {
 	findGroupOr404,

@@ -12,7 +12,7 @@ const sequelize = require("../models/db");
 const { NotFoundError, DataError, ForbiddenError } = require("../error");
 
 const { isBlocked, excludeHiddenUsers } = require("../utils/social");
-const { PUBLIC_USER_ATTRIBUTES } = require("../constants/social");
+const { PUBLIC_USER_ATTRIBUTES } = require("../constants");
 const { isActiveMember, isGroupManager } = require("../Groups/permissions");
 const { paginate } = require("../utils/pagination");
 const { cleanText, assertOneOf } = require("../utils/validate");
@@ -36,6 +36,7 @@ const NutritionService = require("../Nutrition/service");
 // Also called from other features, so every feed is built in one place:
 // getGroupFeed(group_id, user_id, { cursor, limit })            -> { posts, next_cursor }   (Groups/controller.js)
 // getUserPosts(target_user_id, user_id, { cursor, limit })      -> { posts, next_cursor }   (Users/controller.js)
+// getViewablePost(post_id, user_id, options)                    -> post                     (Reports/service.js)
 
 //author of a post/comment, comes back as .user
 //used for showing author alongside the post/comment itself
@@ -355,6 +356,7 @@ async function deleteComment(post_id, comment_id, user_id) {
 }
 
 module.exports = {
+	getViewablePost,
 	getGroupFeed,
 	getPublicFeed,
 	getUserPosts,

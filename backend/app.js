@@ -14,6 +14,7 @@ const userRoutes = require("./Users/route");
 const friendRoutes = require("./Friends/route");
 const groupRoutes = require("./Groups/route");
 const postRoutes = require("./Posts/route");
+const reportRoutes = require("./Reports/route");
 const { errorHandler } = require("./utils/http");
 
 app.use("/auth", authRoutes);
@@ -23,6 +24,7 @@ app.use("/users", userRoutes);
 app.use("/friends", friendRoutes);
 app.use("/groups", groupRoutes);
 app.use("/posts", postRoutes);
+app.use("/reports", reportRoutes);
 
 app.get("/", (req, res) => {
 	res.send("Hello World!");

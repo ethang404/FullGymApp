@@ -1,3 +1,7 @@
+// ---------------------------------------------
+// Goals + body metrics
+// ---------------------------------------------
+
 // Single source of truth for the fallback macro goals used whenever a user has
 // not entered their own, plus the constants the Mifflin–St Jeor calculator needs.
 // The frontend keeps a mirror of GOAL_DEFAULTS in frontend/utils/macroDefaults.ts.
@@ -42,9 +46,27 @@ const GOAL_COLUMNS = {
 const GOAL_KEYS = Object.keys(GOAL_COLUMNS); // calories, protein, carbs, fat, fiber
 const BODY_FIELDS = ["sex", "birth_date", "height_cm", "weight_kg", "activity_level", "goal_type"];
 
+// ---------------------------------------------
+// Nutrition
+// ---------------------------------------------
+
+//diary_entries.meal_type enum - the model and the service checks both use this
+const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack"];
+
+// ---------------------------------------------
+// Social
+// ---------------------------------------------
+
+//the only user fields other people ever see (search, friends, members, post authors).
+//never serializeUser for someone else - that has body metrics + goals
+const PUBLIC_USER_ATTRIBUTES = ["user_id", "user_name", "first_name", "last_name"];
+
+//what can be reported, why, and where a report is in the admin queue.
+const REPORT_TARGET_TYPES = ["post", "comment", "user", "group", "food"];
+const REPORT_REASONS = ["spam", "harassment", "hate", "sexual", "violence", "other"];
+const REPORT_STATUSES = ["open", "dismissed", "actioned"];
+
 module.exports = {
-	GOAL_KEYS,
-	BODY_FIELDS,
 	GOAL_DEFAULTS,
 	ACTIVITY_MULTIPLIERS,
 	GOAL_TYPE_ADJUST,
@@ -52,4 +74,11 @@ module.exports = {
 	ACTIVITY_LEVELS,
 	GOAL_TYPES,
 	GOAL_COLUMNS,
+	GOAL_KEYS,
+	BODY_FIELDS,
+	MEAL_TYPES,
+	PUBLIC_USER_ATTRIBUTES,
+	REPORT_TARGET_TYPES,
+	REPORT_REASONS,
+	REPORT_STATUSES,
 };

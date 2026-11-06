@@ -14,6 +14,7 @@ const group_members = require("./group_members.model");
 const posts = require("./posts.model");
 const post_comments = require("./post_comments.model");
 const post_likes = require("./post_likes.model");
+const reports = require("./reports.model");
 
 const exercise_catalog = require("./exerciseCatalog");
 
@@ -551,6 +552,42 @@ function defineRelationships() {
 			allowNull: false,
 		},
 	});
+
+	//reports only link to users. target_id has no association, see reports.model.js
+	//SET NULL (not CASCADE) so a report survives either person deleting their account
+	users.hasMany(reports, {
+		as: "reportsFiled",
+		foreignKey: {
+			name: "reporter_id",
+			allowNull: true,
+		},
+		onDelete: "SET NULL",
+	});
+
+	reports.belongsTo(users, {
+		as: "reporter",
+		foreignKey: {
+			name: "reporter_id",
+			allowNull: true,
+		},
+	});
+
+	users.hasMany(reports, {
+		as: "reportsAgainst",
+		foreignKey: {
+			name: "reported_user_id",
+			allowNull: true,
+		},
+		onDelete: "SET NULL",
+	});
+
+	reports.belongsTo(users, {
+		as: "reportedUser",
+		foreignKey: {
+			name: "reported_user_id",
+			allowNull: true,
+		},
+	});
 }
 
 module.exports = {
@@ -573,4 +610,5 @@ module.exports = {
 	posts,
 	post_comments,
 	post_likes,
+	reports,
 };

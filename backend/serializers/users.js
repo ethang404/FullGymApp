@@ -1,7 +1,6 @@
 //Shapes user rows for the frontend.
 //Serializers are leaf modules: they only require constants (never models or services), so any service can use them
-const { GOAL_DEFAULTS, GOAL_COLUMNS, GOAL_KEYS, BODY_FIELDS } = require("../constants/macroDefaults");
-const { PUBLIC_USER_ATTRIBUTES } = require("../constants/social");
+const { GOAL_DEFAULTS, GOAL_COLUMNS, GOAL_KEYS, BODY_FIELDS, PUBLIC_USER_ATTRIBUTES } = require("../constants");
 
 //my own profile. Never leaks password / spoon_hash. Never send this for someone else (body metrics + goals)
 function serializeUser(user) {

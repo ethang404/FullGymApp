@@ -1,7 +1,7 @@
 // Pure macro-goal estimation. No DB access, no Express - just the math, so it can
 // be unit tested directly and reused by the /users/me/goals/estimate endpoint.
 
-const { ACTIVITY_MULTIPLIERS, GOAL_TYPE_ADJUST, SEXES, ACTIVITY_LEVELS, GOAL_TYPES } = require("../constants/macroDefaults");
+const { ACTIVITY_MULTIPLIERS, GOAL_TYPE_ADJUST, SEXES, ACTIVITY_LEVELS, GOAL_TYPES } = require("../constants");
 const { DataError } = require("../error");
 
 // Whole years between birth_date (YYYY-MM-DD) and now.

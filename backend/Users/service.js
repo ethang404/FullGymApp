@@ -12,10 +12,9 @@ const {
 } = require("../models/modelInits");
 const { Op } = require("sequelize");
 const { getHiddenUserIds, friendshipPair } = require("../utils/social");
-const { PUBLIC_USER_ATTRIBUTES } = require("../constants/social");
 const { NotFoundError, DataError } = require("../error");
 const { revokeAppleToken } = require("../Auth/appleAuth");
-const { GOAL_KEYS, GOAL_COLUMNS, SEXES, ACTIVITY_LEVELS, GOAL_TYPES } = require("../constants/macroDefaults");
+const { PUBLIC_USER_ATTRIBUTES, GOAL_KEYS, GOAL_COLUMNS, SEXES, ACTIVITY_LEVELS, GOAL_TYPES } = require("../constants");
 const { serializeUser } = require("../serializers/users");
 const { estimateGoals } = require("./goalCalculator");
 

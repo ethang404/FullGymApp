@@ -3,7 +3,7 @@ const app = require("../app");
 const sequelize = require("../models/db");
 
 const UsersModel = require("../models/modelInits").users;
-const { GOAL_DEFAULTS } = require("../constants/macroDefaults");
+const { GOAL_DEFAULTS } = require("../constants");
 
 const {
 	addUserPayload,

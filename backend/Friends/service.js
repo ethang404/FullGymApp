@@ -11,7 +11,7 @@ const NutritionService = require("../Nutrition/service");
 const { serializeUser, toPublicUser } = require("../serializers/users");
 const { serializeWorkoutListItem } = require("../serializers/workouts");
 const { isBlocked, friendshipPair } = require("../utils/social");
-const { PUBLIC_USER_ATTRIBUTES } = require("../constants/social");
+const { PUBLIC_USER_ATTRIBUTES } = require("../constants");
 const { parseDateRange } = require("../utils/dates");
 
 //the 4 toggles on a friend_permissions row
