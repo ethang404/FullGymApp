@@ -11,6 +11,7 @@ const { GeneralError, NotFoundError, DataError } = require("../error");
 const { serializeWorkoutListItem, serializeWorkout } = require("../serializers/workouts");
 const { findOwned } = require("../utils/ownership");
 const { assertOneOf } = require("../utils/validate");
+const { isValidTimestamp } = require("../utils/dates");
 
 const WORKOUT_FILTERS = ["all", "week", "month", "year"];
 
@@ -96,12 +97,14 @@ async function CreateWorkout(data, user_id) {
 		if (!user) throw new GeneralError("No user found or authentication expired"); //this shouldn't even hit
 
 		if (!data.workout_name || !data.workout_date) throw new DataError("Workout Name and Workout Date required");
+		if (data.started_at != null && !isValidTimestamp(data.started_at)) throw new DataError("started_at must be an ISO date and time");
 
 		var workout = await user.createWorkout(
 			{
 				name: data.workout_name,
 				workout_date: data.workout_date,
 				notes: data.notes,
+				started_at: data.started_at,
 				finished_at: data.finished_at,
 			},
 			{ transaction: t },
@@ -146,12 +149,14 @@ async function EditWorkout(data, workout_id, user_id) {
 	assertExercisesShape(data); //before the transaction - nothing gets deleted on a bad body
 	return await sequelize.transaction(async (t) => {
 		let workout_obj = await findOwned(WorkoutsModel, workout_id, user_id, "Workout", { transaction: t });
+		if (data.started_at != null && !isValidTimestamp(data.started_at)) throw new DataError("started_at must be an ISO date and time");
 
 		await workout_obj.update(
 			{
 				name: data.workout_name,
 				workout_date: data.workout_date,
 				notes: data.notes,
+				started_at: data.started_at,
 				finished_at: data.finished_at,
 			},
 			{ transaction: t },

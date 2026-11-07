@@ -75,7 +75,8 @@ export default function AppleSignInButton({ onError, disabled, onCredential }: A
 				return;
 			}
 			log.warn("Apple sign-in failed", err);
-			onError?.("Apple sign-in failed. Please try again.");
+			//403 is a suspended account. Other errors here are technical, so they keep the generic message
+			onError?.(err?.response?.status === 403 ? err.response.data?.message : "Apple sign-in failed. Please try again.");
 		}
 	}
 

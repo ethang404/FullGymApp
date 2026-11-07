@@ -239,10 +239,11 @@ function daysAgo(n) {
 	return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-// The app computes workout duration as finished_at - workout_date, and workout_date (DATEONLY) parses as UTC
-// midnight - there's no start-time column. So a plausible duration needs finished_at just after UTC midnight.
-function finishedAtFor(workoutDate, minutes) {
-	return new Date(new Date(`${workoutDate}T00:00:00.000Z`).getTime() + minutes * 60000).toISOString();
+// started_at/finished_at for a session that starts at 6pm local time on workoutDate and lasts `minutes`.
+// "YYYY-MM-DDTHH:mm:ss" with no Z parses as local time, so the stored moments match the local calendar day.
+function sessionTimes(workoutDate, minutes) {
+	const start = new Date(`${workoutDate}T18:00:00`);
+	return { started_at: start.toISOString(), finished_at: new Date(start.getTime() + minutes * 60000).toISOString() };
 }
 
 // ---------------- Seeding steps ----------------
@@ -290,6 +291,7 @@ async function bulkInsertWorkouts(user, payloads) {
 				name: p.workout_name,
 				workout_date: p.workout_date,
 				notes: p.notes,
+				started_at: p.started_at,
 				finished_at: p.finished_at,
 			})),
 			{ transaction, returning: true },
@@ -381,7 +383,7 @@ async function seedEthanWorkouts(user, catalogByName) {
 				workout_name: `${sessionType.charAt(0).toUpperCase()}${sessionType.slice(1)} day`,
 				workout_date: workoutDate,
 				notes: "",
-				finished_at: finishedAtFor(workoutDate, randInt(45, 75)),
+				...sessionTimes(workoutDate, randInt(45, 75)),
 				exercises,
 			});
 		}
@@ -400,7 +402,7 @@ async function seedSampleWorkouts(user, catalogByName) {
 		workout_name: name,
 		workout_date: date,
 		notes: "",
-		finished_at: finishedAtFor(date, 60),
+		...sessionTimes(date, 60),
 		exercises: [
 			{
 				catalog_id: catalogByName["Barbell Bench Press"].catalog_id,

@@ -199,3 +199,89 @@ describe("GET /workouts/:id", function () {
 		);
 	});
 });
+
+describe("workout duration (finished_at - started_at)", function () {
+	const auth = () => ({ Authorization: `Bearer ${token}` });
+	const create = (fields) => request(app).post("/workouts").set(auth()).send({ ...addWorkoutPayload, ...fields });
+	const durationOf = async (workout_id) => {
+		const resp = await request(app).get("/workouts").set(auth());
+		return resp.body.workouts.find((w) => w.id === workout_id).duration_minutes;
+	};
+
+	test("a real start and finish gives the real length, whatever the time zone", async function () {
+		//5pm -> 6pm in New York. The old code measured from UTC midnight and said 1380 min
+		const resp = await create({ started_at: "2025-12-27T22:00:00.000Z", finished_at: "2025-12-27T23:00:00.000Z" });
+		expect(resp.status).toEqual(200);
+		expect(await durationOf(resp.body.workout.workout_id)).toEqual(60);
+	});
+
+	test("GET /workouts/:id returns started_at", async function () {
+		const resp = await create({ started_at: "2025-12-27T22:00:00.000Z" });
+		const got = await request(app).get(`/workouts/${resp.body.workout.workout_id}`).set(auth());
+		expect(new Date(got.body.workout.started_at).toISOString()).toEqual("2025-12-27T22:00:00.000Z");
+	});
+
+	//what the editor sends back after loading a workout: the GET shape, with some fields changed
+	const editWith = async (workout_id, changes) => {
+		const loaded = (await request(app).get(`/workouts/${workout_id}`).set(auth())).body.workout;
+		return request(app)
+			.put(`/workouts/${workout_id}`)
+			.set(auth())
+			.send({ ...loaded, ...changes });
+	};
+
+	test("an edit can correct started_at, and the duration follows", async function () {
+		const resp = await create({ started_at: "2025-12-27T14:30:00.000Z", finished_at: "2025-12-27T15:30:00.000Z" });
+		const workout_id = resp.body.workout.workout_id;
+
+		expect((await editWith(workout_id, { started_at: "2025-12-27T15:00:00.000Z" })).status).toEqual(200);
+
+		const row = await WorkoutsModel.findByPk(workout_id);
+		expect(row.started_at.toISOString()).toEqual("2025-12-27T15:00:00.000Z");
+		expect(await durationOf(workout_id)).toEqual(30);
+	});
+
+	test("an edit that doesn't touch started_at keeps it", async function () {
+		const resp = await create({ started_at: "2025-12-27T14:30:00.000Z", finished_at: "2025-12-27T15:30:00.000Z" });
+		const workout_id = resp.body.workout.workout_id;
+
+		expect((await editWith(workout_id, { notes: "edited" })).status).toEqual(200);
+
+		const row = await WorkoutsModel.findByPk(workout_id);
+		expect(row.notes).toEqual("edited");
+		expect(row.started_at.toISOString()).toEqual("2025-12-27T14:30:00.000Z");
+	});
+
+	test("an edit with a bad started_at -> 400, nothing changed", async function () {
+		const resp = await create({ started_at: "2025-12-27T14:30:00.000Z" });
+		const workout_id = resp.body.workout.workout_id;
+
+		expect((await editWith(workout_id, { started_at: "2025-12-27", notes: "should not save" })).status).toEqual(400);
+
+		const row = await WorkoutsModel.findByPk(workout_id);
+		expect(row.notes).not.toEqual("should not save");
+		expect(row.started_at.toISOString()).toEqual("2025-12-27T14:30:00.000Z");
+	});
+
+	test("no started_at (older workouts) -> no duration", async function () {
+		const resp = await create({});
+		expect(resp.status).toEqual(200);
+		expect(await durationOf(resp.body.workout.workout_id)).toBeUndefined();
+	});
+
+	test("left open over 6 hours, or finished before it started -> no duration", async function () {
+		const overnight = await create({ started_at: "2025-12-26T18:00:00.000Z", finished_at: "2025-12-27T08:00:00.000Z" });
+		expect(await durationOf(overnight.body.workout.workout_id)).toBeUndefined();
+
+		const backwards = await create({ started_at: "2025-12-27T16:00:00.000Z", finished_at: "2025-12-27T15:30:00.000Z" });
+		expect(await durationOf(backwards.body.workout.workout_id)).toBeUndefined();
+	});
+
+	test("a started_at that isn't an ISO date and time -> 400, nothing saved", async function () {
+		const before = await WorkoutsModel.count();
+		for (const started_at of ["not a date", "2025-12-27", 12345]) {
+			expect((await create({ started_at })).status).toEqual(400);
+		}
+		expect(await WorkoutsModel.count()).toEqual(before);
+	});
+});

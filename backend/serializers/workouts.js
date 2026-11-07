@@ -2,6 +2,10 @@
 //so your own workouts, a friend's and a shared post's all come back identical. Leaf module - requires nothing.
 //Both take a Sequelize instance (they call .toJSON()), with exercises -> exercise_catalog + sets included.
 
+//longer than this almost always means the editor was left open (forgot to finish, or a draft resumed the
+//next day), not a real session - showing "840 min" is worse than showing nothing
+const MAX_DURATION_MINUTES = 6 * 60;
+
 //helper function to serialze some data for frontend use
 function serializeWorkoutListItem(workout) {
 	const w = workout.toJSON();
@@ -9,10 +13,12 @@ function serializeWorkoutListItem(workout) {
 
 	const totalVolumeKg = allSets.reduce((sum, s) => sum + (s.weight ?? 0) * (s.reps ?? 0), 0);
 
+	//both are exact moments in time, so the subtraction is right in any time zone. No duration (undefined,
+	//which the frontend hides) when either is missing or the result is under a minute / over the cap
 	let durationMinutes;
-	if (w.finished_at && w.workout_date) {
-		const diffMs = new Date(w.finished_at) - new Date(w.workout_date);
-		if (diffMs > 0) durationMinutes = Math.round(diffMs / 60000);
+	if (w.started_at && w.finished_at) {
+		const minutes = Math.round((new Date(w.finished_at) - new Date(w.started_at)) / 60000);
+		if (minutes >= 1 && minutes <= MAX_DURATION_MINUTES) durationMinutes = minutes;
 	}
 
 	return {
@@ -36,6 +42,7 @@ function serializeWorkout(workout) {
 		workout_date: w.workout_date,
 		notes: w.notes ?? "",
 		created_at: w.createdAt, //Sequelize keeps timestamps camelCase on the object even with underscored: true (the column is created_at)
+		started_at: w.started_at,
 		finished_at: w.finished_at,
 		exercises: (w.exercises ?? []).map((e) => ({
 			exercise_id: e.exercise_id,

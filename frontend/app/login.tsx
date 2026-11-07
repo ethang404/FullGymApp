@@ -64,7 +64,8 @@ export default function Login() {
 			}
 		} catch (err: any) {
 			if (!err?.response) setError("Couldn't reach the server. Check your connection and try again.");
-			else setError(mode === "login" ? "That username and password don't match. Try again." : "Couldn't create your account. Try a different username.");
+			else if (mode === "login") setError(err.response.data?.message || "That username and password don't match. Try again.");
+			else setError("Couldn't create your account. Try a different username.");
 		} finally {
 			setLoading(false);
 		}

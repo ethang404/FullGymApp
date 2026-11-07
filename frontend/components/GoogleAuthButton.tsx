@@ -51,9 +51,10 @@ export default function GoogleAuthButton({ onError, disabled, onCredential }: Go
 				lastName: data.user.familyName,
 				email: data.user.email,
 			});
-		} catch (err) {
+		} catch (err: any) {
 			log.warn("Backend rejected Google sign-in", err);
-			onError?.("Google sign-in failed. Please try again.");
+			//403 is a suspended account. Other errors here are technical, so they keep the generic message
+			onError?.(err?.response?.status === 403 ? err.response.data?.message : "Google sign-in failed. Please try again.");
 		}
 	}
 
