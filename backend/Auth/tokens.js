@@ -38,4 +38,8 @@ function isRevokedGuestToken(payload, user) {
 	return payload.guest === true && !user.is_guest;
 }
 
-module.exports = { generateTokens, verifyJwt, isRevokedGuestToken };
+function isUserBanned(user) {
+	return user.is_banned === true;
+}
+
+module.exports = { generateTokens, verifyJwt, isRevokedGuestToken, isUserBanned };

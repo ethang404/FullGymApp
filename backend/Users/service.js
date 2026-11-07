@@ -198,10 +198,26 @@ async function deleteMe(user_id) {
 	}
 }
 
+// Admin only (Admin/route.js). Bans or unbans - only flips the column, so a mistake can be fully undone.
+//verifyToken checks is_banned on every request, so this applies straight away. The row stays on purpose:
+//deleting it would let them sign back in with the same Apple/Google account
+async function setBanned(user_id, admin_id, is_banned) {
+	//must-have: a missing body or the string "false" could otherwise ban or unban someone by accident
+	if (typeof is_banned !== "boolean") throw new DataError("is_banned must be true or false");
+
+	//optional: nothing breaks, but you'd lock yourself out of the admin routes
+	if (is_banned && user_id === admin_id) throw new DataError("You can't ban yourself");
+
+	const user = await usersDB.findByPk(user_id);
+	if (!user) throw new NotFoundError("User not found");
+
+	await user.update({ is_banned });
+}
+
 // ---------------------------------------------
 // Social
 // ---------------------------------------------
-//matches username or first/last name. Never me, guests, or anyone I'm blocked with
+//matches username or first/last name. Never me, guests, banned users, or anyone I'm blocked with
 async function searchUsers(user_id, q) {
 	const search = typeof q === "string" ? q.trim() : "";
 	if (!search) return [];
@@ -256,4 +272,4 @@ async function unblockUser(user_id, blocked_user_id) {
 	await blockedDB.destroy({ where: { blocker_id: user_id, blocked_user_id } });
 }
 
-module.exports = { getMe, updateMe, estimate, deleteMe, searchUsers, getBlockedUsers, blockUser, unblockUser };
+module.exports = { getMe, updateMe, estimate, deleteMe, setBanned, searchUsers, getBlockedUsers, blockUser, unblockUser };

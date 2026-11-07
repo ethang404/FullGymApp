@@ -5,7 +5,7 @@ const { users: usersDB, workouts: workoutsDB, diaryEntries: diaryEntriesDB, reci
 const { UnauthorizedError, GeneralError, DataError, ForbiddenError, ConflictError } = require("../error");
 const { verifyAppleIdentityToken, exchangeAppleAuthorizationCode } = require("./appleAuth");
 const { verifyGoogleIdToken } = require("./googleAuth");
-const { generateTokens, verifyJwt, isRevokedGuestToken } = require("./tokens");
+const { generateTokens, verifyJwt, isRevokedGuestToken, isUserBanned } = require("./tokens");
 const { hashPassword, checkPassword, guestHashPassword } = require("./passwords");
 
 async function refreshToken(token) {
@@ -24,6 +24,7 @@ async function refreshToken(token) {
 
 	const user = await usersDB.findByPk(payload.user_id);
 	if (!user) throw new UnauthorizedError("User no longer exists");
+	if (isUserBanned(user)) throw new UnauthorizedError("Couldn't find this account");
 	if (isRevokedGuestToken(payload, user)) throw new UnauthorizedError("Guest session has ended, please sign in again");
 
 	// Sliding refresh - every successful refresh also reissues the refresh
@@ -67,10 +68,13 @@ async function login(username, password) {
 
 	const user = await usersDB.findOne({ where: { user_name: username } });
 
-	if (!user) throw new UnauthorizedError("Invalid credentials with provided username and password");
+	if (!user) throw new UnauthorizedError("That username and password don't match. Try again.");
 
 	const validPassword = await checkPassword(password, user.password);
-	if (!validPassword) throw new UnauthorizedError("Invalid credentials with provided username and password");
+	if (!validPassword) throw new UnauthorizedError("That username and password don't match. Try again.");
+
+	//after the password check, so a stranger can't find out who's banned
+	if (isUserBanned(user)) throw new ForbiddenError("This account has been suspended");
 
 	return user;
 }
@@ -139,13 +143,11 @@ async function loginWithApple({ identityToken, authorizationCode, nonce, firstNa
 	let user = await usersDB.findOne({ where: { apple_user_id: appleUserId } });
 
 	if (!user) {
-		const usernameBase = payload.email ? payload.email.split("@")[0] : firstName ? `${firstName}${lastName || ""}` : "apple_user";
-
 		try {
 			user = await usersDB.create({
 				first_name: firstName || null,
 				last_name: lastName || null,
-				user_name: await generateUniqueUsername(usernameBase),
+				user_name: await generateUniqueUsername(firstName, lastName),
 				password: await guestHashPassword(),
 				email: payload.email || null,
 				apple_user_id: appleUserId,
@@ -154,6 +156,8 @@ async function loginWithApple({ identityToken, authorizationCode, nonce, firstNa
 			throw new GeneralError("Failed to create user from Apple sign-in");
 		}
 	}
+
+	if (isUserBanned(user)) throw new ForbiddenError("This account has been suspended");
 
 	await storeAppleRefreshToken(user, authorizationCode);
 
@@ -177,13 +181,11 @@ async function loginWithGoogle({ idToken }) {
 	let user = await usersDB.findOne({ where: { google_user_id: googleUserId } });
 
 	if (!user) {
-		const usernameBase = payload.email ? payload.email.split("@")[0] : payload.given_name ? `${payload.given_name}${payload.family_name || ""}` : "google_user";
-
 		try {
 			user = await usersDB.create({
 				first_name: payload.given_name || null,
 				last_name: payload.family_name || null,
-				user_name: await generateUniqueUsername(usernameBase),
+				user_name: await generateUniqueUsername(payload.given_name, payload.family_name),
 				password: await guestHashPassword(),
 				email: payload.email || null,
 				google_user_id: googleUserId,
@@ -193,6 +195,8 @@ async function loginWithGoogle({ idToken }) {
 		}
 	}
 
+	if (isUserBanned(user)) throw new ForbiddenError("This account has been suspended");
+
 	return {
 		message: "Google sign-in successful",
 		userId: user.user_id,
@@ -201,29 +205,34 @@ async function loginWithGoogle({ idToken }) {
 	};
 }
 
-// OAuth random username
-async function generateUniqueUsername(base) {
-	const sanitizedBase =
-		(base || "user")
+//OAuth sign-ups don't pick a username, so build one from their name + a random number, e.g. "johnsmith4821".
+//Never from their email: usernames are public, and the email prefix gives most of the address away.
+//Names aren't guaranteed (Apple only sends one on the first sign-in, and it can be blank), so fall back to "user".
+//Only a-z, 0-9 and _ are kept, so a name like "李" also ends up as "user"
+async function generateUniqueUsername(firstName, lastName) {
+	const base =
+		`${firstName ?? ""}${lastName ?? ""}`
 			.toLowerCase()
 			.replace(/[^a-z0-9_]/g, "")
 			.slice(0, 20) || "user";
 
-	let candidate = sanitizedBase;
-	let attempts = 0;
-	while (await usersDB.findOne({ where: { user_name: candidate } })) {
-		attempts += 1;
-		if (attempts > 10) throw new GeneralError("Failed to generate a unique username");
-		candidate = `${sanitizedBase}${crypto.randomInt(1000, 9999)}`;
+	//one query almost every time - it only tries again if that number's already taken
+	for (let attempt = 0; attempt < 10; attempt++) {
+		const candidate = `${base}${crypto.randomInt(1000, 10000)}`;
+		const taken = await usersDB.findOne({ where: { user_name: candidate }, attributes: ["user_id"] });
+		if (!taken) return candidate;
 	}
-	return candidate;
+	throw new GeneralError("Failed to generate a unique username");
 }
 
 //frontend computes a nonce and sends to apple, returned in token val
 //backend compares nonce frontend sends to it, vs what apple returns
 //so no re-use of token
 function checkAppleNonce(payload, nonce) {
-	if (!payload.nonce) return;
+	if (!payload.nonce) {
+		if (payload.nonce_supported === false) return; //nonce not supported on certain platforms
+		throw new UnauthorizedError("No nonce given");
+	}
 	const hashedNonce = crypto
 		.createHash("sha256")
 		.update(nonce || "")
@@ -285,19 +294,20 @@ async function upgradeGuestWithOAuth(guestId, body) {
 
 	// Case 1 - no account for this provider id yet: give guest account this data from google
 	if (!existing) {
-		const usernameBase = identity.email ? identity.email.split("@")[0] : identity.firstName ? `${identity.firstName}${identity.lastName || ""}` : "user";
-
 		guest[identity.column] = identity.providerId;
 		guest.email = identity.email;
 		guest.first_name = identity.firstName;
 		guest.last_name = identity.lastName;
-		guest.user_name = await generateUniqueUsername(usernameBase);
+		guest.user_name = await generateUniqueUsername(identity.firstName, identity.lastName);
 		guest.is_guest = false;
 		await guest.save();
 
 		if (body.provider === "apple") await storeAppleRefreshToken(guest, body.authorizationCode);
 		return { status: "upgraded", user: guest };
 	}
+
+	//Make sure account we're upgrading to isn't banned so we lose things when upgrading
+	if (existing && isUserBanned(existing)) throw new ForbiddenError("This account has been suspended");
 
 	// Case 2 - account already exists: merge guest data into it.
 	// Nothing to lose if the guest has no data, so skip the prompt in that case.

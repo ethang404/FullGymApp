@@ -21,6 +21,14 @@ async function deleteMe(req, res) {
 	return res.status(200).json({ message: "Account deleted" });
 }
 
+//route is in Admin/route.js. Body needs: { is_banned }
+async function setBanned(req, res) {
+	const user_id = parseInt(req.params.id, 10);
+	const is_banned = req.body?.is_banned;
+	await service.setBanned(user_id, req.user_id, is_banned);
+	return res.status(200).json({ message: is_banned ? "User banned" : "User unbanned" });
+}
+
 // ---------------------------------------------
 // Social
 // ---------------------------------------------
@@ -62,6 +70,7 @@ module.exports = {
 	updateMe,
 	estimateGoals,
 	deleteMe,
+	setBanned,
 	searchUsers,
 	getBlockedUsers,
 	blockUser,

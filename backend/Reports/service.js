@@ -1,3 +1,4 @@
+const { Op } = require("sequelize");
 const {
 	reports: reportsModel,
 	posts: postsModel,
@@ -7,10 +8,12 @@ const {
 	group_members: membersModel,
 	food: foodModel,
 } = require("../models/modelInits");
+const sequelize = require("../models/db");
 const { NotFoundError, DataError, ForbiddenError } = require("../error");
 
-const { PUBLIC_USER_ATTRIBUTES, REPORT_TARGET_TYPES, REPORT_REASONS } = require("../constants");
+const { PUBLIC_USER_ATTRIBUTES, REPORT_TARGET_TYPES, REPORT_REASONS, REPORT_STATUSES } = require("../constants");
 const { isBlocked } = require("../utils/social");
+const { paginate } = require("../utils/pagination");
 const { cleanText, assertOneOf } = require("../utils/validate");
 const { findVisibleGroup } = require("../Groups/permissions");
 const PostsService = require("../Posts/service");
@@ -19,6 +22,17 @@ const NutritionService = require("../Nutrition/service");
 // Functions Reports/controller.js calls:
 //
 // createReport(user_id, is_guest, data)
+//
+// Admin only (Admin/route.js):
+// getReports({ status, reported_user_id, cursor, limit })       -> { reports, next_cursor }
+// resolveReport(report_id, status)                              -> report
+// removeTarget(report_id)                                       -> report
+
+//both people on a report, for the admin queue
+const REPORT_USERS_INCLUDE = [
+	{ model: userModel, as: "reporter", attributes: PUBLIC_USER_ATTRIBUTES },
+	{ model: userModel, as: "reportedUser", attributes: PUBLIC_USER_ATTRIBUTES },
+];
 
 //what can be reported, keyed by target_type.
 //  load   -> createReport: throws if the target is missing or the reporter can't see it. Otherwise returns who's
@@ -105,4 +119,60 @@ async function createReport(user_id, is_guest, data) {
 	});
 }
 
-module.exports = { createReport };
+async function findReportOr404(report_id) {
+	const report = await reportsModel.findByPk(report_id);
+	if (!report) throw new NotFoundError("Report not found");
+	return report;
+}
+
+//oldest first, so the longest waiting report is at the top.
+//status defaults to the open queue. status=all + reported_user_id gives someone's whole history
+async function getReports({ status = "open", reported_user_id, cursor, limit }) {
+	assertOneOf(status, [...REPORT_STATUSES, "all"], "status");
+
+	const where = status === "all" ? {} : { status };
+	if (reported_user_id !== undefined) {
+		const id = Number(reported_user_id);
+		assertValidId(id, "reported_user_id");
+		where.reported_user_id = id;
+	}
+
+	const { rows: reports, next_cursor } = await paginate(reportsModel, {
+		where,
+		include: REPORT_USERS_INCLUDE,
+		cursor,
+		limit,
+		newest_first: false,
+	});
+	return { reports, next_cursor };
+}
+
+//"open" reopens a report resolved by mistake
+async function resolveReport(report_id, status) {
+	assertOneOf(status, REPORT_STATUSES, "status");
+
+	const report = await findReportOr404(report_id);
+	return report.update({ status, resolved_at: status === "open" ? null : new Date() });
+}
+
+//Takes the content down and closes every report on it, not just this one.
+//Fine to call if the target is already gone, the reports still get closed
+async function removeTarget(report_id) {
+	const report = await findReportOr404(report_id);
+	const { target_type, target_id } = report;
+
+	const { remove } = REPORT_TARGETS[target_type];
+	if (!remove) throw new DataError("Accounts can't be removed from a report");
+
+	await sequelize.transaction(async (t) => {
+		await remove(target_id, t);
+		await reportsModel.update(
+			{ status: "actioned", resolved_at: new Date() },
+			{ where: { target_type, target_id, status: { [Op.ne]: "actioned" } }, transaction: t },
+		);
+	});
+
+	return report.reload();
+}
+
+module.exports = { createReport, getReports, resolveReport, removeTarget };

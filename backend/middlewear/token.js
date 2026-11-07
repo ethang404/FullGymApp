@@ -1,5 +1,5 @@
 const { users } = require("../models/modelInits");
-const { verifyJwt, isRevokedGuestToken } = require("../Auth/tokens");
+const { verifyJwt, isRevokedGuestToken, isUserBanned } = require("../Auth/tokens");
 
 async function verifyToken(req, res, next) {
 	if (!req.headers.authorization) return res.status(401).json({ message: "Missing authorization Token" });
@@ -15,11 +15,11 @@ async function verifyToken(req, res, next) {
 		return res.status(401).json({ message: "Access Token is invalid" });
 	}
 
-	//Also check that our given user is valid for this jwt
+	//Also check that our given user is valid for this jwt and not banned
 	let user;
 	try {
 		user = await users.findByPk(payload.user_id);
-		if (!user) {
+		if (!user || isUserBanned(user)) {
 			return res.status(401).json({ message: "User no longer exists" });
 		}
 		if (isRevokedGuestToken(payload, user)) {

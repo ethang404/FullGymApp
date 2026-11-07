@@ -72,6 +72,7 @@ describe("POST /auth/upgrade-guest/oauth", () => {
 		expect(user.is_guest).toBe(false);
 		expect(user.google_user_id).toBe("g-new");
 		expect(user.user_name).not.toMatch(/^guest_/);
+		expect(user.user_name).toMatch(/^testuser\d{4}$/); //from the name Google gave, never the email ("g-new@example.com")
 		expect(await WorkoutsModel.count({ where: { user_id: guest.userId } })).toBe(1);
 
 		// New tokens work
@@ -135,5 +136,19 @@ describe("POST /auth/upgrade-guest/oauth", () => {
 		expect(resp.body.merged).toBe(true);
 		expect(resp.body.userId).toBe(existing.body.userId);
 		expect(await UsersModel.findByPk(guest.userId)).toBeNull();
+	});
+
+	test("case 2: a banned account -> 403, and the guest keeps their data", async () => {
+		const existing = await request(app).post("/auth/google").send({ idToken: "g-existing-banned" });
+		await UsersModel.update({ is_banned: true }, { where: { user_id: existing.body.userId } });
+
+		const guest = await createGuest();
+		const workout = await addWorkout(guest.userId);
+
+		const resp = await upgrade(guest.accessToken, { provider: "google", idToken: "g-existing-banned", confirmed: true });
+		expect(resp.status).toBe(403);
+
+		expect(await UsersModel.findByPk(guest.userId)).not.toBeNull();
+		expect((await WorkoutsModel.findByPk(workout.workout_id)).user_id).toBe(guest.userId);
 	});
 });

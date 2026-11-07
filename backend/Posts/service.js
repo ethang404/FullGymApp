@@ -11,7 +11,7 @@ const {
 const sequelize = require("../models/db");
 const { NotFoundError, DataError, ForbiddenError } = require("../error");
 
-const { isBlocked, excludeHiddenUsers } = require("../utils/social");
+const { getHiddenUserIds, excludeHiddenUsers } = require("../utils/social");
 const { PUBLIC_USER_ATTRIBUTES } = require("../constants");
 const { isActiveMember, isGroupManager } = require("../Groups/permissions");
 const { paginate } = require("../utils/pagination");
@@ -107,22 +107,22 @@ async function addCounts(posts, user_id) {
 }
 
 //Who can see a post (and so anything done through it -- viewing, saving its recipe, ...).
-//if post missing or blocked relation: 404
+//if post missing, or its author is hidden from us (getViewablePost found no row): 404
 //if group post but we're not an active member of group (banned or not in group): 403
-//if public post (and not blocked): good
+//if public post: good
 async function assertCanViewPost(post, user_id) {
 	if (!post) throw new NotFoundError("Post not found");
-	if (await isBlocked(user_id, post.user_id)) throw new NotFoundError("Post not found");
 
 	if (post.visibility === "group" && !(await isActiveMember(post.group_id, user_id))) {
 		throw new ForbiddenError("You have to be in this group to see this post");
 	}
 }
 
-//findByPk + assertCanViewPost. options go to findByPk (includes etc)
-//finds a post and makes sure we can see it
+//finds a post and makes sure we can see it. options go to findOne (includes etc)
+//A hidden author (blocked or banned) means no row comes back, so it's the same 404 as a post that doesn't exist
 async function getViewablePost(post_id, user_id, options = {}) {
-	const post = await postsModel.findByPk(post_id, options);
+	const where = await excludeHiddenUsers({ id: post_id }, user_id);
+	const post = await postsModel.findOne({ ...options, where });
 	await assertCanViewPost(post, user_id);
 	return post;
 }
@@ -150,8 +150,9 @@ async function getGroupFeed(group_id, user_id, { cursor, limit }) {
 }
 
 async function getUserPosts(target_user_id, user_id, { cursor, limit }) {
-	//get users where we're blocked by
-	if (await isBlocked(user_id, target_user_id)) throw new ForbiddenError("We can't find this user's posts");
+	//can't use excludeHiddenUsers here - it would replace the user_id filter below and return everyone's posts
+	const hidden_ids = await getHiddenUserIds(user_id);
+	if (hidden_ids.includes(target_user_id)) throw new ForbiddenError("We can't find this user's posts");
 
 	const where = { visibility: "public", user_id: target_user_id };
 	const { rows: posts, next_cursor } = await paginate(postsModel, { where, include: AUTHOR_INCLUDE, cursor, limit });

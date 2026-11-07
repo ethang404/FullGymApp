@@ -98,6 +98,12 @@ const users = sequelize.define(
 			allowNull: false,
 			defaultValue: false,
 		},
+
+		is_banned: {
+			type: DataTypes.BOOLEAN,
+			allowNull: false,
+			defaultValue: false,
+		},
 	},
 	{
 		tableName: "users",

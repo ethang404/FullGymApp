@@ -2,21 +2,33 @@ const request = require("supertest");
 const sequelize = require("../models/db");
 const {
 	reports: ReportsModel,
+	posts: PostsModel,
+	post_comments: CommentsModel,
+	groups: GroupsModel,
 	food: FoodModel,
+	diaryEntries: DiaryEntriesModel,
 	blocked_users: BlockedModel,
 } = require("../models/modelInits");
-const { app, registerUser, createGuest, bearer, createWorkout, createGroup } = require("./SocialHelpers");
+const { app, registerUser, createGuest, bearer, createWorkout, createGroup, tick } = require("./SocialHelpers");
+
+let admin;
 
 // sync({force:true}) rebuilds every table - extended timeout, same as the other suites
 beforeAll(async () => {
 	await sequelize.sync({ force: true });
+	admin = await registerUser("admin");
+	process.env.ADMIN_USER_IDS = `${admin.id}`;
 }, 30000);
 
 afterAll(async () => {
+	delete process.env.ADMIN_USER_IDS;
 	await sequelize.close();
 });
 
 const report = (user, body) => request(app).post("/reports").set(bearer(user)).send(body);
+const listReports = (user, query = "") => request(app).get(`/admin/reports${query}`).set(bearer(user));
+const resolve = (user, id, status) => request(app).patch(`/admin/reports/${id}`).set(bearer(user)).send({ status });
+const removeTarget = (user, id) => request(app).post(`/admin/reports/${id}/remove-target`).set(bearer(user));
 const deleteAccount = (user) => request(app).delete("/users/me").set(bearer(user));
 const findReport = (reporter, target_type, target_id) => ReportsModel.findOne({ where: { reporter_id: reporter.id, target_type, target_id } });
 
@@ -351,5 +363,256 @@ describe("reports survive deletion", () => {
 		expect((await deleteAccount(second)).status).toBe(200);
 
 		expect(await ReportsModel.count({ where: { target_type: "post", target_id: post.id } })).toBe(2);
+	});
+});
+
+// ─────────────────────────────────────────────
+// Admin
+// ─────────────────────────────────────────────
+
+describe("/admin", () => {
+	test("anyone not in ADMIN_USER_IDS -> 403 on every route", async () => {
+		const user = await registerUser("user");
+
+		expect((await listReports(user)).status).toBe(403);
+		expect((await resolve(user, 1, "dismissed")).status).toBe(403);
+		expect((await removeTarget(user, 1)).status).toBe(403);
+	});
+
+	test("a guest -> 403", async () => {
+		const guest = await createGuest();
+		expect((await listReports(guest)).status).toBe(403);
+	});
+
+	test("no ADMIN_USER_IDS set -> nobody is an admin", async () => {
+		const saved = process.env.ADMIN_USER_IDS;
+		delete process.env.ADMIN_USER_IDS;
+
+		try {
+			expect((await listReports(admin)).status).toBe(403);
+		} finally {
+			process.env.ADMIN_USER_IDS = saved;
+		}
+	});
+
+	test("no token -> 401", async () => {
+		expect((await request(app).get("/admin/reports")).status).toBe(401);
+		expect((await request(app).post("/admin/reports/1/remove-target")).status).toBe(401);
+	});
+
+	test("a path that doesn't exist is still behind the check", async () => {
+		const user = await registerUser("user");
+
+		expect((await request(app).get("/admin/nope")).status).toBe(401);
+		expect((await request(app).get("/admin/nope").set(bearer(user))).status).toBe(403);
+	});
+
+	test("the queue isn't reachable from /reports", async () => {
+		expect((await request(app).get("/reports").set(bearer(admin))).status).toBe(404);
+	});
+
+	describe("GET /admin/reports", () => {
+		test("open queue is oldest first, with both people attached", async () => {
+			const author = await registerUser("author");
+			const reporter = await registerUser("reporter");
+			const older = await publicPost(author);
+			const newer = await publicPost(author);
+			await report(reporter, { target_type: "post", target_id: older.id, reason: "spam" });
+			await tick();
+			await report(reporter, { target_type: "post", target_id: newer.id, reason: "spam" });
+
+			const resp = await listReports(admin, `?reported_user_id=${author.id}`);
+			expect(resp.status).toBe(200);
+			expect(resp.body.reports.map((row) => row.target_id)).toEqual([older.id, newer.id]);
+			expect(resp.body.reports[0].reporter.user_name).toBe(reporter.userName);
+			expect(resp.body.reports[0].reportedUser.user_name).toBe(author.userName);
+			expect(resp.body.reports[0].reporter.password).toBeUndefined();
+		});
+
+		test("pages with a cursor", async () => {
+			const author = await registerUser("author");
+			const reporter = await registerUser("reporter");
+			const first = await publicPost(author);
+			const second = await publicPost(author);
+			await report(reporter, { target_type: "post", target_id: first.id, reason: "spam" });
+			await tick();
+			await report(reporter, { target_type: "post", target_id: second.id, reason: "spam" });
+
+			const page_one = await listReports(admin, `?reported_user_id=${author.id}&limit=1`);
+			expect(page_one.body.reports[0].target_id).toBe(first.id);
+
+			const cursor = encodeURIComponent(page_one.body.next_cursor);
+			const page_two = await listReports(admin, `?reported_user_id=${author.id}&limit=1&cursor=${cursor}`);
+			expect(page_two.body.reports[0].target_id).toBe(second.id);
+			expect(page_two.body.next_cursor).toBeNull();
+		});
+
+		test("resolved reports leave the open queue, status=all still shows them", async () => {
+			const author = await registerUser("author");
+			const reporter = await registerUser("reporter");
+			const post = await publicPost(author);
+			await report(reporter, { target_type: "post", target_id: post.id, reason: "spam" });
+			const row = await findReport(reporter, "post", post.id);
+			await resolve(admin, row.id, "dismissed");
+
+			expect((await listReports(admin, `?reported_user_id=${author.id}`)).body.reports).toHaveLength(0);
+			expect((await listReports(admin, `?reported_user_id=${author.id}&status=dismissed`)).body.reports).toHaveLength(1);
+			expect((await listReports(admin, `?reported_user_id=${author.id}&status=all`)).body.reports).toHaveLength(1);
+		});
+
+		test("bad filters -> 400", async () => {
+			expect((await listReports(admin, "?status=nope")).status).toBe(400);
+			expect((await listReports(admin, "?reported_user_id=abc")).status).toBe(400);
+			expect((await listReports(admin, "?cursor=notadate")).status).toBe(400);
+		});
+	});
+
+	describe("PATCH /admin/reports/:id", () => {
+		async function openReport() {
+			const author = await registerUser("author");
+			const reporter = await registerUser("reporter");
+			const post = await publicPost(author);
+			await report(reporter, { target_type: "post", target_id: post.id, reason: "spam" });
+			return { row: await findReport(reporter, "post", post.id), post };
+		}
+
+		test("resolving sets resolved_at and leaves the content alone", async () => {
+			const { row, post } = await openReport();
+
+			const resp = await resolve(admin, row.id, "dismissed");
+			expect(resp.status).toBe(200);
+			expect(resp.body.report.status).toBe("dismissed");
+			expect(resp.body.report.resolved_at).not.toBeNull();
+			expect(await PostsModel.findByPk(post.id)).not.toBeNull();
+		});
+
+		test("reopening clears resolved_at", async () => {
+			const { row } = await openReport();
+			await resolve(admin, row.id, "dismissed");
+
+			const resp = await resolve(admin, row.id, "open");
+			expect(resp.body.report.status).toBe("open");
+			expect(resp.body.report.resolved_at).toBeNull();
+		});
+
+		test("bad status -> 400, missing body -> 400, unknown report -> 404, bad id -> 400", async () => {
+			const { row } = await openReport();
+
+			expect((await resolve(admin, row.id, "nope")).status).toBe(400);
+			expect((await request(app).patch(`/admin/reports/${row.id}`).set(bearer(admin))).status).toBe(400);
+			expect((await resolve(admin, 999999, "dismissed")).status).toBe(404);
+			expect((await resolve(admin, "abc", "dismissed")).status).toBe(400);
+		});
+	});
+
+	describe("POST /admin/reports/:id/remove-target", () => {
+		test("removes a post and closes every report on it, even a dismissed one", async () => {
+			const author = await registerUser("author");
+			const first = await registerUser("reporter");
+			const second = await registerUser("reporter");
+			const post = await publicPost(author);
+			await report(first, { target_type: "post", target_id: post.id, reason: "spam" });
+			await report(second, { target_type: "post", target_id: post.id, reason: "hate" });
+			const first_row = await findReport(first, "post", post.id);
+			const second_row = await findReport(second, "post", post.id);
+			await resolve(admin, second_row.id, "dismissed");
+
+			const resp = await removeTarget(admin, first_row.id);
+			expect(resp.status).toBe(200);
+			expect(resp.body.report.status).toBe("actioned");
+
+			expect(await PostsModel.findByPk(post.id)).toBeNull();
+			await second_row.reload();
+			expect(second_row.status).toBe("actioned");
+			expect(second_row.resolved_at).not.toBeNull();
+		});
+
+		test("leaves reports on other targets alone", async () => {
+			const author = await registerUser("author");
+			const reporter = await registerUser("reporter");
+			const removed = await publicPost(author);
+			const kept = await publicPost(author);
+			await report(reporter, { target_type: "post", target_id: removed.id, reason: "spam" });
+			await report(reporter, { target_type: "post", target_id: kept.id, reason: "spam" });
+
+			await removeTarget(admin, (await findReport(reporter, "post", removed.id)).id);
+
+			expect((await findReport(reporter, "post", kept.id)).status).toBe("open");
+			expect(await PostsModel.findByPk(kept.id)).not.toBeNull();
+		});
+
+		test("removes a comment but not its post", async () => {
+			const author = await registerUser("author");
+			const reporter = await registerUser("reporter");
+			const post = await publicPost(reporter);
+			const comment = await addComment(author, post);
+			await report(reporter, { target_type: "comment", target_id: comment.id, reason: "hate" });
+
+			await removeTarget(admin, (await findReport(reporter, "comment", comment.id)).id);
+
+			expect(await CommentsModel.findByPk(comment.id)).toBeNull();
+			expect(await PostsModel.findByPk(post.id)).not.toBeNull();
+		});
+
+		test("removes a group", async () => {
+			const owner = await registerUser("owner");
+			const reporter = await registerUser("reporter");
+			const group = await createGroup(owner);
+			await report(reporter, { target_type: "group", target_id: group.id, reason: "hate" });
+
+			await removeTarget(admin, (await findReport(reporter, "group", group.id)).id);
+
+			expect(await GroupsModel.findByPk(group.id)).toBeNull();
+		});
+
+		test("a food is soft deleted, so diary entries that use it survive", async () => {
+			const submitter = await registerUser("submitter");
+			const reporter = await registerUser("reporter");
+			const food = await createFood(submitter);
+			const entry = await DiaryEntriesModel.create({
+				user_id: reporter.id,
+				food_id: food.id,
+				meal_type: "breakfast",
+				logged_at: "2026-10-01",
+				quantity: 50,
+				unit: "g",
+			});
+			await report(reporter, { target_type: "food", target_id: food.id, reason: "hate" });
+
+			const resp = await removeTarget(admin, (await findReport(reporter, "food", food.id)).id);
+			expect(resp.status).toBe(200);
+
+			await food.reload();
+			expect(food.is_deleted).toBe(true);
+			expect(await DiaryEntriesModel.findByPk(entry.id)).not.toBeNull();
+		});
+
+		test("a user can't be removed this way -> 400, report stays open", async () => {
+			const target = await registerUser("target");
+			const reporter = await registerUser("reporter");
+			await report(reporter, { target_type: "user", target_id: target.id, reason: "hate" });
+			const row = await findReport(reporter, "user", target.id);
+
+			expect((await removeTarget(admin, row.id)).status).toBe(400);
+
+			await row.reload();
+			expect(row.status).toBe("open");
+		});
+
+		test("content that's already gone still closes the report", async () => {
+			const author = await registerUser("author");
+			const reporter = await registerUser("reporter");
+			const post = await publicPost(author);
+			await report(reporter, { target_type: "post", target_id: post.id, reason: "hate" });
+			await request(app).delete(`/posts/${post.id}`).set(bearer(author));
+
+			const resp = await removeTarget(admin, (await findReport(reporter, "post", post.id)).id);
+			expect(resp.status).toBe(200);
+			expect(resp.body.report.status).toBe("actioned");
+		});
+
+		test("unknown report -> 404", async () => {
+			expect((await removeTarget(admin, 999999)).status).toBe(404);
+		});
 	});
 });

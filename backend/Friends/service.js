@@ -63,8 +63,8 @@ async function getRequests(user_id) {
 async function sendRequest(user_id, target_user_id) {
 	if (user_id === target_user_id) throw new DataError("You can't friend yourself");
 
-	const target = await usersModel.findByPk(target_user_id, { attributes: ["user_id", "is_guest"] });
-	if (!target || target.is_guest) throw new NotFoundError("User not found");
+	const target = await usersModel.findByPk(target_user_id, { attributes: ["user_id", "is_guest", "is_banned"] });
+	if (!target || target.is_guest || target.is_banned) throw new NotFoundError("User not found");
 
 	if (await isBlocked(user_id, target_user_id)) throw new ForbiddenError("Can't send a friend request to this user");
 

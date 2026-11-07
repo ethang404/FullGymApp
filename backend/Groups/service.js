@@ -2,19 +2,12 @@ const { NotFoundError, DataError, ForbiddenError, ConflictError } = require("../
 const { Op } = require("sequelize");
 const { users: userModel, groups: groupsModel, group_members: membersModel } = require("../models/modelInits");
 const sequelize = require("../models/db");
-const { isBlocked } = require("../utils/social");
 const { cleanText, assertOneOf } = require("../utils/validate");
 const { PUBLIC_USER_ATTRIBUTES } = require("../constants");
+const { isBlocked, excludeHiddenUsers } = require("../utils/social");
+
 //who-can-do-what helpers live in permissions.js so Posts can use them too
-const {
-	findGroupOr404,
-	findMembership,
-	isManager,
-	outranks,
-	requireManager,
-	requireOwner,
-	findVisibleGroup,
-} = require("./permissions");
+const { findGroupOr404, findMembership, isManager, outranks, requireManager, requireOwner, findVisibleGroup } = require("./permissions");
 
 const JOIN_POLICIES = ["open", "request", "invite_only"];
 const MAX_NAME_LENGTH = 255; //groups.name is STRING(255)
@@ -183,9 +176,9 @@ async function inviteMember(group_id, user_id, invitee_id) {
 	//make sure we're in this group and we're a manager sort
 	await requireManager(group_id, user_id, "Only the owner or an admin can invite people");
 
-	//Make sure person we're inviting is not a guest(no social features allowed) and they're not blocked by us
-	const invitee = await userModel.findByPk(invitee_id, { attributes: ["user_id", "is_guest"] });
-	if (!invitee || invitee.is_guest) throw new NotFoundError("User not found");
+	//Make sure person we're inviting is not a guest(no social features allowed), banned, or blocked by us
+	const invitee = await userModel.findByPk(invitee_id, { attributes: ["user_id", "is_guest", "is_banned"] });
+	if (!invitee || invitee.is_guest || invitee.is_banned) throw new NotFoundError("User not found");
 	if (await isBlocked(user_id, invitee_id)) throw new ForbiddenError("Can't invite this user");
 
 	const existing = await findMembership(group_id, invitee_id);
@@ -221,12 +214,16 @@ async function approveRequest(group_id, user_id, member_id) {
 }
 
 //anyone not banned sees active members. Owner/admin also see pending/invited/banned so they can manage them
+//shows all if manager, else hides banned/blocked users
 async function getMembers(group_id, user_id) {
 	//we can only see members in group if we're not banned from it
 	const { membership } = await findVisibleGroup(group_id, user_id);
 
+	const base = isManager(membership) ? { group_id } : { group_id, status: "active" };
+	const where = isManager(membership) ? base : await excludeHiddenUsers(base, user_id);
+
 	const rows = await membersModel.findAll({
-		where: isManager(membership) ? { group_id } : { group_id, status: "active" },
+		where,
 		include: [{ model: userModel, as: "user", attributes: PUBLIC_USER_ATTRIBUTES }],
 		order: [
 			["role", "ASC"],
