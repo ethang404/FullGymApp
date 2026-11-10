@@ -38,9 +38,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
 				});
 				setValidUser(true);
 				setIsGuest(Boolean(resp.data?.isGuest));
-			} catch {
+			} catch (err: any) {
 				// token invalid or expired
-				setValidUser(false);
+				if (err.response?.status === 401) setValidUser(false);
+				else setValidUser(true); //user is valid but some other issue
 			} finally {
 				setIsLoading(false);
 			}
@@ -69,10 +70,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 		SecureStore.deleteItemAsync("refreshToken").catch(() => {});
 	}, []);
 
-	const value = useMemo(
-		() => ({ signIn, signOut, isValidUser, isGuest, isLoading }),
-		[signIn, signOut, isValidUser, isGuest, isLoading],
-	);
+	const value = useMemo(() => ({ signIn, signOut, isValidUser, isGuest, isLoading }), [signIn, signOut, isValidUser, isGuest, isLoading]);
 
 	return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

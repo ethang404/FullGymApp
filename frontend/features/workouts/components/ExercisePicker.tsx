@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { View, Text, StyleSheet, TextInput, Pressable, Modal, FlatList, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -7,49 +7,14 @@ import { isAxiosError } from "axios";
 import { useTheme } from "@/theme/ThemeProvider";
 import { fonts } from "@/theme/typography";
 import type { Theme } from "@/theme/colors";
-import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
 import Pills from "@/components/Pills";
-import { MUSCLE_GROUPS, MUSCLE_GROUP_LABELS, type CatalogExercise, type MuscleGroup } from "@/types/workouts";
+import { createCatalogExercise } from "../api";
+import { MUSCLE_GROUPS, MUSCLE_GROUP_LABELS, type MuscleGroup } from "../constants";
+import { useCatalog } from "../hooks/useCatalog";
+import type { CatalogExercise } from "../types";
 
 type Filter = MuscleGroup | "all";
-
-//The whole catalog, fetched the first time the picker opens and kept after that (it's a few hundred rows at most,
-//so searching/filtering locally is instant and doesn't hit the server per keystroke)
-function useCatalog(enabled: boolean) {
-	const [exercises, setExercises] = useState<CatalogExercise[] | null>(null);
-	const [error, setError] = useState(false);
-	const [attempt, setAttempt] = useState(0); //bumped by retry() so the effect runs again
-
-	useEffect(() => {
-		if (!enabled || exercises) return;
-
-		let cancelled = false;
-		instance
-			.get("/workouts/catalog")
-			.then((resp) => {
-				if (!cancelled) setExercises(resp.data.exercises);
-			})
-			.catch((err) => {
-				log.error("Couldn't load exercise catalog", err);
-				if (!cancelled) setError(true);
-			});
-
-		return () => {
-			cancelled = true;
-		};
-	}, [enabled, exercises, attempt]);
-
-	const retry = () => {
-		setError(false);
-		setAttempt((a) => a + 1);
-	};
-
-	//a newly created exercise goes straight into the list, so it shows up next time without a refetch
-	const add = (exercise: CatalogExercise) => setExercises((prev) => [...(prev ?? []), exercise].sort((a, b) => a.name.localeCompare(b.name)));
-
-	return { exercises, error, retry, add };
-}
 
 //Bottom sheet for adding an exercise to a workout: search + muscle group filter over the catalog,
 //plus "create" for anything that isn't in it yet
@@ -99,8 +64,7 @@ export function ExercisePicker({ visible, onClose, onPick }: { visible: boolean;
 		setCreating(true);
 		setCreateError(null);
 		try {
-			const resp = await instance.post("/workouts/catalog", { name: query, muscle_group: createGroup });
-			const created: CatalogExercise = resp.data.exercise;
+			const created = await createCatalogExercise({ name: query, muscle_group: createGroup });
 			catalog.add(created);
 			pick(created);
 		} catch (err) {

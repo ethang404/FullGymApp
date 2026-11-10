@@ -1,58 +1,21 @@
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from "react-native";
-import { useMemo, useState, useCallback } from "react";
-import { router, useFocusEffect } from "expo-router";
+import { View, Text, StyleSheet, FlatList, RefreshControl } from "react-native";
+import { useMemo } from "react";
+import { router } from "expo-router";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { fonts } from "@/theme/typography";
-import { instance } from "@/utils/AxiosInterceptorHandler";
-import { log } from "@/utils/log";
-import { toast } from "@/utils/toast";
-import { formatRelativeDate } from "@/utils/date";
 import { ScreenState } from "@/components/ScreenState";
 import { PressableScale } from "@/components/PressableScale";
 import Screen from "@/components/Screen";
 
-interface Workout {
-	id: string;
-	name: string;
-	date: string;
-	duration_minutes?: number;
-	total_volume_kg?: number;
-	notes?: string;
-}
+import { useWorkouts } from "@/features/workouts/hooks/useWorkouts";
+import { WorkoutListCard } from "@/features/workouts/components/WorkoutListCard";
 
 export default function Workouts() {
 	const { theme } = useTheme();
-	const [workouts, setWorkouts] = useState<Workout[]>([]);
-	const [loading, setLoading] = useState(true);
-	const [refreshing, setRefreshing] = useState(false);
-	const [error, setError] = useState(false);
+	const list = useWorkouts();
 
-	async function fetchWorkouts(isRefresh = false) {
-		try {
-			const res = await instance.get("/workouts/");
-			setWorkouts(res.data.workouts ?? []);
-			setError(false);
-		} catch (e) {
-			log.error("Workouts fetch error:", e);
-			if (isRefresh) toast.error("Couldn't refresh. Pull down to try again.");
-			else setError(true);
-		} finally {
-			setLoading(false);
-			setRefreshing(false);
-		}
-	}
-
-	// Refetch whenever the tab regains focus, so a workout saved on the editor
-	// screen shows up when you come back here.
-	useFocusEffect(
-		useCallback(() => {
-			fetchWorkouts();
-		}, []),
-	);
-
-	const goToNewWorkout = () =>
-		router.push({ pathname: "/(protected)/workouts/[workout_id]", params: { workout_id: "new", mode: "new" } });
+	const goToNewWorkout = () => router.push({ pathname: "/(protected)/workouts/[workout_id]", params: { workout_id: "new", mode: "new" } });
 
 	const styles = useMemo(
 		() =>
@@ -118,55 +81,6 @@ export default function Workouts() {
 					marginTop: 4,
 				},
 
-				// Workout card stuff
-				workoutCard: {
-					flexDirection: "row",
-					alignItems: "center",
-					backgroundColor: theme.cardBg,
-					borderRadius: 14,
-					padding: 14,
-					borderWidth: 1,
-					borderColor: theme.border,
-					gap: 14,
-				},
-				iconWrap: {
-					width: 44,
-					height: 44,
-					borderRadius: 13,
-					backgroundColor: theme.cardBgAlt,
-					alignItems: "center",
-					justifyContent: "center",
-					borderWidth: 1,
-					borderColor: theme.border,
-				},
-				workoutName: {
-					fontSize: 15,
-					fontWeight: "700",
-					color: theme.text,
-				},
-				workoutDate: {
-					fontSize: 12,
-					color: theme.textMuted,
-					marginTop: 2,
-				},
-				workoutStats: {
-					flexDirection: "row",
-					gap: 12,
-					marginTop: 6,
-				},
-				stat: {
-					flexDirection: "row",
-					alignItems: "center",
-					gap: 4,
-				},
-				statText: {
-					fontSize: 11,
-					color: theme.textSecondary,
-				},
-				chevron: {
-					marginLeft: "auto",
-				},
-
 				emptyState: {
 					alignItems: "center",
 					paddingVertical: 40,
@@ -186,42 +100,6 @@ export default function Workouts() {
 		[theme],
 	);
 
-	const renderWorkout = useCallback(
-		({ item: w }: { item: Workout }) => (
-			<TouchableOpacity
-				style={styles.workoutCard}
-				onPress={() => router.push({ pathname: "/(protected)/workouts/[workout_id]", params: { workout_id: w.id, mode: "edit" } })}
-				activeOpacity={0.7}
-			>
-				<View style={styles.iconWrap}>
-					<FontAwesome5 name="dumbbell" size={16} color={theme.primary} />
-				</View>
-				<View style={{ flex: 1 }}>
-					<Text style={styles.workoutName}>{w.name}</Text>
-					<Text style={styles.workoutDate}>{formatRelativeDate(w.date)}</Text>
-					{(w.duration_minutes || w.total_volume_kg) && (
-						<View style={styles.workoutStats}>
-							{w.duration_minutes && (
-								<View style={styles.stat}>
-									<FontAwesome5 name="clock" size={10} color={theme.textTertiary} />
-									<Text style={styles.statText}>{w.duration_minutes} min</Text>
-								</View>
-							)}
-							{w.total_volume_kg && (
-								<View style={styles.stat}>
-									<FontAwesome5 name="weight-hanging" size={10} color={theme.textTertiary} />
-									<Text style={styles.statText}>{w.total_volume_kg.toLocaleString()}kg</Text>
-								</View>
-							)}
-						</View>
-					)}
-				</View>
-				<FontAwesome5 name="chevron-right" size={12} color={theme.textTertiary} style={styles.chevron} />
-			</TouchableOpacity>
-		),
-		[styles, theme],
-	);
-
 	const listHeader = (
 		<>
 			<View style={styles.header}>
@@ -237,17 +115,22 @@ export default function Workouts() {
 				</PressableScale>
 			</View>
 
-			{workouts.length > 0 && <Text style={styles.sectionLabel}>Past workouts</Text>}
+			{list.workouts.length > 0 && <Text style={styles.sectionLabel}>Past workouts</Text>}
 		</>
 	);
 
 	return (
 		<Screen edges={["top"]}>
-			<ScreenState loading={loading} error={error} onRetry={fetchWorkouts} errorTitle="Couldn't load your workouts">
+			<ScreenState loading={list.loading} error={list.error} onRetry={list.refetch} errorTitle="Couldn't load your workouts">
 				<FlatList
-					data={workouts}
+					data={list.workouts}
 					keyExtractor={(w) => w.id}
-					renderItem={renderWorkout}
+					renderItem={({ item }) => (
+						<WorkoutListCard
+							workout={item}
+							onPress={() => router.push({ pathname: "/(protected)/workouts/[workout_id]", params: { workout_id: item.id, mode: "edit" } })}
+						/>
+					)}
 					ListHeaderComponent={listHeader}
 					ListEmptyComponent={
 						<View style={styles.emptyState}>
@@ -259,16 +142,7 @@ export default function Workouts() {
 					style={styles.scroll}
 					contentContainerStyle={styles.content}
 					showsVerticalScrollIndicator={false}
-					refreshControl={
-						<RefreshControl
-							refreshing={refreshing}
-							onRefresh={() => {
-								setRefreshing(true);
-								fetchWorkouts(true);
-							}}
-							tintColor={theme.primary}
-						/>
-					}
+					refreshControl={<RefreshControl refreshing={list.refreshing} onRefresh={list.refresh} tintColor={theme.primary} />}
 				/>
 			</ScreenState>
 		</Screen>

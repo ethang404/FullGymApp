@@ -5,13 +5,14 @@ import { useTheme } from "@/theme/ThemeProvider";
 import { haptics } from "@/utils/haptics";
 import { router } from "expo-router";
 
-import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
 import { toast } from "@/utils/toast";
 
-import { COMMON_UNITS } from "@/types/nutrition";
+import { addDiaryEntry } from "../api";
+import { COMMON_UNITS } from "../constants";
+import type { ServingSize, FoodSearchResult } from "../types";
+import { calcMacrosFromPer100g } from "../utils/nutrients";
 import { AddServingModal } from "./AddServingModal";
-import { calcMacrosFromPer100g, type ServingSize, type FoodSearchResult } from "@/types/nutrition";
 
 interface FoodCardProps {
 	food: FoodSearchResult;
@@ -58,7 +59,7 @@ export default function FoodCard({ food, displayLogButton, mealType, loggedAt, o
 
 	async function handleLogFood() {
 		try {
-			await instance.post("/nutrition/diary", {
+			await addDiaryEntry({
 				food_id: food.id,
 				meal_type: mealType,
 				logged_at: loggedAt,

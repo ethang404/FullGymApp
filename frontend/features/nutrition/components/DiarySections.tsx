@@ -3,13 +3,10 @@ import { useMemo, type ComponentProps, type ReactElement } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import type { MacroGoals } from "@/utils/macroDefaults";
+import { MEAL_TYPES } from "../constants";
+import type { DiaryEntry, MealType } from "../types";
 
 type IconName = ComponentProps<typeof FontAwesome5>["name"];
-
-// Canonical values match the backend meal_type enum. Display labels are separate
-// (we still want to show "Snacks" even though the stored value is "snack").
-export type MealType = "breakfast" | "lunch" | "dinner" | "snack";
-export const MEAL_TYPES: MealType[] = ["breakfast", "lunch", "dinner", "snack"];
 
 const MEAL_LABELS: Record<MealType, string> = {
 	breakfast: "Breakfast",
@@ -24,17 +21,6 @@ const MEAL_ICONS: Record<MealType, IconName> = {
 	dinner: "moon",
 	snack: "cookie-bite",
 };
-
-export interface DiaryEntry {
-	id: number;
-	type: "food" | "recipe";
-	meal_type: string;
-	quantity: number;
-	unit: string;
-	nutrients: Record<string, number>;
-	food?: { id: string; name: string; brand?: string };
-	recipe?: { id: string; name: string };
-}
 
 type MealSection = {
 	title: string;

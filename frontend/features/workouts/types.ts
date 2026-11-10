@@ -1,3 +1,5 @@
+import type { MuscleGroup } from "./constants";
+
 export type SetType = "warmup" | "working";
 
 export interface WorkoutSet {
@@ -21,6 +23,7 @@ export interface WorkoutExercise {
 	sets: WorkoutSet[];
 }
 
+// A full workout: GET /workouts/:id, and what POST/PUT send
 export interface WorkoutData {
 	workout_name: string;
 	workout_date: string;
@@ -30,25 +33,18 @@ export interface WorkoutData {
 	exercises: WorkoutExercise[];
 }
 
+// One row of GET /workouts (the list)
+export interface WorkoutSummary {
+	id: string;
+	name: string;
+	date: string;
+	duration_minutes?: number;
+	total_volume_kg?: number;
+	notes?: string;
+}
+
 //edit = your own saved workout, new = blank
 export type WorkoutMode = "new" | "edit";
-
-//same values as the exercise_catalog.muscle_group enum on the backend
-export const MUSCLE_GROUPS = ["chest", "back", "shoulders", "biceps", "triceps", "legs", "glutes", "core", "full_body", "cardio"] as const;
-export type MuscleGroup = (typeof MUSCLE_GROUPS)[number];
-
-export const MUSCLE_GROUP_LABELS: Record<MuscleGroup, string> = {
-	chest: "Chest",
-	back: "Back",
-	shoulders: "Shoulders",
-	biceps: "Biceps",
-	triceps: "Triceps",
-	legs: "Legs",
-	glutes: "Glutes",
-	core: "Core",
-	full_body: "Full body",
-	cardio: "Cardio",
-};
 
 //an exercise you can add to a workout (GET/POST /workouts/catalog)
 export interface CatalogExercise {

@@ -5,10 +5,10 @@ import { router } from "expo-router";
 import { useTheme } from "@/theme/ThemeProvider";
 import { haptics } from "@/utils/haptics";
 
-import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
 import { toast } from "@/utils/toast";
-import type { RecipeSummary } from "@/types/nutrition";
+import { addDiaryEntry } from "../api";
+import type { RecipeSummary } from "../types";
 
 interface RecipeLogCardProps {
 	recipe: RecipeSummary;
@@ -44,7 +44,7 @@ export default function RecipeLogCard({ recipe, displayLogButton, mealType, logg
 		if (!parsedQty || logging) return;
 		setLogging(true);
 		try {
-			await instance.post("/nutrition/diary", {
+			await addDiaryEntry({
 				recipe_id: recipe.id,
 				meal_type: mealType,
 				logged_at: loggedAt,

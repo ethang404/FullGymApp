@@ -6,8 +6,8 @@ import { useTheme } from "@/theme/ThemeProvider";
 import { fonts } from "@/theme/typography";
 
 import RecipeFoodCard from "./RecipeFoodCard";
-import { useFoodSearch } from "@/features/nutrition/hooks/useFoodSearch";
-import type { RecipeIngredient } from "@/types/nutrition";
+import { useFoodSearch } from "../hooks/useFoodSearch";
+import type { RecipeIngredient } from "../types";
 
 interface AddIngredientModalProps {
 	visible: boolean;

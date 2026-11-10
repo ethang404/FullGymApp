@@ -10,10 +10,10 @@ import type { Theme } from "@/theme/colors"; //for typing
 import SegmentedControl from "@/components/SegmentedControl";
 import FoodCard from "./FoodCard";
 import RecipeLogCard from "./RecipeLogCard";
-import { useFoodSearch } from "@/features/nutrition/hooks/useFoodSearch";
-import { useRecipes, useRecentLogged } from "@/features/nutrition/hooks/useRecentLogged";
-
-type MealType = "breakfast" | "lunch" | "dinner" | "snack";
+import { useFoodSearch } from "../hooks/useFoodSearch";
+import { useRecentLogged } from "../hooks/useRecentLogged";
+import { useRecipes } from "../hooks/useRecipes";
+import type { MealType } from "../types";
 
 type Tab = "foods" | "recipes" | "recent";
 const TABS: readonly Tab[] = ["foods", "recipes", "recent"] as const;

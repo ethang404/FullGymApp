@@ -33,7 +33,7 @@ export default function TabsLayout() {
 				}}
 			/>
 			<Tabs.Screen
-				name="nutrition"
+				name="Nutrition"
 				options={{
 					title: "Food",
 					tabBarIcon: ({ color, size }) => <FontAwesome5 name="utensils" size={size - 2} color={color} />,

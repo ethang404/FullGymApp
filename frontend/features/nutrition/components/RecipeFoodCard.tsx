@@ -4,9 +4,11 @@ import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { log } from "@/utils/log";
 
-import { COMMON_UNITS, calcMacrosFromPer100g, type ServingSize, type FoodSearchResult, type RecipeIngredient } from "@/types/nutrition";
+import { getFullFood } from "../api";
+import { COMMON_UNITS } from "../constants";
+import type { ServingSize, FoodSearchResult, RecipeIngredient } from "../types";
+import { calcMacrosFromPer100g } from "../utils/nutrients";
 import { AddServingModal } from "./AddServingModal";
-import { getFullFood } from "@/features/nutrition/hooks/useFoodSearch";
 
 //This component will give us 2 options, used in creating a new recipe
 //we either add a new ingrediant and pass data to main component
