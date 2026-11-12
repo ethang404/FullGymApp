@@ -5,7 +5,6 @@ import { AuthProvider, AuthContext } from "@/utils/AuthProvider";
 import { ThemeProvider } from "@/theme/ThemeProvider";
 import { useContext } from "react";
 import LoadingScreen from "@/components/LoadingScreen";
-import { AxiosInterceptorHandler } from "@/utils/AxiosInterceptorHandler";
 import { ProfileProvider } from "@/utils/ProfileProvider";
 import { ToastProvider } from "@/utils/ToastProvider";
 import { useFonts } from "expo-font";
@@ -46,11 +45,9 @@ export default function AppLayout() {
 				<StatusBar style="light" />
 				<ToastProvider>
 					<AuthProvider>
-						<AxiosInterceptorHandler>
-							<ProfileProvider>
-								<AppStack />
-							</ProfileProvider>
-						</AxiosInterceptorHandler>
+						<ProfileProvider>
+							<AppStack />
+						</ProfileProvider>
 					</AuthProvider>
 				</ToastProvider>
 			</ThemeProvider>

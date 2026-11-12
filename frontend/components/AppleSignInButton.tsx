@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import { Platform, View } from "react-native";
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Crypto from "expo-crypto";
 import { useTheme } from "@/theme/ThemeProvider";
-import { authInstance } from "../utils/AxiosInterceptorHandler";
+import { authClient } from "../utils/AuthAPI";
+import { AuthContext } from "../utils/AuthProvider";
 import { isDarkColor } from "../utils/colorContrast";
 import { log } from "../utils/log";
 import type { OAuthCredential } from "../utils/oauthCredential";
@@ -19,6 +20,7 @@ type AppleSignInButtonProps = {
 
 export default function AppleSignInButton({ onError, disabled, onCredential }: AppleSignInButtonProps) {
 	const { theme } = useTheme();
+	const { signIn } = useContext(AuthContext);
 	const [available, setAvailable] = useState(false);
 
 	useEffect(() => {
@@ -61,7 +63,7 @@ export default function AppleSignInButton({ onError, disabled, onCredential }: A
 			}
 
 			// Backend verifies identityToken (sig/aud/iss/exp + nonce) and logs in or creates the user.
-			await authInstance.post("/auth/apple", {
+			const resp = await authClient.post("/auth/apple", {
 				identityToken: credential.identityToken,
 				authorizationCode: credential.authorizationCode,
 				nonce: rawNonce,
@@ -70,6 +72,7 @@ export default function AppleSignInButton({ onError, disabled, onCredential }: A
 				lastName: credential.fullName?.familyName ?? null,
 				email: credential.email ?? null,
 			});
+			await signIn(resp.data);
 		} catch (err: any) {
 			if (err?.code === "ERR_REQUEST_CANCELED") {
 				return;

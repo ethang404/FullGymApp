@@ -1,15 +1,19 @@
 import React, { createContext, useState, type PropsWithChildren, useEffect, useCallback, useMemo } from "react";
 import axios from "axios";
-import * as SecureStore from "expo-secure-store";
+import { setOnAuthFailure, instance } from "./AuthAPI";
+import { clearTokens, getAccessToken, loadTokens, saveTokens } from "./tokenHandler";
+
+// What login/register/guest/google/apple send back
+export type AuthTokens = { accessToken: string; refreshToken: string; isGuest?: boolean };
 
 export const AuthContext = createContext<{
-	signIn: (guest?: boolean) => void;
+	signIn: (data: AuthTokens) => Promise<void>;
 	signOut: () => void;
 	isValidUser: boolean;
 	isGuest: boolean;
 	isLoading: boolean;
 }>({
-	signIn: () => null,
+	signIn: async () => {},
 	signOut: () => null,
 	isValidUser: false,
 	isGuest: false,
@@ -21,56 +25,61 @@ export function AuthProvider({ children }: PropsWithChildren) {
 	const [isGuest, setIsGuest] = useState(false);
 	const [isLoading, setIsLoading] = useState(true);
 
-	useEffect(() => {
-		async function verifyToken() {
-			const accessToken = await SecureStore.getItemAsync("accessToken");
-			if (!accessToken) {
+	//Might use this later for offline stuff
+	//look into a retry attempt for bad connection?
+	//const [connectionError, setConnectionError] = useState(false); // server unreachable at launch
+
+	// Runs at launch are the tokens we have saved still good?
+	//   200          -> logged in
+	//   401          -> logged out (instance already tried a refresh before giving us the 401)
+	//   anything else -> server down / no connection: keep the tokens, block on the error screen
+	const verifyToken = useCallback(async () => {
+		setIsLoading(true);
+		try {
+			await loadTokens(); //load tokens into memory on startup
+			if (!getAccessToken()) {
 				setValidUser(false);
-				setIsLoading(false);
 				return;
 			}
 
-			try {
-				const resp = await axios.get(`${process.env.EXPO_PUBLIC_BACKEND_URL}/auth/validToken`, {
-					headers: {
-						Authorization: `Bearer ${accessToken}`,
-					},
-				});
-				setValidUser(true);
-				setIsGuest(Boolean(resp.data?.isGuest));
-			} catch (err: any) {
-				// token invalid or expired
-				if (err.response?.status === 401) setValidUser(false);
-				else setValidUser(true); //user is valid but some other issue
-			} finally {
-				setIsLoading(false);
+			const resp = await instance.get("/auth/validToken");
+			setValidUser(true);
+			setIsGuest(Boolean(resp.data?.isGuest));
+		} catch (err) {
+			if (axios.isAxiosError(err) && err.response?.status === 401) {
+				setValidUser(false);
+				setIsGuest(false);
 			}
+		} finally {
+			setIsLoading(false);
 		}
-		verifyToken();
 	}, []);
 
-	//We put these in a useCallback and a useMemo so we don't re-create these
-	//functions (was created inline) like we were before
-	//doing this prevents AxiosInterceptor to be re-created and us losing the instance for a second
-	//this fixes a bug where we tore down interceptor value,
-	//called an endpoint (didn't have auth token cause no inteceptor)
-	//and errored.
-
-	//now we have a valid instance all the time since signIn/signOut don't change
-	const signIn = useCallback((guest: boolean = false) => {
-		setValidUser(true);
-		setIsGuest(guest);
-	}, []);
-	// Clear stored tokens too - otherwise verifyToken above finds them on the next
-	// launch and silently signs the user right back in.
 	const signOut = useCallback(() => {
 		setValidUser(false);
 		setIsGuest(false);
-		SecureStore.deleteItemAsync("accessToken").catch(() => {});
-		SecureStore.deleteItemAsync("refreshToken").catch(() => {});
+		clearTokens().catch(() => {});
 	}, []);
 
-	const value = useMemo(() => ({ signIn, signOut, isValidUser, isGuest, isLoading }), [signIn, signOut, isValidUser, isGuest, isLoading]);
+	const signIn = useCallback(async (data: AuthTokens) => {
+		await saveTokens(data.accessToken, data.refreshToken);
+		setValidUser(true);
+		setIsGuest(Boolean(data.isGuest));
+	}, []);
+
+	//on mount define the setter from AuthAPI
+	useEffect(() => {
+		setOnAuthFailure(signOut);
+	}, [signOut]);
+
+	useEffect(() => {
+		verifyToken();
+	}, [verifyToken]);
+
+	const value = useMemo(
+		() => ({ signIn, signOut, verifyToken, isValidUser, isGuest, isLoading }),
+		[signIn, signOut, verifyToken, isValidUser, isGuest, isLoading],
+	);
 
 	return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

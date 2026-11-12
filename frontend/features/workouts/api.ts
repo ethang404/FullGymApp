@@ -1,4 +1,4 @@
-import { instance } from "@/utils/AxiosInterceptorHandler";
+import { instance } from "@/utils/AuthAPI";
 import type { MuscleGroup } from "./constants";
 import type { CatalogExercise, ExerciseStats, WorkoutData, WorkoutSummary } from "./types";
 

@@ -2,7 +2,6 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput,
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useContext, useMemo, useState } from "react";
 import { useRouter } from "expo-router";
-import * as SecureStore from "expo-secure-store";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import Pills from "@/components/Pills";
@@ -10,9 +9,9 @@ import { HeightField, WeightField } from "@/components/MeasurementFields";
 import { fonts } from "@/theme/typography";
 import { DateField } from "@/components/DateField";
 import { themes, themeLabels, type Theme, type ThemeName } from "@/theme/colors";
-import { AuthContext } from "@/utils/AuthProvider";
+import { AuthContext, type AuthTokens } from "@/utils/AuthProvider";
 import { useProfile, type EstimateBody } from "@/utils/ProfileProvider";
-import { instance } from "@/utils/AxiosInterceptorHandler";
+import { instance } from "@/utils/AuthAPI";
 import { log } from "@/utils/log";
 import { toast } from "@/utils/toast";
 import Screen from "@/components/Screen";
@@ -58,10 +57,9 @@ export default function Profile() {
 
 	// Shared by the password and Google/Apple upgrade paths. The old guest token
 	// is dead server-side once is_guest flips, so swap in the new pair right away.
-	async function finishUpgrade(data: { accessToken?: string; refreshToken?: string }) {
-		if (data?.accessToken) await SecureStore.setItemAsync("accessToken", data.accessToken);
-		if (data?.refreshToken) await SecureStore.setItemAsync("refreshToken", data.refreshToken);
-		signIn(false);
+	// The upgrade responses don't send isGuest, so signIn marks us as a real account.
+	async function finishUpgrade(data: AuthTokens) {
+		await signIn(data);
 		await refresh();
 		setUpgradeModalOpen(false);
 	}

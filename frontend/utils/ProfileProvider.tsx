@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback, type PropsWithChildren } from "react";
-import { instance } from "./AxiosInterceptorHandler";
+import { instance } from "./AuthAPI";
 import { AuthContext } from "./AuthProvider";
 import { GOAL_DEFAULTS, type MacroGoals, type Sex, type ActivityLevel, type GoalType } from "./macroDefaults";
 import { log } from "./log";

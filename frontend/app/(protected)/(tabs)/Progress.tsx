@@ -3,7 +3,7 @@ import { useMemo, useEffect, useRef, useState } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { fonts } from "@/theme/typography";
-import { instance } from "@/utils/AxiosInterceptorHandler";
+import { instance } from "@/utils/AuthAPI";
 import { log } from "@/utils/log";
 import { toast } from "@/utils/toast";
 import { formatShortDate } from "@/utils/date";

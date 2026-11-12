@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { LineChart } from "react-native-gifted-charts";
 import { useTheme } from "@/theme/ThemeProvider";
-import { instance } from "@/utils/AxiosInterceptorHandler";
+import { instance } from "@/utils/AuthAPI";
 import { log } from "@/utils/log";
 import { formatMediumDate, formatShortDate } from "@/utils/date";
 import FilterChips from "@/components/FilterChips";
