@@ -1,42 +1,17 @@
 import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, RefreshControl } from "react-native";
-import { useCallback, useMemo, useState } from "react";
-import { router, useFocusEffect } from "expo-router";
+import { useMemo } from "react";
+import { router } from "expo-router";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { fonts } from "@/theme/typography";
-import { instance } from "@/utils/AxiosInterceptorHandler";
-import { log } from "@/utils/log";
 import Screen from "@/components/Screen";
 
-import RecipeDisplayCard, { type Recipe } from "@/features/nutrition/components/RecipeDisplayCard";
+import RecipeDisplayCard from "@/features/nutrition/components/RecipeDisplayCard";
+import { useRecipeList } from "@/features/nutrition/hooks/useRecipeList";
 
 export default function Recipes() {
 	const { theme } = useTheme();
-
-	const [recipes, setRecipes] = useState<Recipe[]>([]);
-	const [loading, setLoading] = useState(true);
-	const [refreshing, setRefreshing] = useState(false);
-	const [error, setError] = useState(false);
-
-	async function fetchRecipes() {
-		try {
-			setError(false);
-			const res = await instance.get("/nutrition/recipes");
-			setRecipes(res.data.recipes ?? res.data ?? []);
-		} catch (e) {
-			log.error("Recipes fetch error:", e);
-			setError(true);
-		} finally {
-			setLoading(false);
-			setRefreshing(false);
-		}
-	}
-
-	useFocusEffect(
-		useCallback(() => {
-			fetchRecipes();
-		}, []),
-	);
+	const list = useRecipeList();
 
 	const styles = useMemo(
 		() =>
@@ -67,7 +42,7 @@ export default function Recipes() {
 		[theme],
 	);
 
-	if (loading) {
+	if (list.loading) {
 		return (
 			<Screen edges={["top", "bottom"]}>
 				<View style={styles.center}>
@@ -86,30 +61,21 @@ export default function Recipes() {
 				<Text style={styles.headerTitle}>My recipes</Text>
 			</View>
 
-			{error ? (
+			{list.error ? (
 				<View style={styles.center}>
 					<FontAwesome5 name="exclamation-circle" size={28} color={theme.textMuted} />
 					<Text style={styles.emptyTitle}>Couldn&apos;t load recipes</Text>
-					<TouchableOpacity style={styles.retryBtn} onPress={fetchRecipes}>
+					<TouchableOpacity style={styles.retryBtn} onPress={list.refetch}>
 						<Text style={styles.retryText}>Retry</Text>
 					</TouchableOpacity>
 				</View>
 			) : (
 				<FlatList
-					data={recipes}
+					data={list.recipes}
 					keyExtractor={(item) => String(item.id)}
 					renderItem={({ item }) => <RecipeDisplayCard recipe={item} onPress={(recipe) => router.push(`/nutrition/CreateRecipe?recipe_id=${recipe.id}`)} />}
 					contentContainerStyle={styles.listContent}
-					refreshControl={
-						<RefreshControl
-							refreshing={refreshing}
-							onRefresh={() => {
-								setRefreshing(true);
-								fetchRecipes();
-							}}
-							tintColor={theme.primary}
-						/>
-					}
+					refreshControl={<RefreshControl refreshing={list.refreshing} onRefresh={list.refresh} tintColor={theme.primary} />}
 					ListEmptyComponent={
 						<View style={styles.center}>
 							<FontAwesome5 name="utensils" size={28} color={theme.textMuted} />

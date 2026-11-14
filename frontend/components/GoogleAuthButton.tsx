@@ -1,8 +1,9 @@
-import React, { useEffect } from "react";
+import React, { useContext, useEffect } from "react";
 import { View, StyleSheet } from "react-native";
 import { GoogleOneTapSignIn, GoogleSignInButton, isErrorWithCode, statusCodes, type OneTapSuccessData } from "react-native-nitro-google-signin";
 import { useTheme } from "@/theme/ThemeProvider";
-import { authInstance } from "../utils/AxiosInterceptorHandler";
+import { authClient } from "../utils/AuthAPI";
+import { AuthContext } from "../utils/AuthProvider";
 import { isDarkColor } from "../utils/colorContrast";
 import { log } from "../utils/log";
 import type { OAuthCredential } from "../utils/oauthCredential";
@@ -30,6 +31,7 @@ type GoogleAuthButtonProps = {
 
 export default function GoogleAuthButton({ onError, disabled, onCredential }: GoogleAuthButtonProps) {
 	const { theme } = useTheme();
+	const { signIn } = useContext(AuthContext);
 
 	useEffect(() => {
 		ensureConfigured();
@@ -44,16 +46,18 @@ export default function GoogleAuthButton({ onError, disabled, onCredential }: Go
 
 		try {
 			// Backend verifies idToken (sig/aud/iss/exp) and logs in or creates the user.
-			await authInstance.post("/auth/google", {
+			const resp = await authClient.post("/auth/google", {
 				idToken: data.idToken,
 				googleUserId: data.user.id,
 				firstName: data.user.givenName,
 				lastName: data.user.familyName,
 				email: data.user.email,
 			});
-		} catch (err) {
+			await signIn(resp.data);
+		} catch (err: any) {
 			log.warn("Backend rejected Google sign-in", err);
-			onError?.("Google sign-in failed. Please try again.");
+			//403 is a suspended account. Other errors here are technical, so they keep the generic message
+			onError?.(err?.response?.status === 403 ? err.response.data?.message : "Google sign-in failed. Please try again.");
 		}
 	}
 

@@ -24,21 +24,20 @@ const workouts = sequelize.define(
 		notes: {
 			type: DataTypes.STRING(255),
 		},
+		started_at: {
+			//when the workout started - the editor stamps it when a new workout is opened, and an edit can correct it.
+			//duration is finished_at - started_at.
+			type: DataTypes.DATE,
+		},
 		finished_at: {
 			//when workout was finished. Could be null, should maybe auto apply if past 2 hours.
 			type: DataTypes.DATE,
-		},
-		visibility: {
-			type: DataTypes.ENUM("private", "friends", "public"),
-			allowNull: false,
-			defaultValue: "private",
 		},
 	},
 	{
 		tableName: "workouts",
 		timestamps: true,
 		underscored: true,
-		indexes: [{ fields: ["visibility"] }],
 	},
 );
 module.exports = workouts;

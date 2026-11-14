@@ -1,5 +1,9 @@
 const express = require("express");
 const router = express.Router();
+const validateIdParam = require("../middlewear/validateIdParam");
+
+//numeric route params -> 400 if they aren't a valid id (instead of a postgres 500)
+router.param("id", validateIdParam);
 const controller = require("./controller");
 const verifyToken = require("../middlewear/token");
 
@@ -18,8 +22,6 @@ router.post("/foods/:id/serving-sizes", verifyToken, controller.addFoodServing);
 // ---------------------------------------------
 // GET   endpoint looks like: /diary?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD&meal_type=breakfast
 router.get("/diary", verifyToken, controller.getDiaryEntries);
-// GET /diary/friend/:friend_user_id?date=YYYY-MM-DD — read-only, friends-visible entries only
-router.get("/diary/friend/:friend_user_id", verifyToken, controller.getFriendDiary);
 router.post("/diary", verifyToken, controller.addDiaryEntry);
 // GET /recent   recently logged distinct foods + recipes (newest first), for quick re-logging
 router.get("/recent", verifyToken, controller.getRecentLogged);

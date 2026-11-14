@@ -4,7 +4,6 @@ import { router, useFocusEffect } from "expo-router";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { fonts } from "@/theme/typography";
-import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
 import { todayISO, formatRelativeDate } from "@/utils/date";
 import { useProfile } from "@/utils/ProfileProvider";
@@ -12,6 +11,9 @@ import { ScreenState } from "@/components/ScreenState";
 import { PressableScale } from "@/components/PressableScale";
 import { Tasks } from "@/components/Tasks";
 import Screen from "@/components/Screen";
+import { getDiary } from "@/features/nutrition/api";
+import { getWorkouts } from "@/features/workouts/api";
+import type { WorkoutSummary } from "@/features/workouts/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -20,14 +22,6 @@ interface NutrientSummary {
 	protein: number;
 	carbs: number;
 	fat: number;
-}
-
-interface Workout {
-	id: string;
-	name: string;
-	date: string;
-	duration_minutes: number;
-	total_volume_kg?: number;
 }
 
 // % of goal, guarding against a 0 / missing goal.
@@ -50,7 +44,7 @@ export default function Home() {
 	const { goals, profile } = useProfile();
 
 	const [summary, setSummary] = useState<NutrientSummary | null>(null);
-	const [workouts, setWorkouts] = useState<Workout[]>([]);
+	const [workouts, setWorkouts] = useState<WorkoutSummary[]>([]);
 	const calorieGoal = goals.calories;
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState(false);
@@ -60,13 +54,10 @@ export default function Home() {
 			const today = todayISO();
 
 			// Fetch today's diary entries and sum nutrients
-			const [diaryRes, workoutsRes] = await Promise.allSettled([
-				instance.get(`/nutrition/diary?start_date=${today}&end_date=${today}`),
-				instance.get("/workouts"),
-			]);
+			const [diaryRes, workoutsRes] = await Promise.allSettled([getDiary(today), getWorkouts()]);
 
 			if (diaryRes.status === "fulfilled") {
-				const entries: any[] = diaryRes.value.data.diary_entries ?? [];
+				const entries = diaryRes.value;
 				const totals = entries.reduce(
 					(acc, e) => {
 						const n = e.nutrients;
@@ -84,7 +75,7 @@ export default function Home() {
 			}
 
 			if (workoutsRes.status === "fulfilled") {
-				setWorkouts(workoutsRes.value.data.workouts?.slice(0, 3) ?? []);
+				setWorkouts(workoutsRes.value.slice(0, 3));
 			}
 
 			// Both endpoints down → show a real error, not an empty-looking dashboard.
@@ -359,7 +350,7 @@ export default function Home() {
 
 					{/* CTA buttons */}
 					<View style={styles.ctaRow}>
-						<PressableScale style={styles.ctaPrimary} onPress={() => router.push("/nutrition/Nutrition")} accessibilityRole="button">
+						<PressableScale style={styles.ctaPrimary} onPress={() => router.push("/Nutrition")} accessibilityRole="button">
 							<FontAwesome5 name="utensils" size={14} color={theme.textInverse} />
 							<Text style={styles.ctaPrimaryText}>Log food</Text>
 						</PressableScale>

@@ -1,40 +1,24 @@
-const usersDB = require("../models/modelInits").users;
+const sequelize = require("../models/db");
+const {
+	users: usersDB,
+	workouts: workoutsDB,
+	diaryEntries: diaryEntriesDB,
+	recipe: recipeDB,
+	food: foodDB,
+	blocked_users: blockedDB,
+	friendships: friendshipsDB,
+	group_members: membersModel,
+	groups: groupsModel,
+} = require("../models/modelInits");
+const { Op } = require("sequelize");
+const { getHiddenUserIds, friendshipPair } = require("../utils/social");
 const { NotFoundError, DataError } = require("../error");
-const { GOAL_DEFAULTS, GOAL_COLUMNS, SEXES, ACTIVITY_LEVELS, GOAL_TYPES } = require("../constants/macroDefaults");
+const { revokeAppleToken } = require("../Auth/appleAuth");
+const { PUBLIC_USER_ATTRIBUTES, GOAL_KEYS, GOAL_COLUMNS, SEXES, ACTIVITY_LEVELS, GOAL_TYPES } = require("../constants");
+const { serializeUser } = require("../serializers/users");
 const { estimateGoals } = require("./goalCalculator");
 
-const GOAL_KEYS = Object.keys(GOAL_COLUMNS); // calories, protein, carbs, fat, fiber
-const BODY_FIELDS = ["sex", "birth_date", "height_cm", "weight_kg", "activity_level", "goal_type"];
-
-// Shape a user row into the API response. Never leaks password / spoon_hash.
-function serializeUser(user) {
-	const goals = {};
-	for (const [key, column] of Object.entries(GOAL_COLUMNS)) {
-		goals[key] = user[column] == null ? null : Number(user[column]);
-	}
-
-	const effective_goals = { ...GOAL_DEFAULTS };
-	for (const key of GOAL_KEYS) {
-		if (goals[key] != null) effective_goals[key] = goals[key];
-	}
-
-	const body = {};
-	for (const field of BODY_FIELDS) {
-		body[field] = user[field] == null ? null : user[field];
-	}
-
-	return {
-		user_id: user.user_id,
-		first_name: user.first_name,
-		last_name: user.last_name,
-		user_name: user.user_name,
-		created_at: user.createdAt,
-		onboarding_completed: user.onboarding_completed,
-		body,
-		goals,
-		effective_goals,
-	};
-}
+//serializeUser lives in serializers/users.js (Friends uses it too)
 
 async function getMe(user_id) {
 	const user = await usersDB.findByPk(user_id);
@@ -136,4 +120,156 @@ function estimate(body) {
 	return estimateGoals(body);
 }
 
-module.exports = { getMe, updateMe, estimate, serializeUser };
+// Permanently deletes the account and everything that's only theirs, all or nothing.
+//Clear each table manually in case of future migrations
+async function deleteMe(user_id) {
+	let appleRefreshToken = null;
+
+	await sequelize.transaction(async (t) => {
+		const user = await usersDB.findByPk(user_id, { transaction: t });
+		if (!user) throw new NotFoundError("User not found");
+		appleRefreshToken = user.apple_refresh_token;
+
+		//Submitted foods remain with no user_id
+		await foodDB.update({ submitted_by: null }, { where: { submitted_by: user_id }, transaction: t });
+
+		//Delete main interactions for that user in this order (since diaryEntries can reference recipes)
+		await diaryEntriesDB.destroy({ where: { user_id }, transaction: t });
+		await recipeDB.destroy({ where: { user_id }, transaction: t });
+		await workoutsDB.destroy({ where: { user_id }, transaction: t });
+
+		//For each group the user is an owner of: replace with oldest admin if there is one.
+		//else: oldest member
+		//else: just owner in group: delete
+		//also remove any row in blocked table
+		const owned = await membersModel.findAll({
+			where: { user_id, role: "owner", status: "active" }, //my owner rows
+			include: [
+				{
+					model: groupsModel, //join w/ group name and stuff
+					include: [
+						{
+							model: membersModel, //then looking at other members in this group
+							as: "memberships",
+							where: { user_id: { [Op.ne]: user_id }, status: "active" }, //everyone else who's actually in
+							required: false, //keep groups where I'm the only one -> memberships = []
+						},
+					],
+				},
+			],
+			order: [
+				//sorting a nested include: list the path to it, then the column
+				[groupsModel, { model: membersModel, as: "memberships" }, "role", "ASC"], //admin before member
+				[groupsModel, { model: membersModel, as: "memberships" }, "createdAt", "ASC"], //then oldest
+			],
+			transaction: t,
+		});
+
+		//split my groups: someone to hand it to, or nobody left (delete it)
+		const successors = [];
+		const empty_group_ids = [];
+		for (const row of owned) {
+			const next_owner = row.group.memberships[0]; //already sorted: admins first, then oldest
+			if (next_owner) successors.push({ group_id: row.group_id, user_id: next_owner.user_id });
+			else empty_group_ids.push(row.group_id);
+		}
+
+		//promote every successor at once - each pair is one specific membership row
+		if (successors.length > 0) {
+			await membersModel.update({ role: "owner" }, { where: { [Op.or]: successors }, transaction: t });
+		}
+
+		//groups where I was the only member. Their memberships + posts cascade
+		if (empty_group_ids.length > 0) {
+			await groupsModel.destroy({ where: { id: empty_group_ids }, transaction: t });
+		}
+
+		await user.destroy({ transaction: t });
+	});
+
+	// Apple requires revoking Sign in with Apple tokens on account deletion. Done after the commit so an
+	// Apple outage can't stop someone deleting their account - it just gets logged.
+	if (appleRefreshToken) {
+		try {
+			await revokeAppleToken(appleRefreshToken);
+		} catch (err) {
+			console.error(`Couldn't revoke Apple token for deleted user ${user_id}`, err);
+		}
+	}
+}
+
+// Admin only (Admin/route.js). Bans or unbans - only flips the column, so a mistake can be fully undone.
+//verifyToken checks is_banned on every request, so this applies straight away. The row stays on purpose:
+//deleting it would let them sign back in with the same Apple/Google account
+async function setBanned(user_id, admin_id, is_banned) {
+	//must-have: a missing body or the string "false" could otherwise ban or unban someone by accident
+	if (typeof is_banned !== "boolean") throw new DataError("is_banned must be true or false");
+
+	//optional: nothing breaks, but you'd lock yourself out of the admin routes
+	if (is_banned && user_id === admin_id) throw new DataError("You can't ban yourself");
+
+	const user = await usersDB.findByPk(user_id);
+	if (!user) throw new NotFoundError("User not found");
+
+	await user.update({ is_banned });
+}
+
+// ---------------------------------------------
+// Social
+// ---------------------------------------------
+//matches username or first/last name. Never me, guests, banned users, or anyone I'm blocked with
+async function searchUsers(user_id, q) {
+	const search = typeof q === "string" ? q.trim() : "";
+	if (!search) return [];
+
+	const hidden_ids = await getHiddenUserIds(user_id);
+
+	return usersDB.findAll({
+		where: {
+			user_id: { [Op.notIn]: [user_id, ...hidden_ids] },
+			is_guest: false,
+			[Op.or]: [{ user_name: { [Op.iLike]: `%${search}%` } }, { first_name: { [Op.iLike]: `%${search}%` } }, { last_name: { [Op.iLike]: `%${search}%` } }],
+		},
+		attributes: PUBLIC_USER_ATTRIBUTES,
+		order: [["user_name", "ASC"]],
+		limit: 20,
+	});
+}
+
+//people *I* blocked (never who blocked me), newest first
+async function getBlockedUsers(user_id) {
+	const rows = await blockedDB.findAll({
+		where: { blocker_id: user_id },
+		include: [{ model: usersDB, as: "blockedUser", attributes: PUBLIC_USER_ATTRIBUTES }],
+		order: [["createdAt", "DESC"]],
+	});
+
+	return rows.map((row) => ({ ...row.blockedUser.toJSON(), blocked_at: row.createdAt }));
+}
+
+//idempotent - blocking twice is a no-op. Also removes any friendship/pending request between us
+async function blockUser(user_id, blocked_user_id) {
+	if (!Number.isInteger(blocked_user_id)) throw new DataError("Invalid user id");
+	if (blocked_user_id === user_id) throw new DataError("You can't block yourself");
+
+	const target = await usersDB.findByPk(blocked_user_id, { attributes: ["user_id"] });
+	if (!target) throw new NotFoundError("User not found");
+
+	await sequelize.transaction(async (t) => {
+		await blockedDB.findOrCreate({ where: { blocker_id: user_id, blocked_user_id }, transaction: t });
+
+		//friendship rows are stored smaller id first. Permission rows cascade with it
+		await friendshipsDB.destroy({
+			where: friendshipPair(user_id, blocked_user_id),
+			transaction: t,
+		});
+	});
+}
+
+//idempotent - unblocking someone you never blocked is a no-op. Only removes MY block (theirs stays if they have one)
+async function unblockUser(user_id, blocked_user_id) {
+	if (!Number.isInteger(blocked_user_id)) throw new DataError("Invalid user id");
+	await blockedDB.destroy({ where: { blocker_id: user_id, blocked_user_id } });
+}
+
+module.exports = { getMe, updateMe, estimate, deleteMe, setBanned, searchUsers, getBlockedUsers, blockUser, unblockUser };

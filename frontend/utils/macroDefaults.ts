@@ -1,4 +1,4 @@
-// Mirror of backend/constants/macroDefaults.js — kept in sync by hand since there
+// Mirror of backend/constants.js — kept in sync by hand since there
 // is no shared package. Used as the fallback whenever a user has not set a goal.
 
 export const GOAL_DEFAULTS = {

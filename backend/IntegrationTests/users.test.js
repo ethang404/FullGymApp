@@ -3,7 +3,7 @@ const app = require("../app");
 const sequelize = require("../models/db");
 
 const UsersModel = require("../models/modelInits").users;
-const { GOAL_DEFAULTS } = require("../constants/macroDefaults");
+const { GOAL_DEFAULTS } = require("../constants");
 
 const {
 	addUserPayload,
@@ -271,5 +271,92 @@ describe("POST /users/me/goals/estimate", () => {
 			.set(auth())
 			.send({ ...estimateBodyPayload, goal_type: "bulk_dirty" });
 		expect(resp.status).toBe(400);
+	});
+});
+
+// ─────────────────────────────────────────────
+// DELETE /users/me
+// ─────────────────────────────────────────────
+
+describe("DELETE /users/me", () => {
+	const {
+		workouts: WorkoutsModel,
+		exercises: ExercisesModel,
+		sets: SetsModel,
+		exercise_catalog: ExerciseCatalogModel,
+		diaryEntries: DiaryEntriesModel,
+		recipe: RecipeModel,
+		food: FoodModel,
+	} = require("../models/modelInits");
+
+	const register = async (userName) => {
+		const resp = await request(app)
+			.post("/auth/register")
+			.send({ firstName: "Del", lastName: "Ete", userName, password: "DeleteMe123!" });
+		return { token: resp.body.accessToken, id: resp.body.userId };
+	};
+
+	let doomed;
+	let keeper;
+	let foodId;
+	let workoutId;
+
+	// doomed: a workout (exercise + set), a user-submitted food, a recipe, and diary entries for both
+	beforeAll(async () => {
+		doomed = await register("doomed_user");
+		keeper = await register("keeper_user");
+
+		const catalog = await ExerciseCatalogModel.create({ name: "Delete Test Press", muscle_group: "chest" });
+		const workoutResp = await request(app)
+			.post("/workouts")
+			.set({ Authorization: `Bearer ${doomed.token}` })
+			.send({
+				workout_name: "Doomed workout",
+				workout_date: "2026-10-01",
+				notes: "",
+				finished_at: null,
+				exercises: [{ catalog_id: catalog.catalog_id, notes: "", order_number: 1, sets: [{ order_number: 1, set_type: "working", notes: "", reps: 5, weight: 100, reps_in_reserve: 2 }] }],
+			});
+		workoutId = workoutResp.body.workout?.workout_id ?? (await WorkoutsModel.findOne({ where: { user_id: doomed.id } })).workout_id;
+
+		const food = await FoodModel.create({ name: "Doomed oats", source: "user_submitted", submitted_by: doomed.id });
+		foodId = food.id;
+		const recipe = await RecipeModel.create({ user_id: doomed.id, name: "Doomed stew" });
+
+		await DiaryEntriesModel.create({ user_id: doomed.id, food_id: foodId, meal_type: "lunch", logged_at: "2026-10-01", quantity: 1, unit: "g" });
+		await DiaryEntriesModel.create({ user_id: doomed.id, recipe_id: recipe.recipe_id, meal_type: "dinner", logged_at: "2026-10-01", quantity: 1, unit: "serving" });
+	}, 30000);
+
+	test("requires auth", async () => {
+		const resp = await request(app).delete("/users/me");
+		expect(resp.status).toBe(401);
+	});
+
+	test("deletes the user and everything they own, keeps their submitted food", async () => {
+		const resp = await request(app).delete("/users/me").set({ Authorization: `Bearer ${doomed.token}` });
+		expect(resp.status).toBe(200);
+
+		expect(await UsersModel.findByPk(doomed.id)).toBeNull();
+		expect(await WorkoutsModel.count({ where: { user_id: doomed.id } })).toBe(0);
+		expect(await ExercisesModel.count({ where: { workout_id: workoutId } })).toBe(0);
+		expect(await SetsModel.count({ include: [{ model: ExercisesModel, where: { workout_id: workoutId } }] })).toBe(0);
+		expect(await DiaryEntriesModel.count({ where: { user_id: doomed.id } })).toBe(0);
+		expect(await RecipeModel.count({ where: { user_id: doomed.id } })).toBe(0);
+
+		// shared food survives, just unlinked from the deleted user
+		const food = await FoodModel.findByPk(foodId);
+		expect(food).not.toBeNull();
+		expect(food.submitted_by).toBeNull();
+	});
+
+	test("the deleted user's token stops working", async () => {
+		const resp = await request(app).get("/users/me").set({ Authorization: `Bearer ${doomed.token}` });
+		expect(resp.status).toBe(401);
+	});
+
+	test("other users are untouched", async () => {
+		const resp = await request(app).get("/users/me").set({ Authorization: `Bearer ${keeper.token}` });
+		expect(resp.status).toBe(200);
+		expect(resp.body.user.user_id).toBe(keeper.id);
 	});
 });

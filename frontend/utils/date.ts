@@ -7,9 +7,7 @@
 function parseLocalDate(dateStr: string): Date | null {
 	if (!dateStr) return null;
 	const pureDate = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr.trim());
-	const d = pureDate
-		? new Date(Number(pureDate[1]), Number(pureDate[2]) - 1, Number(pureDate[3]))
-		: new Date(dateStr);
+	const d = pureDate ? new Date(Number(pureDate[1]), Number(pureDate[2]) - 1, Number(pureDate[3])) : new Date(dateStr);
 	return isNaN(d.getTime()) ? null : d;
 }
 
@@ -86,4 +84,17 @@ export function formatDayHeading(dateStr: string): string {
 	if (diffDays === -1) return "YESTERDAY";
 	if (diffDays === 1) return "TOMORROW";
 	return d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" }).toUpperCase();
+}
+
+export function getWeekDates(selectedDate: string) {
+	const date = parseISODate(selectedDate) ?? new Date();
+
+	const daysBack = (date.getDay() + 6) % 7;
+
+	const monday = shiftISODate(toISODate(date), -daysBack);
+	const week: string[] = [];
+	for (let i = 0; i < 7; i++) {
+		week.push(shiftISODate(monday, i)); //push series of dates in order from Monday->Sunday for curr weak
+	}
+	return week;
 }

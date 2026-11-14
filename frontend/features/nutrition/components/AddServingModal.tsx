@@ -5,12 +5,12 @@ import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import type { Theme } from "@/theme/colors"; //for typing
 import { fonts } from "@/theme/typography";
 
-import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
 
-import type { ServingSize } from "@/types/nutrition";
-
-import { FIXED_UNIT_CONVERSIONS, resolveServingWeightG } from "@/types/nutrition";
+import { addServingSize } from "../api";
+import { FIXED_UNIT_CONVERSIONS } from "../constants";
+import type { ServingSize } from "../types";
+import { resolveServingWeightG } from "../utils/servingUnits";
 
 interface AddServingModalProps {
 	visible: boolean;
@@ -63,18 +63,7 @@ export function AddServingModal({ visible, foodId, foodName, availableUnits, exi
 		setSaving(true);
 		setError(null);
 		try {
-			const res = await instance.post(`/nutrition/foods/${foodId}/serving-sizes`, {
-				label: newLabel,
-				weight_g: weight,
-				default_quantity: qty,
-			});
-
-			const created: ServingSize = {
-				label: res.data.foodServing.label,
-				weight_g: parseFloat(res.data.foodServing.weight_g), //convert from string to number...change on backend later
-				default_quantity: res.data.foodServing.default_quantity != null ? parseFloat(res.data.foodServing.default_quantity) : qty,
-			};
-
+			const created = await addServingSize(foodId, { label: newLabel, weight_g: weight, default_quantity: qty });
 			onServingAdded(created);
 		} catch (e) {
 			log.error("Failed to add serving size:", e);
@@ -98,7 +87,7 @@ export function AddServingModal({ visible, foodId, foodName, availableUnits, exi
 		// starting value from another serving size already defined on this
 		// food (e.g. food only has "tbsp" - derive "tsp" from it). Still
 		// editable - this is a best-effort pre-fill, not an authoritative value.
-		const derived = resolveServingWeightG(unit, existingServings);
+		const derived = resolveServingWeightG(unit, existingServings, foodName);
 		setNewWeight(derived != null ? String(derived) : "");
 	}
 

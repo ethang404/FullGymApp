@@ -1,11 +1,11 @@
 import { Stack } from "expo-router";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { StatusBar } from "expo-status-bar";
 import { AuthProvider, AuthContext } from "@/utils/AuthProvider";
 import { ThemeProvider } from "@/theme/ThemeProvider";
 import { useContext } from "react";
 import LoadingScreen from "@/components/LoadingScreen";
-import { AxiosInterceptorHandler } from "@/utils/AxiosInterceptorHandler";
 import { ProfileProvider } from "@/utils/ProfileProvider";
-import { FriendsProvider } from "@/utils/FriendsProvider";
 import { ToastProvider } from "@/utils/ToastProvider";
 import { useFonts } from "expo-font";
 import { fontAssets } from "@/theme/typography";
@@ -38,18 +38,19 @@ function AppStack() {
 
 export default function AppLayout() {
 	return (
-		<ThemeProvider>
-			<ToastProvider>
-				<AuthProvider>
-					<AxiosInterceptorHandler>
+		//needed by anything using react-native-gesture-handler (e.g. drag-to-reorder in the workout editor)
+		<GestureHandlerRootView style={{ flex: 1 }}>
+			<ThemeProvider>
+				{/* Every theme is dark, so status bar content is always light */}
+				<StatusBar style="light" />
+				<ToastProvider>
+					<AuthProvider>
 						<ProfileProvider>
-							<FriendsProvider>
-								<AppStack />
-							</FriendsProvider>
+							<AppStack />
 						</ProfileProvider>
-					</AxiosInterceptorHandler>
-				</AuthProvider>
-			</ToastProvider>
-		</ThemeProvider>
+					</AuthProvider>
+				</ToastProvider>
+			</ThemeProvider>
+		</GestureHandlerRootView>
 	);
 }

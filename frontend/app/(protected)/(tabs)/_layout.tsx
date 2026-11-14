@@ -33,7 +33,7 @@ export default function TabsLayout() {
 				}}
 			/>
 			<Tabs.Screen
-				name="nutrition"
+				name="Nutrition"
 				options={{
 					title: "Food",
 					tabBarIcon: ({ color, size }) => <FontAwesome5 name="utensils" size={size - 2} color={color} />,
@@ -60,9 +60,6 @@ export default function TabsLayout() {
 					tabBarIcon: ({ color, size }) => <FontAwesome5 name="user" size={size - 2} color={color} />,
 				}}
 			/>
-			{/* Five tabs max. Friends and Explore live under You → Community (hidden from the bar, still tab routes). */}
-			<Tabs.Screen name="Explore" options={{ href: null }} />
-			<Tabs.Screen name="Friends" options={{ href: null }} />
 		</Tabs>
 	);
 }

@@ -1,30 +1,19 @@
-const jwt = require("jsonwebtoken");
-const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 
-const { Op } = require("sequelize");
 const sequelize = require("../models/db");
-const {
-	users: usersDB,
-	workouts: workoutsDB,
-	diaryEntries: diaryEntriesDB,
-	recipe: recipeDB,
-	food: foodDB,
-	friendships: friendshipsDB,
-} = require("../models/modelInits");
-const { UnauthorizedError, GeneralError, DataError, ForbiddenError } = require("../error");
-const { verifyAppleIdentityToken } = require("./appleAuth");
+const { users: usersDB, workouts: workoutsDB, diaryEntries: diaryEntriesDB, recipe: recipeDB, food: foodDB } = require("../models/modelInits");
+const { UnauthorizedError, GeneralError, DataError, ForbiddenError, ConflictError } = require("../error");
+const { verifyAppleIdentityToken, exchangeAppleAuthorizationCode } = require("./appleAuth");
 const { verifyGoogleIdToken } = require("./googleAuth");
+const { generateTokens, verifyJwt, isRevokedGuestToken, isUserBanned } = require("./tokens");
+const { hashPassword, checkPassword, guestHashPassword } = require("./passwords");
 
 async function refreshToken(token) {
 	if (!token) throw new DataError("Missing refreshToken for refresh");
 
 	let payload;
 	try {
-		payload = jwt.verify(token, process.env.JWT_SECRET, {
-			audience: "my-gym-app",
-			issuer: "gym-auth-server",
-		});
+		payload = verifyJwt(token);
 	} catch {
 		throw new UnauthorizedError("Invalid or expired refresh token");
 	}
@@ -35,6 +24,7 @@ async function refreshToken(token) {
 
 	const user = await usersDB.findByPk(payload.user_id);
 	if (!user) throw new UnauthorizedError("User no longer exists");
+	if (isUserBanned(user)) throw new UnauthorizedError("Couldn't find this account");
 	if (isRevokedGuestToken(payload, user)) throw new UnauthorizedError("Guest session has ended, please sign in again");
 
 	// Sliding refresh - every successful refresh also reissues the refresh
@@ -42,39 +32,7 @@ async function refreshToken(token) {
 	return generateTokens(user.user_id, user.is_guest);
 }
 
-//if token says we're a guest, but we aren't anymore (upgraded)
-function isRevokedGuestToken(payload, user) {
-	return payload.guest === true && !user.is_guest;
-}
-
-function generateTokens(user_id, isGuest = false) {
-	const accessOptions = {
-		audience: "my-gym-app",
-		issuer: "gym-auth-server",
-	};
-	// Guests have no username/password to log back in with, so an expired
-	// access token with a lapsed refresh token means permanently losing the
-	// account. So make infinite
-	if (!isGuest) {
-		accessOptions.expiresIn = "1h";
-	}
-
-	// Guest tokens are stamped so they stop working once the account is upgraded
-	// (see isRevokedGuestToken) - otherwise the non-expiring guest access token
-	// would keep working for the now-real account forever.
-	const guestClaim = isGuest ? { guest: true } : {};
-
-	const accessToken = jwt.sign({ user_id, type: "access", ...guestClaim }, process.env.JWT_SECRET, accessOptions);
-	const refreshToken = jwt.sign({ user_id, type: "refresh", ...guestClaim }, process.env.JWT_SECRET, {
-		expiresIn: "30 days",
-		audience: "my-gym-app",
-		issuer: "gym-auth-server",
-	});
-	return {
-		accessToken,
-		refreshToken,
-	};
-}
+//generateTokens / isRevokedGuestToken live in ./tokens.js, password hashing in ./passwords.js
 
 async function register(userData) {
 	const { firstName, lastName, userName, password } = userData;
@@ -82,9 +40,11 @@ async function register(userData) {
 		throw new DataError("Missing required fields for registration");
 	}
 
-	const saltRounds = 10;
-	const salt = await bcrypt.genSalt(saltRounds);
-	const hash = await bcrypt.hash(password + process.env.PEPPER, salt);
+	//409 so the app can say "that username is taken" instead of a generic failure
+	const existing = await usersDB.findOne({ where: { user_name: userName } });
+	if (existing) throw new ConflictError("Username is already taken");
+
+	const hash = await hashPassword(password);
 
 	try {
 		const user = await usersDB.create({
@@ -94,7 +54,9 @@ async function register(userData) {
 			password: hash,
 		});
 		return user;
-	} catch {
+	} catch (error) {
+		//two sign-ups racing for the same name: the unique index catches the second one
+		if (error.name === "SequelizeUniqueConstraintError") throw new ConflictError("Username is already taken");
 		throw new GeneralError("Failed to register user");
 	}
 }
@@ -106,20 +68,19 @@ async function login(username, password) {
 
 	const user = await usersDB.findOne({ where: { user_name: username } });
 
-	if (!user) throw new UnauthorizedError("Invalid credentials with provided username and password");
+	if (!user) throw new UnauthorizedError("That username and password don't match. Try again.");
 
-	const fullPass = password + process.env.PEPPER;
-	const validPassword = await bcrypt.compare(fullPass, user.password);
-	if (!validPassword) throw new UnauthorizedError("Invalid credentials with provided username and password");
+	const validPassword = await checkPassword(password, user.password);
+	if (!validPassword) throw new UnauthorizedError("That username and password don't match. Try again.");
+
+	//after the password check, so a stranger can't find out who's banned
+	if (isUserBanned(user)) throw new ForbiddenError("This account has been suspended");
 
 	return user;
 }
 
 async function createGuest() {
-	const saltRounds = 10;
-	const salt = await bcrypt.genSalt(saltRounds);
-	const randomPassword = crypto.randomBytes(24).toString("hex");
-	const hash = await bcrypt.hash(randomPassword + process.env.PEPPER, salt);
+	const hash = await guestHashPassword();
 
 	try {
 		const user = await usersDB.create({
@@ -146,11 +107,9 @@ async function upgradeGuest(user_id, userData) {
 	if (!user.is_guest) throw new ForbiddenError("Only guest accounts can be upgraded");
 
 	const existing = await usersDB.findOne({ where: { user_name: userName } });
-	if (existing) throw new DataError("Username is already taken");
+	if (existing) throw new ConflictError("Username is already taken"); //409, same as register
 
-	const saltRounds = 10;
-	const salt = await bcrypt.genSalt(saltRounds);
-	const hash = await bcrypt.hash(password + process.env.PEPPER, salt);
+	const hash = await hashPassword(password);
 
 	user.first_name = firstName;
 	user.last_name = lastName;
@@ -162,7 +121,19 @@ async function upgradeGuest(user_id, userData) {
 	return user;
 }
 
-async function loginWithApple({ identityToken, nonce, firstName, lastName }) {
+// Swaps the sign-in authorizationCode for Apple's refresh token and keeps it on the user, so deleting the
+// account can revoke it (see deleteMe in Users/service.js). Best effort: a failed exchange never blocks sign-in,
+// it just means there's nothing to revoke until their next Apple sign-in stores one.
+async function storeAppleRefreshToken(user, authorizationCode) {
+	try {
+		const refreshToken = await exchangeAppleAuthorizationCode(authorizationCode);
+		if (refreshToken) await user.update({ apple_refresh_token: refreshToken });
+	} catch (err) {
+		console.error("Couldn't store Apple refresh token", err);
+	}
+}
+
+async function loginWithApple({ identityToken, authorizationCode, nonce, firstName, lastName }) {
 	if (!identityToken) throw new DataError("Missing Apple identityToken");
 
 	const payload = await verifyAppleIdentityToken(identityToken);
@@ -172,14 +143,12 @@ async function loginWithApple({ identityToken, nonce, firstName, lastName }) {
 	let user = await usersDB.findOne({ where: { apple_user_id: appleUserId } });
 
 	if (!user) {
-		const usernameBase = payload.email ? payload.email.split("@")[0] : firstName ? `${firstName}${lastName || ""}` : "apple_user";
-
 		try {
 			user = await usersDB.create({
 				first_name: firstName || null,
 				last_name: lastName || null,
-				user_name: await generateUniqueUsername(usernameBase),
-				password: await generateUnusablePassword(),
+				user_name: await generateUniqueUsername(firstName, lastName),
+				password: await guestHashPassword(),
 				email: payload.email || null,
 				apple_user_id: appleUserId,
 			});
@@ -187,6 +156,10 @@ async function loginWithApple({ identityToken, nonce, firstName, lastName }) {
 			throw new GeneralError("Failed to create user from Apple sign-in");
 		}
 	}
+
+	if (isUserBanned(user)) throw new ForbiddenError("This account has been suspended");
+
+	await storeAppleRefreshToken(user, authorizationCode);
 
 	return {
 		message: "Apple sign-in successful",
@@ -208,14 +181,12 @@ async function loginWithGoogle({ idToken }) {
 	let user = await usersDB.findOne({ where: { google_user_id: googleUserId } });
 
 	if (!user) {
-		const usernameBase = payload.email ? payload.email.split("@")[0] : payload.given_name ? `${payload.given_name}${payload.family_name || ""}` : "google_user";
-
 		try {
 			user = await usersDB.create({
 				first_name: payload.given_name || null,
 				last_name: payload.family_name || null,
-				user_name: await generateUniqueUsername(usernameBase),
-				password: await generateUnusablePassword(),
+				user_name: await generateUniqueUsername(payload.given_name, payload.family_name),
+				password: await guestHashPassword(),
 				email: payload.email || null,
 				google_user_id: googleUserId,
 			});
@@ -223,6 +194,8 @@ async function loginWithGoogle({ idToken }) {
 			throw new GeneralError("Failed to create user from Google sign-in");
 		}
 	}
+
+	if (isUserBanned(user)) throw new ForbiddenError("This account has been suspended");
 
 	return {
 		message: "Google sign-in successful",
@@ -232,29 +205,34 @@ async function loginWithGoogle({ idToken }) {
 	};
 }
 
-// OAuth random username
-async function generateUniqueUsername(base) {
-	const sanitizedBase =
-		(base || "user")
+//OAuth sign-ups don't pick a username, so build one from their name + a random number, e.g. "johnsmith4821".
+//Never from their email: usernames are public, and the email prefix gives most of the address away.
+//Names aren't guaranteed (Apple only sends one on the first sign-in, and it can be blank), so fall back to "user".
+//Only a-z, 0-9 and _ are kept, so a name like "李" also ends up as "user"
+async function generateUniqueUsername(firstName, lastName) {
+	const base =
+		`${firstName ?? ""}${lastName ?? ""}`
 			.toLowerCase()
 			.replace(/[^a-z0-9_]/g, "")
 			.slice(0, 20) || "user";
 
-	let candidate = sanitizedBase;
-	let attempts = 0;
-	while (await usersDB.findOne({ where: { user_name: candidate } })) {
-		attempts += 1;
-		if (attempts > 10) throw new GeneralError("Failed to generate a unique username");
-		candidate = `${sanitizedBase}${crypto.randomInt(1000, 9999)}`;
+	//one query almost every time - it only tries again if that number's already taken
+	for (let attempt = 0; attempt < 10; attempt++) {
+		const candidate = `${base}${crypto.randomInt(1000, 10000)}`;
+		const taken = await usersDB.findOne({ where: { user_name: candidate }, attributes: ["user_id"] });
+		if (!taken) return candidate;
 	}
-	return candidate;
+	throw new GeneralError("Failed to generate a unique username");
 }
 
 //frontend computes a nonce and sends to apple, returned in token val
 //backend compares nonce frontend sends to it, vs what apple returns
 //so no re-use of token
 function checkAppleNonce(payload, nonce) {
-	if (!payload.nonce) return;
+	if (!payload.nonce) {
+		if (payload.nonce_supported === false) return; //nonce not supported on certain platforms
+		throw new UnauthorizedError("No nonce given");
+	}
 	const hashedNonce = crypto
 		.createHash("sha256")
 		.update(nonce || "")
@@ -316,18 +294,20 @@ async function upgradeGuestWithOAuth(guestId, body) {
 
 	// Case 1 - no account for this provider id yet: give guest account this data from google
 	if (!existing) {
-		const usernameBase = identity.email ? identity.email.split("@")[0] : identity.firstName ? `${identity.firstName}${identity.lastName || ""}` : "user";
-
 		guest[identity.column] = identity.providerId;
 		guest.email = identity.email;
 		guest.first_name = identity.firstName;
 		guest.last_name = identity.lastName;
-		guest.user_name = await generateUniqueUsername(usernameBase);
+		guest.user_name = await generateUniqueUsername(identity.firstName, identity.lastName);
 		guest.is_guest = false;
 		await guest.save();
 
+		if (body.provider === "apple") await storeAppleRefreshToken(guest, body.authorizationCode);
 		return { status: "upgraded", user: guest };
 	}
+
+	//Make sure account we're upgrading to isn't banned so we lose things when upgrading
+	if (existing && isUserBanned(existing)) throw new ForbiddenError("This account has been suspended");
 
 	// Case 2 - account already exists: merge guest data into it.
 	// Nothing to lose if the guest has no data, so skip the prompt in that case.
@@ -338,6 +318,7 @@ async function upgradeGuestWithOAuth(guestId, body) {
 	}
 
 	await mergeUserInto(guest.user_id, existing.user_id);
+	if (body.provider === "apple") await storeAppleRefreshToken(existing, body.authorizationCode);
 	return { status: "merged", user: existing };
 }
 
@@ -360,30 +341,14 @@ async function mergeUserInto(fromId, toId) {
 		await recipeDB.update({ user_id: toId }, { where: { user_id: fromId }, transaction: t });
 		await foodDB.update({ submitted_by: toId }, { where: { submitted_by: fromId }, transaction: t });
 
-		// Guests are blocked from Friends so there shouldn't be any, but clear them in case
-		await friendshipsDB.destroy({
-			where: { [Op.or]: [{ user_id_a: fromId }, { user_id_b: fromId }, { requested_by: fromId }] },
-			transaction: t,
-		});
-
 		await usersDB.destroy({ where: { user_id: fromId }, transaction: t });
 	});
-}
-
-//Generate random password for OAuth ppl
-async function generateUnusablePassword() {
-	const saltRounds = 10;
-	const salt = await bcrypt.genSalt(saltRounds);
-	const randomPassword = crypto.randomBytes(24).toString("hex");
-	return bcrypt.hash(randomPassword + process.env.PEPPER, salt);
 }
 
 module.exports = {
 	register,
 	refreshToken,
 	login,
-	generateTokens,
-	isRevokedGuestToken,
 	createGuest,
 	upgradeGuest,
 	upgradeGuestWithOAuth,

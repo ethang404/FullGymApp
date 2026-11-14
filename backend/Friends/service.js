@@ -1,210 +1,257 @@
+const {
+	users: usersModel,
+	friendships: friendshipModel,
+	friend_permissions: friend_permissionsModel,
+} = require("../models/modelInits");
 const { Op } = require("sequelize");
-const { friendships: FriendshipsModel, users: UsersModel } = require("../models/modelInits");
-const { NotFoundError, DataError, ForbiddenError } = require("../error");
+const sequelize = require("../models/db");
+const { NotFoundError, DataError, ForbiddenError, ConflictError } = require("../error");
+const WorkoutsService = require("../Workouts/service");
+const NutritionService = require("../Nutrition/service");
+const { serializeUser, toPublicUser } = require("../serializers/users");
+const { serializeWorkoutListItem } = require("../serializers/workouts");
+const { isBlocked, friendshipPair } = require("../utils/social");
+const { PUBLIC_USER_ATTRIBUTES } = require("../constants");
+const { parseDateRange } = require("../utils/dates");
 
-const USER_ATTRS = ["user_id", "user_name", "first_name", "last_name"];
+//the 4 toggles on a friend_permissions row
+const SHARE_KEYS = ["workouts", "recipes", "diary", "goals"];
+// Functions Friends/controller.js calls (viewer/actor is always the first user_id):
+//
+// getRequests(user_id)                                          -> { incoming, outgoing }
+// sendRequest(user_id, target_user_id)                          -> friendship
+// acceptRequest(friendship_id, user_id)                         -> friendship
+// deleteRequest(friendship_id, user_id)
+// getFriends(user_id)                                           -> [{ ...user, i_share, they_share }]
+// removeFriend(user_id, friend_id)
+// updatePermissions(user_id, friend_id, patch)                  -> my friend_permissions row
+// getFriendOverview(user_id, friend_id, start_date, end_date)
+//                                                               -> { user, they_share, workouts?, recipes?, diary?, goals? }
+//                                                                  (workouts in the GET /workouts list shape)
+// getFriendWorkout(user_id, friend_id, workout_id)              -> workout (editor shape, same as GET /workouts/:id)
+// getFriendRecipe(user_id, friend_id, recipe_id)                -> recipe
 
-// Friendship rows are always stored with user_id_a < user_id_b (see friendships.model.js),
-// so a single unique index on (user_id_a, user_id_b) blocks both exact duplicates and
-// reciprocal A->B / B->A rows. Every lookup/write has to re-derive that same ordering.
-function orderPair(userIdA, userIdB) {
-	return userIdA < userIdB ? [userIdA, userIdB] : [userIdB, userIdA];
-}
+//block helpers (isBlocked / getHiddenUserIds) live in utils/social.js - Groups, Posts and Users use them too
 
-// Given a friendship row (with userA/userB included) and one of its two parties,
-// returns the *other* party's user record.
-function otherUser(friendship, user_id) {
-	return friendship.userA.user_id === user_id ? friendship.userB : friendship.userA;
-}
+async function getRequests(user_id) {
+	//all pending requests I'm part of incoming/outgoing
+	const pending = await friendshipModel.findAll({
+		where: {
+			status: "pending",
+			[Op.or]: [{ user_id_a: user_id }, { user_id_b: user_id }],
+		},
+		include: [
+			{ model: usersModel, as: "userA", attributes: PUBLIC_USER_ATTRIBUTES },
+			{ model: usersModel, as: "userB", attributes: PUBLIC_USER_ATTRIBUTES },
+		],
+		order: [["created_at", "DESC"]],
+	});
 
-/**
- * POST /friends/requests
- * Expected: { addressee_user_id }
- * If the addressee already has a pending request out to the sender, this auto-accepts
- * (mutual match) instead of erroring or creating a second row.
- */
-async function sendRequest(user_id, addressee_user_id) {
-	addressee_user_id = parseInt(addressee_user_id, 10);
-	if (isNaN(addressee_user_id)) throw new DataError("addressee_user_id is required");
-	if (addressee_user_id === user_id) throw new DataError("Cannot send a friend request to yourself");
+	const incoming = [];
+	const outgoing = [];
+	for (const row of pending) {
+		const { userA, userB, ...friendship } = row.get({ plain: true });
 
-	const addressee = await UsersModel.findByPk(addressee_user_id);
-	if (!addressee) throw new NotFoundError("User not found");
-
-	const [user_id_a, user_id_b] = orderPair(user_id, addressee_user_id);
-	const existing = await FriendshipsModel.findOne({ where: { user_id_a, user_id_b } });
-
-	if (!existing) {
-		const friendship = await FriendshipsModel.create({ user_id_a, user_id_b, requested_by: user_id, status: "pending" });
-		return { friendship, created: true };
+		const request = { ...friendship, user: userA.user_id === user_id ? userB : userA };
+		if (friendship.requested_by === user_id) outgoing.push(request);
+		else incoming.push(request);
 	}
 
-	if (existing.status === "accepted") throw new DataError("Already friends");
-
-	// existing.status === "pending"
-	if (existing.requested_by === user_id) throw new DataError("Friend request already pending");
-
-	// The other user already requested us - treat this as a mutual match.
-	await existing.update({ status: "accepted" });
-	return { friendship: existing, created: false };
+	return { incoming, outgoing };
 }
 
-/**
- * POST /friends/requests/:id/accept — addressee-only.
- */
-async function acceptRequest(friendship_id, user_id) {
-	const row = await FriendshipsModel.findByPk(friendship_id);
-	if (!row) throw new NotFoundError("Friend request not found");
-	if (row.user_id_a !== user_id && row.user_id_b !== user_id) throw new ForbiddenError("Not your friend request");
-	if (row.status !== "pending") throw new DataError("Friend request is not pending");
-	if (row.requested_by === user_id) throw new ForbiddenError("Cannot accept your own outgoing request");
+async function sendRequest(user_id, target_user_id) {
+	if (user_id === target_user_id) throw new DataError("You can't friend yourself");
 
-	await row.update({ status: "accepted" });
-	return row;
+	const target = await usersModel.findByPk(target_user_id, { attributes: ["user_id", "is_guest", "is_banned"] });
+	if (!target || target.is_guest || target.is_banned) throw new NotFoundError("User not found");
+
+	if (await isBlocked(user_id, target_user_id)) throw new ForbiddenError("Can't send a friend request to this user");
+
+	//rows are always stored smaller id first
+	const { user_id_a, user_id_b } = friendshipPair(user_id, target_user_id);
+
+	const existing = await friendshipModel.findOne({ where: { user_id_a, user_id_b } });
+	if (existing) {
+		if (existing.status === "accepted") throw new ConflictError("You're already friends");
+		if (existing.requested_by === user_id) throw new ConflictError("Request already sent");
+		//they already asked me, so sending one back just accepts theirs
+		return acceptRequest(existing.id, user_id);
+	}
+
+	return friendshipModel.create({ user_id_a, user_id_b, requested_by: user_id });
 }
 
-/**
- * DELETE /friends/requests/:id — decline (addressee) or cancel (requester) a pending request.
- */
-async function deletePendingRequest(friendship_id, user_id) {
-	const row = await FriendshipsModel.findByPk(friendship_id);
-	if (!row) throw new NotFoundError("Friend request not found");
-	if (row.user_id_a !== user_id && row.user_id_b !== user_id) throw new ForbiddenError("Not your friend request");
-	if (row.status !== "pending") throw new DataError("Friend request is not pending");
+async function acceptRequest(friendship_row_id, user_id) {
+	//friendship_row_id is the row that finds the friendship relation for 2 users
+	const friendship_row = await friendshipModel.findByPk(friendship_row_id);
 
-	await row.destroy();
-	return { deleted: true, id: friendship_id };
-}
+	//same 404 if it doesn't exist or isn't my relation
+	if (!friendship_row || (friendship_row.user_id_a !== user_id && friendship_row.user_id_b !== user_id)) {
+		throw new NotFoundError("Friend request not found");
+	}
 
-/**
- * DELETE /friends/:id — unfriend an accepted friendship, either party.
- */
-async function removeFriend(friendship_id, user_id) {
-	const row = await FriendshipsModel.findByPk(friendship_id);
-	if (!row) throw new NotFoundError("Friendship not found");
-	if (row.user_id_a !== user_id && row.user_id_b !== user_id) throw new ForbiddenError("Not your friendship");
-	if (row.status !== "accepted") throw new DataError("Not currently friends");
+	if (friendship_row.status === "accepted") throw new ConflictError("You're already friends");
+	if (friendship_row.requested_by === user_id) throw new ForbiddenError("You can't accept your own request");
 
-	await row.destroy();
-	return { deleted: true, id: friendship_id };
-}
+	//status flip + both permissions created
+	return sequelize.transaction(async (t) => {
+		await friendship_row.update({ status: "accepted" }, { transaction: t });
 
-/**
- * GET /friends — accepted friends, newest-accepted first.
- */
-async function listFriends(user_id) {
-	const rows = await FriendshipsModel.findAll({
-		where: { status: "accepted", [Op.or]: [{ user_id_a: user_id }, { user_id_b: user_id }] },
-		include: [
-			{ model: UsersModel, as: "userA", attributes: USER_ATTRS },
-			{ model: UsersModel, as: "userB", attributes: USER_ATTRS },
-		],
-		order: [["updatedAt", "DESC"]],
-	});
-
-	return rows.map((row) => {
-		const friend = otherUser(row, user_id);
-		return {
-			friendship_id: row.id,
-			user_id: friend.user_id,
-			user_name: friend.user_name,
-			first_name: friend.first_name,
-			last_name: friend.last_name,
-			since: row.updatedAt,
-		};
-	});
-}
-
-/**
- * GET /friends/requests?direction=incoming|outgoing
- */
-async function listRequests(user_id, direction) {
-	if (!["incoming", "outgoing"].includes(direction)) throw new DataError("direction must be 'incoming' or 'outgoing'");
-
-	const where = { status: "pending", [Op.or]: [{ user_id_a: user_id }, { user_id_b: user_id }] };
-	where.requested_by = direction === "outgoing" ? user_id : { [Op.ne]: user_id };
-
-	const rows = await FriendshipsModel.findAll({
-		where,
-		include: [
-			{ model: UsersModel, as: "userA", attributes: USER_ATTRS },
-			{ model: UsersModel, as: "userB", attributes: USER_ATTRS },
-		],
-		order: [["createdAt", "DESC"]],
-	});
-
-	return rows.map((row) => {
-		const otherParty = otherUser(row, user_id);
-		return {
-			friendship_id: row.id,
-			user_id: otherParty.user_id,
-			user_name: otherParty.user_name,
-			first_name: otherParty.first_name,
-			last_name: otherParty.last_name,
-			requested_at: row.createdAt,
-		};
-	});
-}
-
-/**
- * GET /friends/search?query=&limit=
- * Search users by username/name (excluding self), annotated with the caller's current
- * relationship to each result so the frontend can render the right button.
- */
-async function searchUsers(user_id, query, limit) {
-	if (!query || !query.trim()) throw new DataError("query is required");
-	const sanitized = query.trim();
-	limit = Math.min(parseInt(limit, 10) || 20, 50);
-
-	const results = await UsersModel.findAll({
-		where: {
-			user_id: { [Op.ne]: user_id },
-			[Op.or]: [
-				{ user_name: { [Op.iLike]: `%${sanitized}%` } },
-				{ first_name: { [Op.iLike]: `%${sanitized}%` } },
-				{ last_name: { [Op.iLike]: `%${sanitized}%` } },
+		//both users get assigned default permissions for this relation
+		await friend_permissionsModel.bulkCreate(
+			[
+				{ friendship_id: friendship_row_id, owner_id: friendship_row.user_id_a },
+				{ friendship_id: friendship_row_id, owner_id: friendship_row.user_id_b },
 			],
-		},
-		attributes: USER_ATTRS,
-		limit,
+			{ transaction: t },
+		);
+		return friendship_row;
 	});
+}
 
-	if (results.length === 0) return [];
+async function deleteRequest(friendship_row_id, user_id) {
+	//friendship_row_id is the row that finds the friendship relation for 2 users
+	const friendship_row = await friendshipModel.findByPk(friendship_row_id);
 
-	// Batch-fetch every friendship row touching the caller and any result, to avoid an
-	// N+1 relationship lookup per search result.
-	const relevantRows = await FriendshipsModel.findAll({
+	//same 404 if it doesn't exist or isn't my relation
+	if (!friendship_row || (friendship_row.user_id_a !== user_id && friendship_row.user_id_b !== user_id)) {
+		throw new NotFoundError("Friend request not found");
+	}
+	if (friendship_row.status === "accepted") throw new ConflictError("Already friends - use remove friend instead");
+
+	await friendship_row.destroy();
+}
+
+//Actual Friend endpoints
+async function getFriends(user_id) {
+	//all pending requests I'm part of incoming/outgoing
+	const permission_attributes = ["owner_id", "workouts", "recipes", "diary", "goals"];
+	const friendships = await friendshipModel.findAll({
 		where: {
-			[Op.or]: results.map((u) => {
-				const [user_id_a, user_id_b] = orderPair(user_id, u.user_id);
-				return { user_id_a, user_id_b };
-			}),
+			status: "accepted",
+			[Op.or]: [{ user_id_a: user_id }, { user_id_b: user_id }],
+		},
+		include: [
+			{ model: usersModel, as: "userA", attributes: PUBLIC_USER_ATTRIBUTES },
+			{ model: usersModel, as: "userB", attributes: PUBLIC_USER_ATTRIBUTES },
+			{ model: friend_permissionsModel, as: "permissions", attributes: permission_attributes },
+		],
+		order: [["created_at", "DESC"]],
+	});
+
+	const friends = [];
+	for (const row of friendships) {
+		const friendship = row.get({ plain: true });
+		const other = friendship.userA.user_id === user_id ? friendship.userB : friendship.userA;
+
+		const i_share = friendship.permissions.find((p) => p.owner_id === user_id);
+		const they_share = friendship.permissions.find((p) => p.owner_id === other.user_id);
+
+		friends.push({ ...other, i_share, they_share });
+	}
+	return friends;
+}
+
+async function removeFriend(user_id, friend_id) {
+	const friendship = await friendshipModel.findOne({
+		where: {
+			status: "accepted",
+			...friendshipPair(user_id, friend_id),
 		},
 	});
 
-	const stateByUserId = new Map();
-	for (const row of relevantRows) {
-		const otherId = row.user_id_a === user_id ? row.user_id_b : row.user_id_a;
-		if (row.status === "accepted") stateByUserId.set(otherId, "friends");
-		else if (row.requested_by === user_id) stateByUserId.set(otherId, "pending_outgoing");
-		else stateByUserId.set(otherId, "pending_incoming");
+	if (!friendship) throw new NotFoundError("You're not friends with this user");
+	await friendship.destroy();
+}
+
+//find friend relation between user_id | friend_id
+//owner_id is the one we care about permissions on:
+//user_id==owner_id->What I share with them
+//friend_id==owner_id->What they share with me
+async function findPermissionRow(user_id, friend_id, owner_id) {
+	const friendship = await friendshipModel.findOne({
+		where: {
+			status: "accepted",
+			...friendshipPair(user_id, friend_id),
+		},
+		include: { model: friend_permissionsModel, as: "permissions", where: { owner_id } },
+	});
+
+	if (!friendship) throw new NotFoundError("You're not friends with this user");
+	return friendship.permissions[0];
+}
+
+//Updating permissions on what friend can see
+async function updatePermissions(user_id, friend_id, data) {
+	const my_permissions = await findPermissionRow(user_id, friend_id, user_id);
+
+	//update toggles
+	const updates = {};
+	for (const key of SHARE_KEYS) {
+		if (typeof data[key] === "boolean") updates[key] = data[key];
 	}
 
-	return results.map((u) => ({
-		user_id: u.user_id,
-		user_name: u.user_name,
-		first_name: u.first_name,
-		last_name: u.last_name,
-		relationship: stateByUserId.get(u.user_id) ?? "none",
-	}));
+	await my_permissions.update(updates);
+	return my_permissions;
+}
+
+//Viewing a friend's data
+async function getFriendOverview(user_id, friend_id, start_date, end_date) {
+	const their_permissions = await findPermissionRow(user_id, friend_id, friend_id);
+
+	//workouts + diary need explicit ranges. Validated once here - the workouts query doesn't check them itself
+	({ start_date, end_date } = parseDateRange(start_date, end_date));
+
+	const friend_row = await usersModel.findByPk(friend_id);
+
+	const they_share = {};
+	for (const key of SHARE_KEYS) they_share[key] = their_permissions[key];
+
+	//body (weight, birth date etc.) is never sent, only the public profile
+	const overview = {
+		user: toPublicUser(friend_row),
+		they_share,
+	};
+
+	//sections they don't share are left out entirely
+	if (they_share.workouts) {
+		//range query is oldest first, profile wants newest first. Same list shape as GET /workouts
+		const workouts = await WorkoutsService.getWorkoutsInRange(friend_id, start_date, end_date);
+		overview.workouts = workouts.reverse().map(serializeWorkoutListItem);
+	}
+	if (they_share.recipes) overview.recipes = await NutritionService.getRecipes(friend_id);
+	if (they_share.diary) overview.diary = await NutritionService.getDiaryEntries(friend_id, start_date, end_date);
+	if (they_share.goals) overview.goals = serializeUser(friend_row).effective_goals; //macro goals only, never body metrics
+
+	return overview;
+}
+
+async function getFriendWorkout(user_id, friend_id, workout_id) {
+	const their_permissions = await findPermissionRow(user_id, friend_id, friend_id);
+	if (!their_permissions.workouts) throw new ForbiddenError("This friend doesn't share their workouts");
+
+	//GetWorkout only matches workouts owned by friend_id, so anyone else's workout id is a 404
+	return WorkoutsService.GetWorkout(workout_id, friend_id);
+}
+
+async function getFriendRecipe(user_id, friend_id, recipe_id) {
+	const their_permissions = await findPermissionRow(user_id, friend_id, friend_id);
+	if (!their_permissions.recipes) throw new ForbiddenError("This friend doesn't share their recipes");
+
+	//same as workouts - getRecipe only matches recipes owned by friend_id
+	return NutritionService.getRecipe(recipe_id, friend_id);
 }
 
 module.exports = {
+	getRequests,
 	sendRequest,
 	acceptRequest,
-	deletePendingRequest,
+	deleteRequest,
+	getFriends,
 	removeFriend,
-	listFriends,
-	listRequests,
-	searchUsers,
+	updatePermissions,
+	getFriendOverview,
+	getFriendWorkout,
+	getFriendRecipe,
 };

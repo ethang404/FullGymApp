@@ -4,9 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { fonts } from "@/theme/typography";
-import { instance } from "@/utils/AxiosInterceptorHandler";
 import { log } from "@/utils/log";
-import type { ImportedRecipe } from "@/types/nutrition";
+import { importRecipeFromUrl } from "../api";
+import type { ImportedRecipe } from "../types";
 
 interface ImportRecipeModalProps {
 	visible: boolean;
@@ -54,8 +54,7 @@ export default function ImportRecipeModal({ visible, onClose, onImported }: Impo
 		setLoading(true);
 		setError(null);
 		try {
-			const res = await instance.post("/nutrition/recipes/import", { url: trimmed });
-			const recipe: ImportedRecipe = res.data.recipe ?? res.data;
+			const recipe = await importRecipeFromUrl(trimmed);
 			onImported(recipe);
 			setUrl("");
 			onClose();

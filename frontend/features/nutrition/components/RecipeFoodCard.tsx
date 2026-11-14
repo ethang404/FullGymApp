@@ -4,9 +4,11 @@ import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
 import { log } from "@/utils/log";
 
-import { COMMON_UNITS, calcMacrosFromPer100g, type ServingSize, type FoodSearchResult, type RecipeIngredient } from "@/types/nutrition";
+import { getFullFood } from "../api";
+import { COMMON_UNITS } from "../constants";
+import type { ServingSize, FoodSearchResult, RecipeIngredient } from "../types";
+import { calcMacrosFromPer100g } from "../utils/nutrients";
 import { AddServingModal } from "./AddServingModal";
-import { getFullFood } from "@/features/nutrition/hooks/useFoodSearch";
 
 //This component will give us 2 options, used in creating a new recipe
 //we either add a new ingrediant and pass data to main component
@@ -20,7 +22,6 @@ type RecipeFoodCardProps =
 			ingredient?: undefined;
 			onChange?: undefined;
 			onRemove?: undefined;
-			readOnly?: undefined;
 	  }
 	| {
 			mode: "edit";
@@ -29,8 +30,6 @@ type RecipeFoodCardProps =
 			onRemove: (id: string) => void;
 			food?: undefined;
 			onAdd?: undefined;
-			/** Viewing someone else's recipe: hide remove/quantity/serving controls, keep the tap-to-expand summary. */
-			readOnly?: boolean;
 	  };
 
 export default function RecipeFoodCard(props: RecipeFoodCardProps) {
@@ -180,7 +179,6 @@ export default function RecipeFoodCard(props: RecipeFoodCardProps) {
 	);
 
 	const isEdit = props.mode === "edit";
-	const readOnly = props.mode === "edit" && !!props.readOnly;
 
 	return (
 		<>
@@ -197,7 +195,7 @@ export default function RecipeFoodCard(props: RecipeFoodCardProps) {
 						)}
 					</View>
 
-					{isEdit && !readOnly ? (
+					{isEdit ? (
 						<TouchableOpacity style={styles.removeBtn} onPress={() => props.onRemove(props.ingredient.id)} hitSlop={10}>
 							<FontAwesome5 name="times" size={14} color={theme.textMuted} />
 						</TouchableOpacity>
@@ -243,16 +241,7 @@ export default function RecipeFoodCard(props: RecipeFoodCardProps) {
 					</View>
 				)}
 
-				{expanded && readOnly && (
-					<View style={styles.quantityRow}>
-						<Text style={styles.quantityLabel}>Amount</Text>
-						<Text style={styles.quantityInput}>
-							{quantity} {selectedServing.label}
-						</Text>
-					</View>
-				)}
-
-				{expanded && !readOnly && (
+				{expanded && (
 					<View>
 						<View style={styles.quantityRow}>
 							<Text style={styles.quantityLabel}>Amount</Text>

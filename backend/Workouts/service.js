@@ -4,13 +4,16 @@ const SetsModel = require("../models/modelInits").sets;
 const UsersModel = require("../models/modelInits").users;
 const ExerciseCatalogModel = require("../models/modelInits").exercise_catalog;
 
-const { Op } = require("sequelize");
+const { Op, QueryTypes } = require("sequelize");
 const sequelize = require("../models/db");
 
-const { GeneralError, NotFoundError, DataError, ForbiddenError } = require("../error");
-const { canViewContent } = require("../utils/friendship");
+const { GeneralError, NotFoundError, DataError } = require("../error");
+const { serializeWorkoutListItem, serializeWorkout } = require("../serializers/workouts");
+const { findOwned } = require("../utils/ownership");
+const { assertOneOf } = require("../utils/validate");
+const { isValidTimestamp } = require("../utils/dates");
 
-const WORKOUT_VISIBILITIES = ["private", "friends", "public"];
+const WORKOUT_FILTERS = ["all", "week", "month", "year"];
 
 const exerciseInclude = {
 	model: ExercisesModel,
@@ -25,21 +28,33 @@ const exerciseInclude = {
 	],
 };
 
-async function validateCatalogExercise(catalog_id) {
+async function validateCatalogExercise(catalog_id, t) {
 	const catalogEntry = await ExerciseCatalogModel.findOne({
 		where: { catalog_id: catalog_id, is_deleted: false },
+		transaction: t,
 	});
 	if (!catalogEntry) throw new NotFoundError(`No active catalog exercise found with id ${catalog_id}`);
 	return catalogEntry;
 }
 
+//exercises and sets must be arrays (empty is fine) - edit deletes anything missing from them, so a missing list would wipe the workout
+function assertExercisesShape(data) {
+	if (!Array.isArray(data.exercises)) throw new DataError("exercises must be an array");
+	for (let exercise of data.exercises) {
+		if (!Array.isArray(exercise.sets)) throw new DataError("Each exercise needs a sets array");
+	}
+}
+
+//list shape (serializeWorkoutListItem) - ready to send
 async function GetWorkouts(user_id, filter = "all") {
 	let workouts;
 	let now = new Date();
 	let startDate = new Date();
 
-	if (filter == "all")
-		return await WorkoutsModel.findAll({
+	assertOneOf(filter, WORKOUT_FILTERS, "filter");
+
+	if (filter == "all") {
+		workouts = await WorkoutsModel.findAll({
 			where: { user_id: user_id },
 			include: [exerciseInclude],
 			order: [
@@ -47,7 +62,8 @@ async function GetWorkouts(user_id, filter = "all") {
 				[ExercisesModel, SetsModel, "order_number", "ASC"],
 			],
 		});
-	else if (filter == "week") startDate.setDate(startDate.getDate() - 7);
+		return workouts.map(serializeWorkoutListItem);
+	} else if (filter == "week") startDate.setDate(startDate.getDate() - 7);
 	else if (filter == "month") startDate.setDate(startDate.getDate() - 30);
 	else if (filter == "year") startDate.setDate(startDate.getDate() - 365);
 
@@ -59,41 +75,37 @@ async function GetWorkouts(user_id, filter = "all") {
 			[ExercisesModel, SetsModel, "order_number", "ASC"],
 		],
 	});
-	return workouts;
+	return workouts.map(serializeWorkoutListItem);
 }
 
 async function GetWorkout(workout_id, user_id) {
-	const workout = await WorkoutsModel.findByPk(workout_id, {
+	const workout = await findOwned(WorkoutsModel, workout_id, user_id, "Workout", {
 		include: [exerciseInclude],
 		order: [
 			[ExercisesModel, "order_number", "ASC"],
 			[ExercisesModel, SetsModel, "order_number", "ASC"],
 		],
 	});
-
-	// NotFoundError for both "doesn't exist" and "exists but not visible to you" -
-	// never leak existence of a private workout via a 403-vs-404 distinction.
-	if (!workout) throw new NotFoundError("No workout found with that workout ID");
-	if (!(await canViewContent(workout.user_id, user_id, workout.visibility))) throw new NotFoundError("No workout found with that workout ID");
-	return workout;
+	return serializeWorkout(workout); //editor shape - same one POST/PUT accept
 }
 
 async function CreateWorkout(data, user_id) {
+	assertExercisesShape(data);
 	return await sequelize.transaction(async (t) => {
 		//createWorkout
 		const user = await UsersModel.findOne({ where: { user_id: user_id }, transaction: t });
 		if (!user) throw new GeneralError("No user found or authentication expired"); //this shouldn't even hit
 
 		if (!data.workout_name || !data.workout_date) throw new DataError("Workout Name and Workout Date required");
-		if (data.visibility != null && !WORKOUT_VISIBILITIES.includes(data.visibility)) throw new DataError("Invalid visibility");
+		if (data.started_at != null && !isValidTimestamp(data.started_at)) throw new DataError("started_at must be an ISO date and time");
 
 		var workout = await user.createWorkout(
 			{
 				name: data.workout_name,
 				workout_date: data.workout_date,
 				notes: data.notes,
+				started_at: data.started_at,
 				finished_at: data.finished_at,
-				visibility: data.visibility ?? "private",
 			},
 			{ transaction: t },
 		);
@@ -103,8 +115,7 @@ async function CreateWorkout(data, user_id) {
 			if (!exercise.catalog_id) throw new DataError("catalog_id is required for each exercise");
 			await validateCatalogExercise(exercise.catalog_id, t);
 
-			let newExercise;
-			newExercise = await workout.createExercise(
+			const newExercise = await workout.createExercise(
 				{
 					catalog_id: exercise.catalog_id,
 					notes: exercise.notes,
@@ -113,15 +124,13 @@ async function CreateWorkout(data, user_id) {
 				{ transaction: t },
 			);
 
-			if (newExercise) console.log(`Created new exercise with id ${newExercise.exercise_id} (catalog_id ${exercise.catalog_id})`);
-
 			for (let set of exercise.sets) {
-				let newSet;
-				newSet = await newExercise.createSet(
+				await newExercise.createSet(
 					{
 						notes: set.notes,
 						reps: set.reps,
 						weight: set.weight,
+						reps_in_reserve: set.reps_in_reserve,
 						duration_seconds: set.duration_seconds,
 						distance: set.distance,
 						set_type: set.set_type, //"warmup" vs "working" etc.
@@ -129,8 +138,6 @@ async function CreateWorkout(data, user_id) {
 					},
 					{ transaction: t },
 				);
-
-				if (newExercise) console.log(`Created new set with id ${newSet.set_id} (for ${exercise.exercise_id})`);
 			}
 		}
 
@@ -139,21 +146,18 @@ async function CreateWorkout(data, user_id) {
 }
 
 async function EditWorkout(data, workout_id, user_id) {
+	assertExercisesShape(data); //before the transaction - nothing gets deleted on a bad body
 	return await sequelize.transaction(async (t) => {
-		let workout_obj = await WorkoutsModel.findByPk(workout_id, { transaction: t });
-		if (!workout_obj) throw new NotFoundError("No workout found with that id"); // checked before .update() so a bad id throws this instead of a raw TypeError
-		// Pre-existing gap: this endpoint previously had no ownership check at all (any
-		// authenticated user could edit any workout by id). Enforcing it now.
-		if (workout_obj.user_id !== user_id) throw new ForbiddenError("Not your workout");
-		if (data.visibility != null && !WORKOUT_VISIBILITIES.includes(data.visibility)) throw new DataError("Invalid visibility");
+		let workout_obj = await findOwned(WorkoutsModel, workout_id, user_id, "Workout", { transaction: t });
+		if (data.started_at != null && !isValidTimestamp(data.started_at)) throw new DataError("started_at must be an ISO date and time");
 
 		await workout_obj.update(
 			{
 				name: data.workout_name,
 				workout_date: data.workout_date,
 				notes: data.notes,
+				started_at: data.started_at,
 				finished_at: data.finished_at,
-				visibility: data.visibility ?? workout_obj.visibility,
 			},
 			{ transaction: t },
 		);
@@ -178,7 +182,6 @@ async function EditWorkout(data, workout_id, user_id) {
 			//if exercise id in database not found in data: remove
 			let shouldExist = data.exercises.some((exercise) => exercise.exercise_id === dbExercise.exercise_id);
 			if (!shouldExist) {
-				console.log(`Removing exercise: ${dbExercise.exercise_id} from database`);
 				await ExercisesModel.destroy({ where: { exercise_id: dbExercise.exercise_id }, transaction: t });
 			} else {
 				//now check each set id of each exercise we DIDN'T REMOVE to see if it should exist
@@ -186,7 +189,6 @@ async function EditWorkout(data, workout_id, user_id) {
 				for (let dbSet of dbExercise.sets) {
 					shouldExist = exerciseSets.sets.some((set) => set.set_id === dbSet.set_id);
 					if (!shouldExist) {
-						console.log(`Removing set: ${dbSet.set_id} from database`);
 						await SetsModel.destroy({
 							where: { set_id: dbSet.set_id, exercise_id: dbExercise.exercise_id },
 							transaction: t,
@@ -197,7 +199,10 @@ async function EditWorkout(data, workout_id, user_id) {
 		}
 
 		for (let exercise of data.exercises) {
-			let exercise_obj = exercise.exercise_id ? await ExercisesModel.findByPk(exercise.exercise_id, { transaction: t }) : null;
+			//scoped to THIS workout - an exercise_id from someone else's workout is treated like a new exercise, never edited
+			let exercise_obj = exercise.exercise_id
+				? await ExercisesModel.findOne({ where: { exercise_id: exercise.exercise_id, workout_id: workout_obj.workout_id }, transaction: t })
+				: null;
 
 			if (exercise_obj == null) {
 				//we have a new exercise
@@ -222,6 +227,7 @@ async function EditWorkout(data, workout_id, user_id) {
 							notes: set.notes,
 							reps: set.reps,
 							weight: set.weight,
+							reps_in_reserve: set.reps_in_reserve,
 							duration_seconds: set.duration_seconds,
 							distance: set.distance,
 						},
@@ -245,7 +251,8 @@ async function EditWorkout(data, workout_id, user_id) {
 
 				//loop over data exercise's sets to update/add
 				for (let set of exercise.sets) {
-					let set_obj = set.set_id ? await SetsModel.findByPk(set.set_id, { transaction: t }) : null;
+					//same idea - only sets that belong to this exercise can be edited
+					let set_obj = set.set_id ? await SetsModel.findOne({ where: { set_id: set.set_id, exercise_id: exercise_obj.exercise_id }, transaction: t }) : null;
 					if (set_obj == null) {
 						//we have a new set for exercise
 						await exercise_obj.createSet(
@@ -255,6 +262,7 @@ async function EditWorkout(data, workout_id, user_id) {
 								notes: set.notes,
 								reps: set.reps,
 								weight: set.weight,
+								reps_in_reserve: set.reps_in_reserve,
 								duration_seconds: set.duration_seconds,
 								distance: set.distance,
 							},
@@ -268,6 +276,7 @@ async function EditWorkout(data, workout_id, user_id) {
 								notes: set.notes,
 								reps: set.reps,
 								weight: set.weight,
+								reps_in_reserve: set.reps_in_reserve,
 								duration_seconds: set.duration_seconds,
 								distance: set.distance,
 							},
@@ -292,10 +301,7 @@ async function EditWorkout(data, workout_id, user_id) {
 }
 
 async function DeleteWorkout(workout_id, user_id) {
-	const workout = await WorkoutsModel.findByPk(workout_id);
-	if (!workout) throw new NotFoundError("No workout found with that id");
-	// Pre-existing gap, same as EditWorkout: no ownership check existed here before.
-	if (workout.user_id !== user_id) throw new ForbiddenError("Not your workout");
+	const workout = await findOwned(WorkoutsModel, workout_id, user_id, "Workout");
 	await workout.destroy();
 }
 
@@ -340,8 +346,7 @@ async function CreateCatalogExercise(data) {
 
 //estimated 1RM (Epley) off the heaviest qualifying working set for an exercise instance
 //basically evaluates how strong you are on that exercise on that day
-//weight × (1 + 0.0333 × reps)
-//maybe add more later
+//weight × (1 + reps / 30)
 
 function getExerciseE1RM(exercise) {
 	return getBestWorkingSet(exercise.sets ?? [])?.e1rm ?? null;
@@ -362,35 +367,9 @@ function getBestWorkingSet(sets) {
 	return best;
 }
 
-function average(values) {
-	return values.length ? values.reduce((sum, v) => sum + v, 0) / values.length : null;
-}
-
-//canonical list of muscle groups, pulled from the ENUM definition itself so it stays in sync if that ever changes
-const MUSCLE_GROUPS = ExerciseCatalogModel.getAttributes().muscle_group.values;
-
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
-//rolling 7-day windows anchored to end_date - 0 is the most recent window, 1 is the one before that, etc.
-function getRollingWeekIndex(date, end_date) {
-	const daysFromEnd = Math.floor((new Date(end_date) - new Date(date)) / MS_PER_DAY);
-	return Math.floor(daysFromEnd / 7);
-}
-
-//the {week_start, week_end} date range covered by a given rolling week index
-function getRollingWeekRange(index, end_date) {
-	const week_end = new Date(end_date);
-	week_end.setDate(week_end.getDate() - index * 7);
-	const week_start = new Date(week_end);
-	week_start.setDate(week_start.getDate() - 6);
-	return { week_start, week_end };
-}
-
-//Biggest increases/decreases in lifts % across a given timeframe (keep consistent order_number since changing that would increase/decrease fatigue)
-async function getBiggest5Changes(user_id, start_date, end_date) {
-	//across all workouts for a user, look at exercises (+ w/ consistent order number), look at weight/reps to find biggest % changes
-
-	const full_data = await WorkoutsModel.findAll({
+//every workout (with exercises, sets and catalog info) a user logged in a date range, oldest first
+async function getWorkoutsInRange(user_id, start_date, end_date) {
+	return await WorkoutsModel.findAll({
 		where: {
 			user_id,
 			workout_date: {
@@ -404,6 +383,13 @@ async function getBiggest5Changes(user_id, start_date, end_date) {
 			[ExercisesModel, SetsModel, "order_number", "ASC"],
 		],
 	});
+}
+
+//Biggest increases/decreases in lifts % across a given timeframe (keep consistent order_number since changing that would increase/decrease fatigue)
+async function getBiggest5Changes(user_id, start_date, end_date) {
+	//across all workouts for a user, look at exercises (+ w/ consistent order number), look at weight/reps to find biggest % changes
+
+	const full_data = await getWorkoutsInRange(user_id, start_date, end_date);
 
 	//group occurrences of the same lift (catalog_id) across workouts, in chronological order
 	const occurrencesByCatalogId = new Map();
@@ -460,9 +446,42 @@ async function getBiggest5Changes(user_id, start_date, end_date) {
 	return changes.slice(0, 5);
 }
 
-async function exerciseOverTime(user_id, start_date, end_date, catalog_id, Epley) {
-	//given date range, a catalog exercise to get data for, and if we do Epley calc or not
+//Every lift the user has a qualifying working set for in the range - feeds the lift picker on the progress page.
+//Most-trained lifts first, since those are the ones with enough points to chart.
+async function getLoggedLifts(user_id, start_date, end_date) {
+	const full_data = await getWorkoutsInRange(user_id, start_date, end_date);
 
+	//catalog_id -> { catalog_id, name, muscle_group, dates: Set<workout_date>, last_date }
+	const liftsById = new Map();
+
+	for (const workout of full_data) {
+		for (const exercise of workout.exercises ?? []) {
+			if (getExerciseE1RM(exercise) === null) continue; //nothing chartable logged for this lift that day
+
+			const catalog = exercise.exercise_catalog;
+			if (!liftsById.has(catalog.catalog_id)) {
+				liftsById.set(catalog.catalog_id, {
+					catalog_id: catalog.catalog_id,
+					name: catalog.name,
+					muscle_group: catalog.muscle_group,
+					dates: new Set(),
+				});
+			}
+			const lift = liftsById.get(catalog.catalog_id);
+			lift.dates.add(workout.workout_date); //same lift twice in one workout still counts as one session
+			lift.last_date = workout.workout_date; //workouts come back oldest first, so the last write wins
+		}
+	}
+
+	return [...liftsById.values()]
+		.map(({ dates, ...lift }) => ({ ...lift, session_count: dates.size }))
+		.sort((a, b) => b.session_count - a.session_count || a.name.localeCompare(b.name));
+}
+
+//One point per workout for a single lift: that day's best working set (by e1RM), with its weight, reps and
+//e1RM all included so the frontend can switch between e1RM-over-time, weight-over-time and weight-vs-reps
+//charts without refetching.
+async function exerciseOverTime(user_id, start_date, end_date, catalog_id) {
 	const exerciseIncludeCatalogId = {
 		model: ExercisesModel,
 		where: {
@@ -514,365 +533,147 @@ async function exerciseOverTime(user_id, start_date, end_date, catalog_id, Epley
 		const bestSet = getBestWorkingSet(combinedSets);
 		if (bestSet === null) continue; //no qualifying working sets logged that day
 
-		if (Epley) {
-			data.push({ date: workout.workout_date, value: bestSet.e1rm });
-		} else {
-			data.push({ date: workout.workout_date, weight: bestSet.weight, reps: bestSet.reps });
-		}
-	}
-
-	return { catalog_id, name, muscle_group, data };
-}
-
-//Volume per muscle group (total reps across working sets)
-async function getVolumeByMuscleGroup(user_id, start_date, end_date) {
-	const full_data = await WorkoutsModel.findAll({
-		where: {
-			user_id,
-			workout_date: {
-				[Op.between]: [start_date, end_date],
-			},
-		},
-		include: [exerciseInclude],
-	});
-
-	const volumeByGroup = new Map(MUSCLE_GROUPS.map((group) => [group, 0]));
-
-	for (const workout of full_data) {
-		for (const exercise of workout.exercises ?? []) {
-			const muscle_group = exercise.exercise_catalog.muscle_group;
-			for (const set of exercise.sets ?? []) {
-				if (set.set_type !== "working" || !set.reps) continue;
-				volumeByGroup.set(muscle_group, volumeByGroup.get(muscle_group) + set.reps);
-			}
-		}
-	}
-
-	//collapse dict items into an array and get totalSum across them
-	const total_volume = [...volumeByGroup.values()].reduce((sum, v) => sum + v, 0);
-
-	//divides each muscle group count  by total to normalize into %
-	const breakdown = [...volumeByGroup.entries()]
-		.map(([muscle_group, volume]) => ({
-			muscle_group,
-			volume,
-			percent: total_volume ? (volume / total_volume) * 100 : 0,
-		}))
-		.sort((a, b) => b.volume - a.volume);
-
-	return { total_volume, breakdown };
-}
-
-//Within-session fatigue curve, split per exercise since positions are only comparable for the same lift.
-//avg e1RM (or raw weight) by order_number position, across every session in range, per catalog_id.
-//
-//We're supposed to show how fatigue accumulates as you move certain lifts later
-//like if bench was 1st, then move it to 4th later on
-//But the issue is progressive overload happens and that might pollute our logic so it says 4th position is stronger than 1
-//Lets skip this for now and come back to it later and see graphs once we have more data
-async function getFatigueCurves(user_id, start_date, end_date, Epley) {
-	const full_data = await WorkoutsModel.findAll({
-		where: {
-			user_id,
-			workout_date: {
-				[Op.between]: [start_date, end_date],
-			},
-		},
-		include: [exerciseInclude],
-		order: [
-			["workout_date", "ASC"],
-			[ExercisesModel, "order_number", "ASC"],
-			[ExercisesModel, SetsModel, "order_number", "ASC"],
-		],
-	});
-
-	//catalog_id -> { name, muscle_group, positions: Map<order_number, {value, percent_of_best}[]> }
-	const exercisesById = new Map();
-	const runningBestByExercise = new Map(); //catalog_id -> best value seen strictly before the current occurrence
-
-	//so each exercise (catalog_id), has positions. A position is order_number: best weight/erm
-	for (const workout of full_data) {
-		for (const exercise of workout.exercises ?? []) {
-			const bestSet = getBestWorkingSet(exercise.sets ?? []);
-			if (bestSet === null) continue; //no qualifying working sets this occurrence
-
-			const value = Epley ? bestSet.e1rm : bestSet.weight;
-			const catalog = exercise.exercise_catalog;
-
-			//first-ever occurrence of this lift has no prior data to compare against, so it trivially
-			//normalizes to 100% - everything after is judged against the best seen up to (not including) it
-			const baseline = runningBestByExercise.has(catalog.catalog_id) ? runningBestByExercise.get(catalog.catalog_id) : value;
-			const percent_of_best = (value / baseline) * 100;
-			runningBestByExercise.set(catalog.catalog_id, Math.max(baseline, value));
-
-			if (!exercisesById.has(catalog.catalog_id)) {
-				exercisesById.set(catalog.catalog_id, {
-					catalog_id: catalog.catalog_id,
-					name: catalog.name,
-					muscle_group: catalog.muscle_group,
-					positions: new Map(),
-				});
-			}
-
-			const entry = exercisesById.get(catalog.catalog_id);
-			if (!entry.positions.has(exercise.order_number)) entry.positions.set(exercise.order_number, []);
-			entry.positions.get(exercise.order_number).push({ value, percent_of_best });
-		}
-	}
-
-	const curves = [];
-	for (const { catalog_id, name, muscle_group, positions } of exercisesById.values()) {
-		const curve = [...positions.entries()]
-			.map(([order_number, entries]) => ({
-				order_number,
-				avg_value: average(entries.map((e) => e.value)), //plain average, kept for reference/display
-				avg_percent_of_best: average(entries.map((e) => e.percent_of_best)), //the fatigue signal, corrected for progressive overload
-				sample_size: entries.length, //positions 5+ often have few observations - let the frontend fade/hide those
-			}))
-			.sort((a, b) => a.order_number - b.order_number);
-
-		curves.push({ catalog_id, name, muscle_group, curve });
-	}
-
-	return curves;
-}
-
-function classifyVolume(set_count) {
-	if (set_count >= 20) return "high";
-	if (set_count >= 10) return "moderate";
-	return "low";
-}
-
-//RP-style weekly volume landmarks: working-set count per muscle group per rolling 7-day window,
-//classified high (20+) / moderate (10-19) / low (<10). Every week + muscle group is included, even at 0.
-async function getWeeklyVolumeLandmarks(user_id, start_date, end_date) {
-	const full_data = await WorkoutsModel.findAll({
-		where: {
-			user_id,
-			workout_date: {
-				[Op.between]: [start_date, end_date],
-			},
-		},
-		include: [exerciseInclude],
-	});
-
-	//rollingWeekIndex -> Map<muscle_group, set_count>
-	//each week stores several muscle_groups and corresponding set counts
-	const setsByWeek = new Map();
-
-	for (const workout of full_data) {
-		const weekIndex = getRollingWeekIndex(workout.workout_date, end_date);
-		if (!setsByWeek.has(weekIndex)) setsByWeek.set(weekIndex, new Map(MUSCLE_GROUPS.map((group) => [group, 0])));
-		const weekCounts = setsByWeek.get(weekIndex);
-
-		for (const exercise of workout.exercises ?? []) {
-			const muscle_group = exercise.exercise_catalog.muscle_group;
-			for (const set of exercise.sets ?? []) {
-				if (set.set_type !== "working") continue;
-				weekCounts.set(muscle_group, weekCounts.get(muscle_group) + 1);
-			}
-		}
-	}
-
-	//Same reasoning as getTrainingFrequency: bound to the oldest week with real data, not the full requested range.
-	const maxWeekIndex = setsByWeek.size ? Math.max(...setsByWeek.keys()) : -1;
-	const weeks = [];
-
-	for (let index = 0; index <= maxWeekIndex; index++) {
-		const { week_start, week_end } = getRollingWeekRange(index, end_date);
-		const weekCounts = setsByWeek.get(index) ?? new Map(MUSCLE_GROUPS.map((group) => [group, 0]));
-
-		const muscle_groups = [...weekCounts.entries()].map(([muscle_group, set_count]) => ({
-			muscle_group,
-			set_count,
-			classification: classifyVolume(set_count),
-		}));
-
-		//Results in something like:
-		/* muscle_groups = [
-			{ muscle_group: "chest", set_count: 4, classification: "low" },
-			{ muscle_group: "legs", set_count: 3, classification: "low" },
-			{ muscle_group: "back", set_count: 0, classification: "low" },
-		]; */
-
-		weeks.push({ week_start, week_end, muscle_groups });
-	}
-
-	weeks.reverse(); //oldest week first
-	return weeks;
-}
-
-//Feed of all-time PR events (new best e1RM for a catalog exercise). Deliberately fetches the user's FULL
-//history up to end_date (ignoring start_date as a lower query bound) so a plateau isn't miscounted as a
-//"new PR" just because the window starts partway through the user's history - start_date only filters
-//which already-computed PR events are returned.
-async function getPersonalRecordTimeline(user_id, start_date, end_date) {
-	const full_data = await WorkoutsModel.findAll({
-		where: {
-			user_id,
-			workout_date: {
-				[Op.lte]: end_date,
-			},
-		},
-		include: [exerciseInclude],
-		order: [
-			["workout_date", "ASC"],
-			[ExercisesModel, "order_number", "ASC"],
-			[ExercisesModel, SetsModel, "order_number", "ASC"],
-		],
-	});
-
-	const runningMax = new Map(); //catalog_id -> best e1rm seen so far
-	const prEvents = [];
-
-	for (const workout of full_data) {
-		for (const exercise of workout.exercises ?? []) {
-			const value = getExerciseE1RM(exercise);
-			if (value === null) continue;
-
-			const catalog = exercise.exercise_catalog;
-			const previousBest = runningMax.get(catalog.catalog_id) ?? 0;
-
-			if (value > previousBest) {
-				runningMax.set(catalog.catalog_id, value);
-				prEvents.push({
-					catalog_id: catalog.catalog_id,
-					name: catalog.name,
-					muscle_group: catalog.muscle_group,
-					workout_date: workout.workout_date,
-					value,
-				});
-			}
-		}
-	}
-
-	return prEvents.filter((event) => new Date(event.workout_date) >= new Date(start_date)).sort((a, b) => new Date(b.workout_date) - new Date(a.workout_date));
-}
-
-//Session count per rolling 7-day window - a simple training-consistency/adherence view.
-//how many days of the week we train
-async function getTrainingFrequency(user_id, start_date, end_date) {
-	const workouts = await WorkoutsModel.findAll({
-		where: {
-			user_id,
-			workout_date: {
-				[Op.between]: [start_date, end_date],
-			},
-		},
-		attributes: ["workout_date"],
-	});
-
-	const countsByWeek = new Map();
-	for (const workout of workouts) {
-		const weekIndex = getRollingWeekIndex(workout.workout_date, end_date);
-		countsByWeek.set(weekIndex, (countsByWeek.get(weekIndex) ?? 0) + 1);
-	}
-
-	//Bound the loop to the oldest week that actually has data, not the full requested range - "all" resolves
-	//to a 100-year lookback, and looping every week back to a fixed epoch would produce thousands of empty rows.
-	const maxWeekIndex = countsByWeek.size ? Math.max(...countsByWeek.keys()) : -1;
-	const weeks = [];
-	for (let index = 0; index <= maxWeekIndex; index++) {
-		const { week_start, week_end } = getRollingWeekRange(index, end_date);
-		weeks.push({ week_start, week_end, session_count: countsByWeek.get(index) ?? 0 });
-	}
-
-	weeks.reverse(); //oldest week first
-	return weeks;
-}
-
-//Average session volume (total working-set reps - not weighted by load) and average session duration,
-//per rolling 7-day window - shows whether sessions are trending bigger/smaller or longer/shorter over time.
-async function getSessionTrends(user_id, start_date, end_date) {
-	const full_data = await WorkoutsModel.findAll({
-		where: {
-			user_id,
-			workout_date: {
-				[Op.between]: [start_date, end_date],
-			},
-		},
-		include: [exerciseInclude],
-	});
-
-	//rollingWeekIndex -> { volumes: [], durations: [], session_count }
-	const byWeek = new Map();
-
-	for (const workout of full_data) {
-		const weekIndex = getRollingWeekIndex(workout.workout_date, end_date);
-		if (!byWeek.has(weekIndex)) byWeek.set(weekIndex, { volumes: [], durations: [], session_count: 0 });
-		const bucket = byWeek.get(weekIndex);
-		bucket.session_count += 1;
-
-		let volume = 0;
-		for (const exercise of workout.exercises ?? []) {
-			for (const set of exercise.sets ?? []) {
-				if (set.set_type !== "working" || !set.reps) continue;
-				volume += set.reps;
-			}
-		}
-		if (volume > 0) bucket.volumes.push(volume);
-
-		if (workout.finished_at && workout.workout_date) {
-			const diffMs = new Date(workout.finished_at) - new Date(workout.workout_date);
-			if (diffMs > 0) bucket.durations.push(Math.round(diffMs / 60000));
-		}
-	}
-
-	//Same reasoning as getTrainingFrequency: bound to the oldest week with real data, not the full requested range.
-	const maxWeekIndex = byWeek.size ? Math.max(...byWeek.keys()) : -1;
-	const weeks = [];
-	for (let index = 0; index <= maxWeekIndex; index++) {
-		const { week_start, week_end } = getRollingWeekRange(index, end_date);
-		const bucket = byWeek.get(index) ?? { volumes: [], durations: [], session_count: 0 };
-		weeks.push({
-			week_start,
-			week_end,
-			avg_volume: average(bucket.volumes),
-			avg_duration_minutes: average(bucket.durations),
-			session_count: bucket.session_count,
+		data.push({
+			date: workout.workout_date,
+			weight: bestSet.weight,
+			reps: bestSet.reps,
+			reps_in_reserve: bestSet.reps_in_reserve,
+			e1rm: bestSet.e1rm,
 		});
 	}
 
-	weeks.reverse(); //oldest week first
-	return weeks;
+	return { catalog_id: Number(catalog_id), name, muscle_group, data };
 }
 
-function classifyRepRange(reps) {
-	if (reps <= 5) return "1-5";
-	if (reps <= 12) return "6-12";
-	return "13+";
-}
+//Working sets and working-set reps per muscle group. Sets drive the pie chart (sets per muscle group is the
+//usual way to measure training volume), reps sit next to them in the bar chart. Muscle groups with nothing
+//logged are left out so the charts don't fill up with empty slices/bars.
+async function getVolumeByMuscleGroup(user_id, start_date, end_date) {
+	const full_data = await getWorkoutsInRange(user_id, start_date, end_date);
 
-//% of working sets in each rep range across the date range, pooled over every exercise -
-async function getRepRangeDistribution(user_id, start_date, end_date) {
-	const full_data = await WorkoutsModel.findAll({
-		where: {
-			user_id,
-			workout_date: {
-				[Op.between]: [start_date, end_date],
-			},
-		},
-		include: [exerciseInclude],
-	});
-
-	const counts = { "1-5": 0, "6-12": 0, "13+": 0 };
+	//muscle_group -> { sets, reps }
+	const volumeByGroup = new Map();
 
 	for (const workout of full_data) {
 		for (const exercise of workout.exercises ?? []) {
+			const muscle_group = exercise.exercise_catalog.muscle_group;
 			for (const set of exercise.sets ?? []) {
-				if (set.set_type !== "working" || !set.reps) continue;
-				counts[classifyRepRange(set.reps)] += 1;
+				if (set.set_type !== "working" || !set.reps) continue; //a working set with no reps logged is a blank row, not a set
+				if (!volumeByGroup.has(muscle_group)) volumeByGroup.set(muscle_group, { sets: 0, reps: 0 });
+				const group = volumeByGroup.get(muscle_group);
+				group.sets += 1;
+				group.reps += set.reps;
 			}
 		}
 	}
 
-	const total = Object.values(counts).reduce((sum, v) => sum + v, 0);
+	let total_sets = 0;
+	let total_reps = 0;
+	for (const { sets, reps } of volumeByGroup.values()) {
+		total_sets += sets;
+		total_reps += reps;
+	}
 
-	return ["1-5", "6-12", "13+"].map((range) => ({
-		range,
-		set_count: counts[range],
-		percent: total ? (counts[range] / total) * 100 : 0,
-	}));
+	const breakdown = [...volumeByGroup.entries()]
+		.map(([muscle_group, { sets, reps }]) => ({
+			muscle_group,
+			sets,
+			reps,
+			percent_of_sets: (sets / total_sets) * 100, //total_sets > 0 whenever there's a breakdown row
+		}))
+		.sort((a, b) => b.sets - a.sets || b.reps - a.reps);
+
+	return { total_sets, total_reps, breakdown };
+}
+
+//NOTE: These queries don't account for order_number for fatigue on an exercise
+//Only set's previous query takes in account order_number for returning items for a given exercise
+//But TLDR fatigue for an exercise's order is never accounted for. Could fix by adding workout name?
+
+//Shared filters for "which past workouts count" when logging a workout. Both stats queries use these so
+//best and previous always look at the same workouts:
+//  - only this user's, only finished ones (a half-done workout from earlier today isn't "previous")
+//  - never the workout being edited (otherwise it shows its own sets as previous)
+//  - only workouts on/before the one being edited (editing an old workout shouldn't show newer ones)
+const PAST_WORKOUT_FILTERS = `
+	w.user_id = :userId
+	AND w.finished_at IS NOT NULL
+	AND w.workout_id <> :excludeWorkoutId
+	AND (CAST(:beforeDate AS DATE) IS NULL OR w.workout_date <= CAST(:beforeDate AS DATE))
+`;
+
+//Heaviest working set per catalog exercise, all in one query (GROUP BY = one row per catalog_id)
+const BEST_WEIGHT_SQL = `
+	SELECT e.catalog_id, MAX(s.weight) AS best_weight
+	FROM sets s
+	JOIN exercises e ON e.exercise_id = s.exercise_id
+	JOIN workouts w ON w.workout_id = e.workout_id
+	WHERE ${PAST_WORKOUT_FILTERS}
+	  AND e.catalog_id IN (:catalogIds)
+	  AND s.set_type = 'working'
+	  AND s.weight IS NOT NULL
+	GROUP BY e.catalog_id
+`;
+
+//Sets from the most recent time this catalog exercise was done. Inner query picks the exercise,
+//outer query gets its sets. One catalog_id per run (LIMIT 1 = one row total, not one per exercise).
+const PREVIOUS_SETS_SQL = `
+	SELECT set_type, weight, reps, reps_in_reserve, order_number
+	FROM sets
+	WHERE exercise_id = (
+		SELECT e.exercise_id
+		FROM exercises e
+		JOIN workouts w ON w.workout_id = e.workout_id
+		WHERE ${PAST_WORKOUT_FILTERS}
+		  AND e.catalog_id = :catalogId
+		ORDER BY w.workout_date DESC, w.finished_at DESC, e.order_number ASC
+		LIMIT 1
+	)
+	ORDER BY order_number
+`;
+
+//Best weight + last session's sets for each catalog exercise, for the prev/best columns while logging.
+//exclude_workout_id is the workout being edited (null for a new workout) - it's skipped, and only workouts
+//on or before its date count. Always the logged-in user's history.
+async function getExerciseStats(user_id, catalog_ids, exclude_workout_id = null) {
+	let beforeDate = null;
+	if (exclude_workout_id) {
+		const current = await WorkoutsModel.findOne({ where: { workout_id: exclude_workout_id, user_id }, attributes: ["workout_date"] });
+		if (!current) throw new NotFoundError("No workout found with that workout ID");
+		beforeDate = current.workout_date;
+	}
+
+	const filters = { userId: user_id, excludeWorkoutId: exclude_workout_id ?? 0, beforeDate };
+
+	const bestRows = await sequelize.query(BEST_WEIGHT_SQL, {
+		replacements: { ...filters, catalogIds: catalog_ids },
+		type: QueryTypes.SELECT,
+	});
+
+	//one query per exercise, all running at once - fine for the handful of exercises in a workout
+	const previousPerExercise = await Promise.all(
+		catalog_ids.map((catalogId) =>
+			sequelize.query(PREVIOUS_SETS_SQL, {
+				replacements: { ...filters, catalogId },
+				type: QueryTypes.SELECT,
+			}),
+		),
+	);
+
+	//raw queries return DECIMAL as a string (same reason sets.weight has a getter)
+	const toNumber = (value) => (value == null ? null : parseFloat(value));
+
+	//catalog_id -> { best_weight, previous_sets }. Every requested id gets an entry, even with no history.
+	const stats = {};
+	catalog_ids.forEach((catalogId, i) => {
+		stats[catalogId] = {
+			best_weight: null,
+			previous_sets: previousPerExercise[i].map((set) => ({ ...set, weight: toNumber(set.weight) })),
+		};
+	});
+	for (const row of bestRows) stats[row.catalog_id].best_weight = toNumber(row.best_weight);
+
+	return stats;
 }
 
 module.exports = {
@@ -884,12 +685,9 @@ module.exports = {
 	SearchCatalogExercises,
 	CreateCatalogExercise,
 	getBiggest5Changes,
+	getLoggedLifts,
 	exerciseOverTime,
 	getVolumeByMuscleGroup,
-	getFatigueCurves,
-	getWeeklyVolumeLandmarks,
-	getPersonalRecordTimeline,
-	getTrainingFrequency,
-	getSessionTrends,
-	getRepRangeDistribution,
+	getExerciseStats,
+	getWorkoutsInRange, //Friends overview
 };

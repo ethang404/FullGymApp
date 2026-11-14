@@ -25,12 +25,6 @@ const users = sequelize.define(
 			type: DataTypes.STRING,
 			allowNull: false,
 		},
-		spoon_username: {
-			type: DataTypes.STRING,
-		},
-		spoon_hash: {
-			type: DataTypes.STRING,
-		},
 
 		email: {
 			type: DataTypes.STRING,
@@ -40,6 +34,12 @@ const users = sequelize.define(
 		apple_user_id: {
 			type: DataTypes.STRING,
 			unique: true,
+		},
+		// Apple's refresh token from the sign-in authorizationCode. Only used to revoke the Apple link when
+		// the account is deleted (Apple requires it)
+		apple_refresh_token: {
+			type: DataTypes.TEXT,
+			allowNull: true,
 		},
 		// Present only for accounts created/linked via Google sign-in.
 		google_user_id: {
@@ -94,6 +94,12 @@ const users = sequelize.define(
 		// guest account
 		// set to false once the user sets a real username/password.
 		is_guest: {
+			type: DataTypes.BOOLEAN,
+			allowNull: false,
+			defaultValue: false,
+		},
+
+		is_banned: {
 			type: DataTypes.BOOLEAN,
 			allowNull: false,
 			defaultValue: false,

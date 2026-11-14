@@ -1,83 +1,94 @@
 const service = require("./service");
 
-function handleError(res, error) {
-	console.error(error);
-	if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-	return res.status(500).json({ message: error.message });
+// ---------------------------------------------
+// Friend requests
+// ---------------------------------------------
+
+async function getRequests(req, res) {
+	const requests = await service.getRequests(req.user_id); //{ incoming: [...], outgoing: [...] }
+	return res.status(200).json({ requests });
 }
 
-// Body: { addressee_user_id }
+// Body needs: { user_id } - the person you're sending the request to
 async function sendRequest(req, res) {
-	try {
-		const { friendship, created } = await service.sendRequest(req.user_id, req.body.addressee_user_id);
-		return res.status(created ? 201 : 200).json({ friendship });
-	} catch (error) {
-		return handleError(res, error);
-	}
+	const target_user_id = parseInt(req.body.user_id, 10);
+	const request = await service.sendRequest(req.user_id, target_user_id);
+	return res.status(201).json({ request });
 }
 
 async function acceptRequest(req, res) {
-	try {
-		const friendship = await service.acceptRequest(parseInt(req.params.id, 10), req.user_id);
-		return res.status(200).json({ friendship });
-	} catch (error) {
-		return handleError(res, error);
-	}
+	const friendship_id = parseInt(req.params.friendship_id, 10);
+	const friendship = await service.acceptRequest(friendship_id, req.user_id);
+	return res.status(200).json({ friendship });
 }
 
-async function deletePendingRequest(req, res) {
-	try {
-		const result = await service.deletePendingRequest(parseInt(req.params.id, 10), req.user_id);
-		return res.status(200).json(result);
-	} catch (error) {
-		return handleError(res, error);
-	}
+//decline if you received it, cancel if you sent it
+async function deleteRequest(req, res) {
+	const friendship_id = parseInt(req.params.friendship_id, 10);
+	await service.deleteRequest(friendship_id, req.user_id);
+	return res.status(200).json({ message: "Request removed" });
+}
+
+// ---------------------------------------------
+// Friends
+// ---------------------------------------------
+
+async function getFriends(req, res) {
+	const friends = await service.getFriends(req.user_id);
+	return res.status(200).json({ friends });
 }
 
 async function removeFriend(req, res) {
-	try {
-		const result = await service.removeFriend(parseInt(req.params.id, 10), req.user_id);
-		return res.status(200).json(result);
-	} catch (error) {
-		return handleError(res, error);
-	}
+	const friend_id = parseInt(req.params.friend_id, 10);
+	await service.removeFriend(req.user_id, friend_id);
+	return res.status(200).json({ message: "Friend removed" });
 }
 
-async function listFriends(req, res) {
-	try {
-		const friends = await service.listFriends(req.user_id);
-		return res.status(200).json({ friends });
-	} catch (error) {
-		return handleError(res, error);
-	}
+// Body: { workouts?, recipes?, diary?, goals? } - only updates MY row (owner_id = req.user_id)
+async function updatePermissions(req, res) {
+	const friend_id = parseInt(req.params.friend_id, 10);
+	const permissions = await service.updatePermissions(req.user_id, friend_id, req.body);
+	return res.status(200).json({ permissions });
 }
 
-// /friends/requests?direction=incoming|outgoing
-async function listRequests(req, res) {
-	try {
-		const requests = await service.listRequests(req.user_id, req.query.direction);
-		return res.status(200).json({ requests });
-	} catch (error) {
-		return handleError(res, error);
-	}
+// ---------------------------------------------
+// Viewing a friend's data
+// ---------------------------------------------
+// Workouts come back from the service already in the same shape as GET /workouts
+// (e.g. straight from Workouts/service.js GetWorkouts / GetWorkout)
+
+// Query: ?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD bounds workouts + diary (recipes are always sent in full)
+// Service returns { user, they_share, workouts?, recipes?, diary?, goals? } - sections they don't share are left out
+async function getFriendOverview(req, res) {
+	const friend_id = parseInt(req.params.friend_id, 10);
+	const { start_date, end_date } = req.query;
+	const friend = await service.getFriendOverview(req.user_id, friend_id, start_date, end_date);
+	return res.status(200).json({ friend });
 }
 
-// /friends/search?query=&limit=
-async function searchUsers(req, res) {
-	try {
-		const results = await service.searchUsers(req.user_id, req.query.query, req.query.limit);
-		return res.status(200).json({ results });
-	} catch (error) {
-		return handleError(res, error);
-	}
+async function getFriendWorkout(req, res) {
+	const friend_id = parseInt(req.params.friend_id, 10);
+	const workout_id = parseInt(req.params.workout_id, 10);
+	const workout = await service.getFriendWorkout(req.user_id, friend_id, workout_id);
+	return res.status(200).json({ workout });
+}
+
+async function getFriendRecipe(req, res) {
+	const friend_id = parseInt(req.params.friend_id, 10);
+	const recipe_id = parseInt(req.params.recipe_id, 10);
+	const recipe = await service.getFriendRecipe(req.user_id, friend_id, recipe_id);
+	return res.status(200).json({ recipe });
 }
 
 module.exports = {
+	getRequests,
 	sendRequest,
 	acceptRequest,
-	deletePendingRequest,
+	deleteRequest,
+	getFriends,
 	removeFriend,
-	listFriends,
-	listRequests,
-	searchUsers,
+	updatePermissions,
+	getFriendOverview,
+	getFriendWorkout,
+	getFriendRecipe,
 };

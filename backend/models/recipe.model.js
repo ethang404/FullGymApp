@@ -30,20 +30,19 @@ const recipe = sequelize.define(
 			allowNull: false,
 			defaultValue: 1,
 		},
-		visibility: {
-			type: DataTypes.ENUM("private", "friends", "public"),
+		//soft delete
+		//keep name/macros, just hide from lists, editing, logging and sharing
+		is_deleted: {
+			type: DataTypes.BOOLEAN,
 			allowNull: false,
-			defaultValue: "private",
+			defaultValue: false,
 		},
 	},
 	{
 		tableName: "recipes",
 		timestamps: true,
 		underscored: true,
-		indexes: [
-			{ fields: ["user_id"] },
-			{ fields: ["visibility"] },
-		],
+		indexes: [{ fields: ["user_id"] }],
 	},
 );
 

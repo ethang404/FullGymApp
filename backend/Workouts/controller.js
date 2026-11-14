@@ -1,50 +1,20 @@
 const service = require("./service");
 
-//helper function to serialze some data for frontend use
-function serializeWorkoutListItem(workout) {
-	const w = workout.toJSON();
-	const allSets = (w.exercises ?? []).flatMap((e) => e.sets ?? []);
-
-	const totalVolumeKg = allSets.reduce((sum, s) => sum + (s.weight ?? 0) * (s.reps ?? 0), 0);
-
-	let durationMinutes;
-	if (w.finished_at && w.workout_date) {
-		const diffMs = new Date(w.finished_at) - new Date(w.workout_date);
-		if (diffMs > 0) durationMinutes = Math.round(diffMs / 60000);
-	}
-
-	return {
-		id: w.workout_id,
-		name: w.name,
-		date: w.workout_date,
-		notes: w.notes,
-		duration_minutes: durationMinutes,
-		total_volume_kg: totalVolumeKg || undefined,
-	};
-}
-
 async function getWorkoutsList(req, res) {
-	let { filter } = req.query; //So we might apply a time frame or a specific type of lift etc.
-	//Might turn this into a POST request so we can apply more and more filters
-	console.log("my filter is:", filter);
+	let { filter } = req.query; //range of workouts
 
 	let user_id = req.user_id;
 
 	let workouts = await service.GetWorkouts(user_id, filter);
 	if (workouts.length == 0) return res.status(200).json({ workouts, message: "No Workouts Found" });
-	return res.status(200).json({ workouts: workouts.map(serializeWorkoutListItem) });
+	return res.status(200).json({ workouts }); //already serialized by the service
 	//For now we'll keep as GET and just allow 'week', 'month', 'year', 'all' filters (all is default)
 }
 
 async function getWorkout(req, res) {
 	let workoutId = req.params.id;
-	try {
-		let workout = await service.GetWorkout(workoutId, req.user_id);
-		return res.status(200).json({ workout });
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
+	let workout = await service.GetWorkout(workoutId, req.user_id);
+	return res.status(200).json({ workout });
 }
 
 async function createWorkout(req, res) {
@@ -82,13 +52,8 @@ async function createWorkout(req, res) {
 	}
 	*/
 	const user_id = req.user_id;
-	try {
-		let workout = await service.CreateWorkout(req.body, user_id); //workout object (might) also contain exercises/sets
-		return res.status(200).json({ workout });
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
+	let workout = await service.CreateWorkout(req.body, user_id); //workout object (might) also contain exercises/sets
+	return res.status(200).json({ workout });
 }
 
 async function editWorkout(req, res) {
@@ -98,37 +63,21 @@ async function editWorkout(req, res) {
 	//Theres a scenario where we delete data from a workout or just edit it
 	//so send entire workout object, and if it doesn't match up, set this data as the true value.
 	let workoutId = req.params.id;
-	try {
-		let modified_workout = await service.EditWorkout(req.body, workoutId, req.user_id); //workout object (might) also contain exercises/sets
-		return res.status(200).json({ modified_workout });
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
+	let modified_workout = await service.EditWorkout(req.body, workoutId, req.user_id); //workout object (might) also contain exercises/sets
+	return res.status(200).json({ modified_workout });
 }
 
 async function deleteWorkout(req, res) {
 	let workout_id = req.params.id;
-	try {
-		await service.DeleteWorkout(workout_id, req.user_id); //successfully deleted
-		return res.status(200).json({ message: "Workout deleted successfully" });
-	} catch (error) {
-		//failed to delete
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
+	await service.DeleteWorkout(workout_id, req.user_id); //successfully deleted
+	return res.status(200).json({ message: "Workout deleted successfully" });
 }
 
 async function searchCatalog(req, res) {
 	let { search, muscle_group } = req.query;
 
-	try {
-		let exercises = await service.SearchCatalogExercises({ search, muscle_group });
-		return res.status(200).json({ exercises });
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
+	let exercises = await service.SearchCatalogExercises({ search, muscle_group });
+	return res.status(200).json({ exercises });
 }
 
 //shared by every /progress endpoint: turns the ?filter= query param into a concrete
@@ -150,120 +99,60 @@ async function getBiggestChanges(req, res) {
 	const user_id = req.user_id;
 	const { startDate, now } = getDateRangeFromRequest(req);
 
-	try {
-		const changes = await service.getBiggest5Changes(user_id, startDate, now);
-		return res.status(200).json({ changes });
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
+	const changes = await service.getBiggest5Changes(user_id, startDate, now);
+	return res.status(200).json({ changes });
+}
+
+async function getLoggedLifts(req, res) {
+	const user_id = req.user_id;
+	const { startDate, now } = getDateRangeFromRequest(req);
+
+	const lifts = await service.getLoggedLifts(user_id, startDate, now);
+	return res.status(200).json({ lifts });
 }
 
 async function getExerciseHistory(req, res) {
 	const catalog_id = req.params.id;
-	const { epley } = req.query;
 	const user_id = req.user_id;
 	const { startDate, now } = getDateRangeFromRequest(req);
 
-	try {
-		const history = await service.exerciseOverTime(user_id, startDate, now, catalog_id, epley === "true");
-		return res.status(200).json(history);
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
+	const history = await service.exerciseOverTime(user_id, startDate, now, catalog_id);
+	return res.status(200).json(history);
+}
+
+//e.g. /workouts/exercise-stats?catalog_ids=1,4,7&exclude_workout_id=28
+//catalog_ids comes in as one string ("1,4,7"), so split it into numbers ourselves.
+//exclude_workout_id is the workout being edited - leave it off for a new workout.
+async function getExerciseStats(req, res) {
+	const { catalog_ids = "", exclude_workout_id } = req.query;
+
+	const catalogIds = [
+		...new Set(
+			String(catalog_ids)
+				.split(",")
+				.map(Number)
+				.filter((id) => Number.isInteger(id) && id > 0), //drops junk like "abc" or the "" from an empty param
+		),
+	];
+	if (catalogIds.length === 0) return res.status(400).json({ message: "catalog_ids must be a comma separated list of ids" });
+	if (catalogIds.length > 50) return res.status(400).json({ message: "Too many catalog_ids (max 50)" });
+
+	let excludeWorkoutId = null;
+	if (exclude_workout_id !== undefined) {
+		excludeWorkoutId = Number(exclude_workout_id);
+		if (!Number.isInteger(excludeWorkoutId) || excludeWorkoutId <= 0) return res.status(400).json({ message: "exclude_workout_id must be a workout id" });
 	}
+
+	const stats = await service.getExerciseStats(req.user_id, catalogIds, excludeWorkoutId);
+	return res.status(200).json({ stats });
 }
 
 async function getVolumeByMuscleGroup(req, res) {
 	const user_id = req.user_id;
 	const { startDate, now } = getDateRangeFromRequest(req);
 
-	try {
-		const volume = await service.getVolumeByMuscleGroup(user_id, startDate, now);
-		return res.status(200).json(volume);
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
-}
-
-async function getFatigueCurves(req, res) {
-	const { epley } = req.query;
-	const user_id = req.user_id;
-	const { startDate, now } = getDateRangeFromRequest(req);
-
-	try {
-		const curves = await service.getFatigueCurves(user_id, startDate, now, epley === "true");
-		return res.status(200).json({ curves });
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
-}
-
-async function getWeeklyVolumeLandmarks(req, res) {
-	const user_id = req.user_id;
-	const { startDate, now } = getDateRangeFromRequest(req);
-
-	try {
-		const weeks = await service.getWeeklyVolumeLandmarks(user_id, startDate, now);
-		return res.status(200).json({ weeks });
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
-}
-
-async function getPersonalRecordTimeline(req, res) {
-	const user_id = req.user_id;
-	const { startDate, now } = getDateRangeFromRequest(req);
-
-	try {
-		const records = await service.getPersonalRecordTimeline(user_id, startDate, now);
-		return res.status(200).json({ records });
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
-}
-
-async function getTrainingFrequency(req, res) {
-	const user_id = req.user_id;
-	const { startDate, now } = getDateRangeFromRequest(req);
-
-	try {
-		const weeks = await service.getTrainingFrequency(user_id, startDate, now);
-		return res.status(200).json({ weeks });
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
-}
-
-async function getSessionTrends(req, res) {
-	const user_id = req.user_id;
-	const { startDate, now } = getDateRangeFromRequest(req);
-
-	try {
-		const weeks = await service.getSessionTrends(user_id, startDate, now);
-		return res.status(200).json({ weeks });
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
-}
-
-async function getRepRangeDistribution(req, res) {
-	const user_id = req.user_id;
-	const { startDate, now } = getDateRangeFromRequest(req);
-
-	try {
-		const distribution = await service.getRepRangeDistribution(user_id, startDate, now);
-		return res.status(200).json({ distribution });
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
+	const volume = await service.getVolumeByMuscleGroup(user_id, startDate, now);
+	return res.status(200).json(volume);
 }
 
 async function createCatalogExercise(req, res) {
@@ -273,13 +162,8 @@ async function createCatalogExercise(req, res) {
 		muscle_group: "chest"
 	}
 	*/
-	try {
-		let exercise = await service.CreateCatalogExercise(req.body);
-		return res.status(200).json({ exercise });
-	} catch (error) {
-		if (error.StatusCode) return res.status(error.StatusCode).json({ message: error.message });
-		return res.status(500).json({ message: error.message });
-	}
+	let exercise = await service.CreateCatalogExercise(req.body);
+	return res.status(200).json({ exercise });
 }
 
 module.exports = {
@@ -291,12 +175,8 @@ module.exports = {
 	searchCatalog,
 	createCatalogExercise,
 	getBiggestChanges,
+	getLoggedLifts,
 	getExerciseHistory,
 	getVolumeByMuscleGroup,
-	getFatigueCurves,
-	getWeeklyVolumeLandmarks,
-	getPersonalRecordTimeline,
-	getTrainingFrequency,
-	getSessionTrends,
-	getRepRangeDistribution,
+	getExerciseStats,
 };

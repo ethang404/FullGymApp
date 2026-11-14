@@ -1,15 +1,17 @@
-import React, { useMemo, useState } from "react";
+import React, { useContext, useMemo, useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { useTheme } from "@/theme/ThemeProvider";
 import Screen from "@/components/Screen";
 import AppleSignInButton from "@/components/AppleSignInButton";
 import GoogleAuthButton from "@/components/GoogleAuthButton";
-import { authInstance } from "../utils/AxiosInterceptorHandler";
+import { authClient } from "@/utils/AuthAPI";
+import { AuthContext } from "@/utils/AuthProvider";
 import { fonts, APP_NAME } from "@/theme/typography";
 
 export default function Login() {
 	const { theme } = useTheme();
+	const { signIn } = useContext(AuthContext);
 	const [userName, setUserName] = useState("");
 	const [password, setPassword] = useState("");
 	const [firstName, setFirstName] = useState("");
@@ -24,7 +26,8 @@ export default function Login() {
 		setError(null);
 
 		try {
-			await authInstance.post("/auth/guest");
+			const { data } = await authClient.post("/auth/guest");
+			await signIn(data);
 		} catch {
 			setError("Couldn't start a guest session. Check your connection and try again.");
 		} finally {
@@ -47,7 +50,8 @@ export default function Login() {
 					userName,
 					password,
 				};
-				await authInstance.post("/auth/login", loginPayload);
+				const { data } = await authClient.post("/auth/login", loginPayload);
+				await signIn(data);
 			} else {
 				if (!firstName || !lastName) {
 					setError("Enter your first and last name.");
@@ -60,11 +64,13 @@ export default function Login() {
 					userName,
 					password,
 				};
-				await authInstance.post("/auth/register", registerPayload);
+				const { data } = await authClient.post("/auth/register", registerPayload);
+				await signIn(data);
 			}
 		} catch (err: any) {
 			if (!err?.response) setError("Couldn't reach the server. Check your connection and try again.");
-			else setError(mode === "login" ? "That username and password don't match. Try again." : "Couldn't create your account. Try a different username.");
+			else if (mode === "login") setError(err.response.data?.message || "That username and password don't match. Try again.");
+			else setError("Couldn't create your account. Try a different username.");
 		} finally {
 			setLoading(false);
 		}

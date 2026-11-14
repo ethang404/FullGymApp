@@ -417,20 +417,26 @@ describe("Recipe Endpoints", () => {
 		expect(entry.nutrients.protein).toBeCloseTo(62 / 3, 1);
 	});
 
-	test("Delete Recipe - cascades to ingredients", async () => {
+	test("Delete Recipe - soft delete: row + ingredients stay, recipe is hidden", async () => {
 		const resp = await request(app).delete(`/nutrition/recipes/${createdRecipeId}`).set("Authorization", `Bearer ${token}`);
 
 		expect(resp.status).toBe(200);
 		expect(resp.body.deleted).toBe(true);
 		expect(resp.body.id).toBe(createdRecipeId);
 
-		// Recipe gone
+		// Row kept and flagged, so diary entries that logged it still have a name + macros
 		const dbRecipe = await RecipeModel.findByPk(createdRecipeId);
-		expect(dbRecipe).toBeNull();
+		expect(dbRecipe.is_deleted).toBe(true);
 
-		// Ingredients cascade deleted
+		// Ingredients kept - old diary entries recalculate their macros from them
 		const dbIngs = await RecipeIngredModel.findAll({ where: { recipe_id: createdRecipeId } });
-		expect(dbIngs.length).toBe(0);
+		expect(dbIngs.length).toBeGreaterThan(0);
+
+		// Gone from everywhere you'd pick it
+		const getResp = await request(app).get(`/nutrition/recipes/${createdRecipeId}`).set("Authorization", `Bearer ${token}`);
+		expect(getResp.status).toBe(404);
+		const again = await request(app).delete(`/nutrition/recipes/${createdRecipeId}`).set("Authorization", `Bearer ${token}`);
+		expect(again.status).toBe(404);
 	});
 });
 
@@ -680,73 +686,5 @@ describe("Recent Logged Endpoint", () => {
 		expect(resp.body.recent.some((r) => r.type === "recipe" && r.recipe.id === recipeId)).toBe(false);
 		// Food still there
 		expect(resp.body.recent.some((r) => r.type === "food" && r.food.id === foodId)).toBe(true);
-	});
-});
-
-// ─────────────────────────────────────────────
-// GET /nutrition/diary/friend/:friend_user_id
-// ─────────────────────────────────────────────
-
-describe("GET /nutrition/diary/friend/:friend_user_id", () => {
-	let friendToken, strangerToken, friendUserId, mainUserId;
-	let friendsEntryId, privateEntryId;
-	const date = "2025-06-01";
-
-	beforeAll(async () => {
-		mainUserId = (await request(app).get("/users/me").set("Authorization", `Bearer ${token}`)).body.user.user_id;
-
-		const friendResp = await request(app)
-			.post("/auth/register")
-			.send({ firstName: "Fiona", lastName: "Friendly", userName: "friend_diary_fiona", password: "FriendDiary123!" });
-		friendToken = friendResp.body.accessToken;
-		friendUserId = friendResp.body.userId;
-
-		const strangerResp = await request(app)
-			.post("/auth/register")
-			.send({ firstName: "Sam", lastName: "Stranger", userName: "friend_diary_sam", password: "FriendDiary123!" });
-		strangerToken = strangerResp.body.accessToken;
-
-		// token (the main test user) and friendToken become friends; strangerToken stays unrelated.
-		const sent = await request(app).post("/friends/requests").set("Authorization", `Bearer ${token}`).send({ addressee_user_id: friendUserId });
-		await request(app).post(`/friends/requests/${sent.body.friendship.id}/accept`).set("Authorization", `Bearer ${friendToken}`);
-
-		const friendsEntry = await request(app)
-			.post("/nutrition/diary")
-			.set("Authorization", `Bearer ${token}`)
-			.send({ food_id: createdFoodId, meal_type: "breakfast", logged_at: date, quantity: 100, unit: "g", visibility: "friends" });
-		friendsEntryId = friendsEntry.body.diary_entry.id;
-
-		const privateEntry = await request(app)
-			.post("/nutrition/diary")
-			.set("Authorization", `Bearer ${token}`)
-			.send({ food_id: createdFoodId, meal_type: "dinner", logged_at: date, quantity: 100, unit: "g", visibility: "private" });
-		privateEntryId = privateEntry.body.diary_entry.id;
-	});
-
-	test("requires auth", async () => {
-		const resp = await request(app).get(`/nutrition/diary/friend/999999?date=${date}`);
-		expect(resp.status).toBe(401);
-	});
-
-	test("400 when date is missing or malformed", async () => {
-		const missing = await request(app).get(`/nutrition/diary/friend/999999`).set("Authorization", `Bearer ${friendToken}`);
-		expect(missing.status).toBe(400);
-
-		const malformed = await request(app).get(`/nutrition/diary/friend/999999?date=06-01-2025`).set("Authorization", `Bearer ${friendToken}`);
-		expect(malformed.status).toBe(400);
-	});
-
-	test("404 for a non-friend (never reveals whether the user exists)", async () => {
-		const resp = await request(app).get(`/nutrition/diary/friend/${mainUserId}?date=${date}`).set("Authorization", `Bearer ${strangerToken}`);
-		expect(resp.status).toBe(404);
-	});
-
-	test("a friend sees only the friends-visible entry, never the private one", async () => {
-		const resp = await request(app).get(`/nutrition/diary/friend/${mainUserId}?date=${date}`).set("Authorization", `Bearer ${friendToken}`);
-
-		expect(resp.status).toBe(200);
-		const ids = resp.body.diary_entries.map((e) => e.id);
-		expect(ids).toContain(friendsEntryId);
-		expect(ids).not.toContain(privateEntryId);
 	});
 });

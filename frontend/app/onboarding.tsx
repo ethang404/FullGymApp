@@ -1,30 +1,27 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, Pressable, ActivityIndicator, StyleSheet } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { router } from "expo-router";
+import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
 import { useTheme } from "@/theme/ThemeProvider";
-import Pills from "@/components/Pills";
 import Screen from "@/components/Screen";
-import { DateField } from "@/components/DateField";
-import { HeightField, WeightField } from "@/components/MeasurementFields";
 import { fonts, APP_NAME } from "@/theme/typography";
 import { useProfile, type EstimateBody } from "@/utils/ProfileProvider";
-import {
-	SEXES,
-	ACTIVITY_LEVELS,
-	ACTIVITY_LABELS,
-	GOAL_TYPES,
-	GOAL_TYPE_LABELS,
-	MACRO_KEYS,
-	MACRO_META,
-	GOAL_DEFAULTS,
-	type Sex,
-	type ActivityLevel,
-	type GoalType,
-	type MacroGoals,
-} from "@/utils/macroDefaults";
+import { SectionLabel } from "@/features/onboarding/components/Card";
+import { SexPicker } from "@/features/onboarding/components/SexPicker";
+import { BirthDateCard } from "@/features/onboarding/components/BirthDateCard";
+import { HeightCard } from "@/features/onboarding/components/HeightCard";
+import { WeightGoalCard } from "@/features/onboarding/components/WeightGoalCard";
+import { ActivityPicker } from "@/features/onboarding/components/ActivityPicker";
+import { GoalsReview } from "@/features/onboarding/components/GoalsReview";
+import { MACRO_KEYS, MACRO_META, GOAL_DEFAULTS, type Sex, type ActivityLevel, type GoalType, type MacroGoals } from "@/utils/macroDefaults";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+const STEPS = {
+	1: { title: "About you", tag: "Body basics" },
+	2: { title: "Your goals", tag: "Daily targets" },
+} as const;
 
 export default function Onboarding() {
 	const { theme } = useTheme();
@@ -41,9 +38,7 @@ export default function Onboarding() {
 	const [goalType, setGoalType] = useState<GoalType | null>(null);
 
 	// Step 2 — editable goals
-	const [goals, setGoals] = useState<Record<string, string>>(
-		Object.fromEntries(MACRO_KEYS.map((k) => [k, String(GOAL_DEFAULTS[k])])),
-	);
+	const [goals, setGoals] = useState<Record<string, string>>(Object.fromEntries(MACRO_KEYS.map((k) => [k, String(GOAL_DEFAULTS[k])])));
 	const [estimating, setEstimating] = useState(false);
 
 	const [error, setError] = useState<string | null>(null);
@@ -55,8 +50,6 @@ export default function Onboarding() {
 			router.replace("/Home");
 		}
 	}, [loading, profile?.onboarding_completed]);
-
-	
 
 	function buildBody(): EstimateBody | null {
 		if (!sex || !DATE_RE.test(birthDate) || !activity || !goalType) return null;
@@ -133,62 +126,59 @@ export default function Onboarding() {
 	const styles = useMemo(
 		() =>
 			StyleSheet.create({
-				container: { flexGrow: 1, backgroundColor: theme.authBackground, padding: 20 },
-				title: { fontSize: 30, lineHeight: 36, fontFamily: fonts.headingHeavy, color: theme.authText, marginBottom: 4 },
-				stepText: { fontSize: 13, fontWeight: "600", color: theme.primary, marginBottom: 6 },
-				stepTrack: { flexDirection: "row", gap: 6, marginBottom: 18 },
-				stepDot: { flex: 1, height: 4, borderRadius: 2 },
-				subtitle: { fontSize: 14, color: theme.authTextMuted, marginBottom: 24 },
-				label: { fontSize: 13, color: theme.authLabel, marginBottom: 6, marginTop: 14, fontWeight: "600" },
-				input: {
-					backgroundColor: theme.authInputBg,
-					borderRadius: 12,
-					paddingHorizontal: 12,
-					paddingVertical: 12,
-					color: theme.authInputText,
-					borderWidth: 1,
-					borderColor: theme.authInputBorder,
+				header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingTop: 6, paddingBottom: 4 },
+				headerSide: { width: 64 },
+				headerTitle: { flex: 1, textAlign: "center", color: theme.authText, fontSize: 16, fontWeight: "700" },
+				iconButton: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+				// marginBottom is the gap between "Skip for now" and the Continue button
+				skip: { alignSelf: "center", paddingVertical: 4, marginBottom: 26 },
+				skipText: { color: theme.authTextMuted, fontSize: 14, fontWeight: "600" },
+
+				progress: { paddingHorizontal: 20, paddingTop: 8 },
+				progressLabels: { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
+				stepText: { color: theme.primary, fontSize: 13, fontWeight: "700" },
+				stepTag: { color: theme.authTextMuted, fontSize: 13 },
+				progressTrack: { height: 4, borderRadius: 2, backgroundColor: theme.authCardBorder, overflow: "hidden" },
+				progressFill: { height: 4, borderRadius: 2, backgroundColor: theme.primary },
+
+				container: { flexGrow: 1, padding: 20, paddingTop: 20, paddingBottom: 32 },
+				title: { fontSize: 30, lineHeight: 36, fontFamily: fonts.headingHeavy, color: theme.authText, marginBottom: 6 },
+				subtitle: { fontSize: 15, lineHeight: 21, color: theme.authTextMuted, marginBottom: 4 },
+				cardGap: { height: 12 },
+
+				footer: {
+					paddingHorizontal: 20,
+					paddingTop: 12,
+					paddingBottom: 8,
+					borderTopWidth: StyleSheet.hairlineWidth,
+					borderTopColor: theme.authCardBorder,
+					backgroundColor: theme.authBackground,
 				},
-				row: { flexDirection: "row", gap: 10, alignItems: "center" },
-				grow: { flex: 1 },
-				error: { color: theme.error, fontSize: 13, marginTop: 14 },
-				primaryButton: {
-					backgroundColor: theme.primary,
-					borderRadius: 12,
-					paddingVertical: 14,
+				error: { color: theme.error, fontSize: 13, marginBottom: 10 },
+				footerRow: { flexDirection: "row", gap: 12 },
+				backButton: {
+					width: 54,
+					height: 54,
+					borderRadius: 16,
 					alignItems: "center",
-					marginTop: 24,
+					justifyContent: "center",
+					backgroundColor: theme.authCardBg,
+					borderWidth: StyleSheet.hairlineWidth,
+					borderColor: theme.authCardBorder,
+				},
+				primaryButton: {
+					flex: 1,
+					height: 54,
+					borderRadius: 16,
+					flexDirection: "row",
+					gap: 10,
+					alignItems: "center",
+					justifyContent: "center",
+					backgroundColor: theme.primary,
 				},
 				primaryButtonText: { color: theme.textInverse, fontSize: 16, fontWeight: "700" },
-				skip: { alignItems: "center", paddingVertical: 14, marginTop: 4 },
-				skipText: { color: theme.authTextMuted, fontSize: 13, fontWeight: "600" },
-				goalRow: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 12 },
-				goalLabel: { flex: 1, color: theme.authText, fontSize: 15, fontWeight: "600" },
-				goalInput: {
-					width: 110,
-					backgroundColor: theme.authInputBg,
-					borderRadius: 10,
-					paddingHorizontal: 12,
-					paddingVertical: 10,
-					color: theme.authInputText,
-					borderWidth: 1,
-					borderColor: theme.authInputBorder,
-					textAlign: "right",
-				},
-				unit: { width: 34, color: theme.authTextMuted, fontSize: 12 },
 			}),
 		[theme],
-	);
-
-	const stepHeader = (n: 1 | 2) => (
-		<>
-			<Text style={styles.stepText}>Step {n} of 2</Text>
-			<View style={styles.stepTrack}>
-				{[1, 2].map((i) => (
-					<View key={i} style={[styles.stepDot, { backgroundColor: i <= n ? theme.primary : theme.authCardBorder }]} />
-				))}
-			</View>
-		</>
 	);
 
 	if (loading) {
@@ -199,81 +189,103 @@ export default function Onboarding() {
 		);
 	}
 
+	const busy = estimating || saving; // disable buttons while anything is running
+	const continueLoading = step === 1 ? estimating : saving; // spinner only for Continue's own work
+
 	return (
 		<Screen edges={["top", "bottom"]} background={theme.authBackground}>
-			<KeyboardAwareScrollView style={{ flex: 1 }} contentContainerStyle={styles.container} enableOnAndroid extraScrollHeight={40} keyboardShouldPersistTaps="handled">
-			{step === 1 ? (
-				<>
-					{stepHeader(1)}
-					<Text style={styles.title}>Welcome to {APP_NAME}</Text>
-					<Text style={styles.subtitle}>
-						Tell us a little about yourself and we&apos;ll suggest how much to eat each day. You can change anything
-						later under You.
-					</Text>
+			<View style={styles.header}>
+				<View style={styles.headerSide}>
+					{step === 2 && (
+						<Pressable style={styles.iconButton} onPress={() => setStep(1)} disabled={saving} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
+							<FontAwesome5 name="arrow-left" size={18} color={theme.authText} />
+						</Pressable>
+					)}
+				</View>
+				<Text style={styles.headerTitle}>{STEPS[step].title}</Text>
+				{/* empty slot the same width as the back button's, so the title stays centered */}
+				<View style={styles.headerSide} />
+			</View>
 
-					<Text style={styles.label}>Sex</Text>
-					<Pills options={SEXES} value={sex} onSelect={setSex} labels={{ male: "Male", female: "Female" }} />
+			<View style={styles.progress}>
+				<View style={styles.progressLabels}>
+					<Text style={styles.stepText}>Step {step} of 2</Text>
+					<Text style={styles.stepTag}>{STEPS[step].tag}</Text>
+				</View>
+				<View style={styles.progressTrack}>
+					<View style={[styles.progressFill, { width: step === 1 ? "50%" : "100%" }]} />
+				</View>
+			</View>
 
-					<Text style={styles.label}>Date of birth</Text>
-					<DateField
-						value={birthDate}
-						onChange={setBirthDate}
-						placeholder="Select your birth date"
-						fieldStyle={styles.input}
-						textStyle={{ color: theme.authInputText, fontSize: 15 }}
-					/>
+			<KeyboardAwareScrollView
+				style={{ flex: 1 }}
+				contentContainerStyle={styles.container}
+				enableOnAndroid
+				extraScrollHeight={40}
+				keyboardShouldPersistTaps="handled"
+			>
+				{step === 1 ? (
+					<>
+						<Text style={styles.title}>Welcome to {APP_NAME}</Text>
+						<Text style={styles.subtitle}>
+							Tell us a little about yourself and we&apos;ll suggest how much to eat each day. You can change anything later under You.
+						</Text>
 
-					<Text style={styles.label}>Height</Text>
-					<HeightField value={heightCm} onChange={setHeightCm} inputStyle={styles.input} placeholderColor={theme.authTextHint} />
+						<SectionLabel>Sex</SectionLabel>
+						<SexPicker value={sex} onChange={setSex} />
 
-					<Text style={styles.label}>Weight</Text>
-					<WeightField value={weightKgText} onChange={setWeightKgText} inputStyle={styles.input} placeholderColor={theme.authTextHint} />
+						<View style={styles.cardGap} />
+						<BirthDateCard value={birthDate} onChange={setBirthDate} />
 
-					<Text style={styles.label}>How active are you day to day?</Text>
-					<Pills options={ACTIVITY_LEVELS} value={activity} onSelect={setActivity} labels={ACTIVITY_LABELS} />
+						<View style={styles.cardGap} />
+						<HeightCard value={heightCm} onChange={setHeightCm} />
 
-					<Text style={styles.label}>What are you aiming for?</Text>
-					<Pills options={GOAL_TYPES} value={goalType} onSelect={setGoalType} labels={GOAL_TYPE_LABELS} />
+						<View style={styles.cardGap} />
+						<WeightGoalCard weightKg={weightKgText} onWeightChange={setWeightKgText} goalType={goalType} onGoalTypeChange={setGoalType} />
 
-					{error && <Text style={styles.error}>{error}</Text>}
+						<SectionLabel>How active are you day to day?</SectionLabel>
+						<ActivityPicker value={activity} onChange={setActivity} />
+					</>
+				) : (
+					<>
+						<Text style={styles.title}>Your daily goals</Text>
+						<Text style={[styles.subtitle, { marginBottom: 20 }]}>Here&apos;s what we suggest. Change any number that doesn&apos;t feel right.</Text>
 
-					<TouchableOpacity style={styles.primaryButton} onPress={goToReview} disabled={estimating}>
-						{estimating ? <ActivityIndicator color={theme.textInverse} /> : <Text style={styles.primaryButtonText}>Continue</Text>}
-					</TouchableOpacity>
-					<TouchableOpacity style={styles.skip} onPress={handleSkip} disabled={saving}>
-						<Text style={styles.skipText}>Skip for now</Text>
-					</TouchableOpacity>
-				</>
-			) : (
-				<>
-					{stepHeader(2)}
-					<Text style={styles.title}>Your daily goals</Text>
-					<Text style={styles.subtitle}>Here&apos;s what we suggest. Change any number that doesn&apos;t feel right.</Text>
-
-					{MACRO_KEYS.map((k) => (
-						<View key={k} style={styles.goalRow}>
-							<Text style={styles.goalLabel}>{MACRO_META[k].label}</Text>
-							<TextInput
-								style={styles.goalInput}
-								value={goals[k]}
-								onChangeText={(t) => setGoals((g) => ({ ...g, [k]: t.replace(/[^0-9]/g, "") }))}
-								keyboardType="number-pad"
-							/>
-							<Text style={styles.unit}>{MACRO_META[k].unit}</Text>
-						</View>
-					))}
-
-					{error && <Text style={styles.error}>{error}</Text>}
-
-					<TouchableOpacity style={styles.primaryButton} onPress={handleSave} disabled={saving}>
-						{saving ? <ActivityIndicator color={theme.textInverse} /> : <Text style={styles.primaryButtonText}>Save and start</Text>}
-					</TouchableOpacity>
-					<TouchableOpacity style={styles.skip} onPress={() => setStep(1)} disabled={saving}>
-						<Text style={styles.skipText}>Back</Text>
-					</TouchableOpacity>
-				</>
-			)}
+						<GoalsReview goals={goals} onChange={(k, t) => setGoals((g) => ({ ...g, [k]: t.replace(/[^0-9]/g, "") }))} />
+					</>
+				)}
 			</KeyboardAwareScrollView>
+
+			<View style={styles.footer}>
+				{error && <Text style={styles.error}>{error}</Text>}
+				{step === 1 && (
+					<Pressable style={styles.skip} onPress={handleSkip} disabled={busy} hitSlop={8} accessibilityRole="button">
+						<Text style={styles.skipText}>Skip for now</Text>
+					</Pressable>
+				)}
+				<View style={styles.footerRow}>
+					{step === 2 && (
+						<Pressable style={styles.backButton} onPress={() => setStep(1)} disabled={saving} accessibilityRole="button" accessibilityLabel="Back">
+							<FontAwesome5 name="arrow-left" size={16} color={theme.authText} />
+						</Pressable>
+					)}
+					<Pressable
+						style={({ pressed }) => [styles.primaryButton, (pressed || busy) && { opacity: 0.85 }]}
+						onPress={step === 1 ? goToReview : handleSave}
+						disabled={busy}
+						accessibilityRole="button"
+					>
+						{continueLoading ? (
+							<ActivityIndicator color={theme.textInverse} />
+						) : (
+							<>
+								<Text style={styles.primaryButtonText}>{step === 1 ? "Continue" : "Save and start"}</Text>
+								<FontAwesome5 name="arrow-right" size={14} color={theme.textInverse} />
+							</>
+						)}
+					</Pressable>
+				</View>
+			</View>
 		</Screen>
 	);
 }

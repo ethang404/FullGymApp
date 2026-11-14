@@ -1,165 +1,65 @@
 import { View, Text, StyleSheet, ScrollView, RefreshControl, Pressable, useWindowDimensions } from "react-native";
-import { useMemo, useEffect, useState } from "react";
+import { useMemo, useEffect, useRef, useState } from "react";
 import FontAwesome5 from "@expo/vector-icons/FontAwesome5";
-import { LineChart, BarChart, PieChart } from "react-native-gifted-charts";
 import { useTheme } from "@/theme/ThemeProvider";
 import { fonts } from "@/theme/typography";
-import { instance } from "@/utils/AxiosInterceptorHandler";
+import { instance } from "@/utils/AuthAPI";
 import { log } from "@/utils/log";
 import { toast } from "@/utils/toast";
 import { formatShortDate } from "@/utils/date";
 import { ChartCard } from "@/components/ChartCard";
 import { ScreenState } from "@/components/ScreenState";
-import { ExerciseHistoryModal } from "@/components/ExerciseHistoryModal";
+import FilterChips from "@/components/FilterChips";
 import Screen from "@/components/Screen";
-import { getMuscleGroupColor } from "@/theme/chartColors";
-
-type FilterOption = "week" | "month" | "year" | "all";
-
-interface LiftChange {
-	catalog_id: number;
-	name: string;
-	muscle_group: string;
-	first_value: number;
-	last_value: number;
-	first_date: string;
-	last_date: string;
-	percent_change: number;
-}
-
-interface VolumeByMuscleGroupResponse {
-	total_volume: number;
-	breakdown: { muscle_group: string; volume: number; percent: number }[];
-}
-
-interface FatigueCurvePoint {
-	order_number: number;
-	avg_value: number;
-	avg_percent_of_best: number;
-	sample_size: number;
-}
-
-interface FatigueCurve {
-	catalog_id: number;
-	name: string;
-	muscle_group: string;
-	curve: FatigueCurvePoint[];
-}
-
-interface WeeklyLandmarksWeek {
-	week_start: string;
-	week_end: string;
-	muscle_groups: { muscle_group: string; set_count: number; classification: "high" | "moderate" | "low" }[];
-}
-
-interface PersonalRecord {
-	catalog_id: number;
-	name: string;
-	muscle_group: string;
-	workout_date: string;
-	value: number;
-}
-
-interface TrainingFrequencyWeek {
-	week_start: string;
-	week_end: string;
-	session_count: number;
-}
-
-interface SessionTrendsWeek {
-	week_start: string;
-	week_end: string;
-	avg_volume: number | null;
-	avg_duration_minutes: number | null;
-	session_count: number;
-}
-
-interface RepRangeBucket {
-	range: "1-5" | "6-12" | "13+";
-	set_count: number;
-	percent: number;
-}
+import { LiftProgressCard } from "@/features/progress/components/LiftProgressCard";
+import { MuscleGroupSetsPie } from "@/features/progress/components/MuscleGroupSetsPie";
+import { MuscleGroupVolumeBars } from "@/features/progress/components/MuscleGroupVolumeBars";
+import { WEIGHT_UNIT, formatWeight, muscleLabel } from "@/features/progress/format";
+import type { LiftChange, LoggedLift, ProgressFilter, VolumeByMuscleGroup } from "@/features/progress/types";
 
 interface ProgressData {
 	changes: LiftChange[];
-	volumeByMuscleGroup: VolumeByMuscleGroupResponse | null;
-	fatigueCurves: FatigueCurve[];
-	weeklyLandmarks: WeeklyLandmarksWeek[];
-	personalRecords: PersonalRecord[];
-	trainingFrequency: TrainingFrequencyWeek[];
-	sessionTrends: SessionTrendsWeek[];
-	repRangeDistribution: RepRangeBucket[];
+	lifts: LoggedLift[];
+	volume: VolumeByMuscleGroup | null;
 }
 
-const EMPTY_DATA: ProgressData = {
-	changes: [],
-	volumeByMuscleGroup: null,
-	fatigueCurves: [],
-	weeklyLandmarks: [],
-	personalRecords: [],
-	trainingFrequency: [],
-	sessionTrends: [],
-	repRangeDistribution: [],
-};
+const EMPTY_DATA: ProgressData = { changes: [], lifts: [], volume: null };
 
-const FILTERS: { value: FilterOption; label: string }[] = [
-	{ value: "week", label: "Week" },
-	{ value: "month", label: "Month" },
-	{ value: "year", label: "Year" },
-	{ value: "all", label: "All" },
-];
+const FILTERS: readonly ProgressFilter[] = ["week", "month", "year", "all"];
+const FILTER_LABELS: Record<ProgressFilter, string> = { week: "Week", month: "Month", year: "Year", all: "All time" };
 
-const REP_RANGE_ORDER: RepRangeBucket["range"][] = ["1-5", "6-12", "13+"];
-
-const ENDPOINTS: { url: string; key: keyof ProgressData; params?: Record<string, string>; extract: (body: any) => any }[] = [
+const ENDPOINTS: { url: string; key: keyof ProgressData; extract: (body: any) => any }[] = [
 	{ url: "/workouts/progress/biggest-changes", key: "changes", extract: (b) => b.changes ?? [] },
-	{ url: "/workouts/progress/volume-by-muscle-group", key: "volumeByMuscleGroup", extract: (b) => b ?? null },
-	{ url: "/workouts/progress/fatigue-curves", key: "fatigueCurves", params: { epley: "true" }, extract: (b) => b.curves ?? [] },
-	{ url: "/workouts/progress/weekly-volume-landmarks", key: "weeklyLandmarks", extract: (b) => b.weeks ?? [] },
-	{ url: "/workouts/progress/personal-records", key: "personalRecords", extract: (b) => b.records ?? [] },
-	{ url: "/workouts/progress/training-frequency", key: "trainingFrequency", extract: (b) => b.weeks ?? [] },
-	{ url: "/workouts/progress/session-trends", key: "sessionTrends", extract: (b) => b.weeks ?? [] },
-	{ url: "/workouts/progress/rep-range-distribution", key: "repRangeDistribution", extract: (b) => b.distribution ?? [] },
+	{ url: "/workouts/progress/lifts", key: "lifts", extract: (b) => b.lifts ?? [] },
+	{ url: "/workouts/progress/volume-by-muscle-group", key: "volume", extract: (b) => b ?? null },
 ];
 
-const formatDate = (dateStr: string) => formatShortDate(dateStr, "Unknown date");
-
-// Plain-language names for the weekly set-count buckets.
-const CLASSIFICATION_LABELS: Record<string, string> = { high: "Plenty", moderate: "Some", low: "Not much" };
-
-// "full_body" → "Full body"
-const muscleLabel = (mg: string) => {
-	const s = mg.replace(/_/g, " ");
-	return s.charAt(0).toUpperCase() + s.slice(1);
-};
-
-function classificationColor(classification: string, theme: ReturnType<typeof useTheme>["theme"]) {
-	if (classification === "high") return theme.primary;
-	if (classification === "moderate") return theme.macroCarbs;
-	return theme.textTertiary;
-}
+const SCREEN_PADDING = 16;
+const CARD_PADDING = 14;
 
 export default function Progress() {
 	const { theme } = useTheme();
 	const { width: windowWidth } = useWindowDimensions();
-	const [filter, setFilter] = useState<FilterOption>("month");
+	const [filter, setFilter] = useState<ProgressFilter>("month");
 	const [data, setData] = useState<ProgressData>(EMPTY_DATA);
 	const [loading, setLoading] = useState(true);
 	const [refreshing, setRefreshing] = useState(false);
+	const [refreshKey, setRefreshKey] = useState(0);
 	const [error, setError] = useState(false);
-	const [selectedFatigueCatalogId, setSelectedFatigueCatalogId] = useState<number | null>(null);
-	const [historyModal, setHistoryModal] = useState<{ visible: boolean; catalogId: number | null; name: string }>({
-		visible: false,
-		catalogId: null,
-		name: "",
-	});
+	const [selectedCatalogId, setSelectedCatalogId] = useState<number | null>(null);
 
-	async function fetchAll(currentFilter: FilterOption, isRefresh = false) {
-		const results = await Promise.allSettled(
-			ENDPOINTS.map((endpoint) => instance.get(endpoint.url, { params: { filter: currentFilter, ...endpoint.params } })),
-		);
+	const scrollRef = useRef<ScrollView>(null);
+	const liftCardY = useRef(0);
+	// Only the latest fetch may write state - tapping Month then Year quickly must not let the slower
+	// Month response land last and show month data under the Year chip.
+	const requestIdRef = useRef(0);
+
+	async function fetchAll(currentFilter: ProgressFilter, isRefresh = false) {
+		const requestId = ++requestIdRef.current;
+		const results = await Promise.allSettled(ENDPOINTS.map((endpoint) => instance.get(endpoint.url, { params: { filter: currentFilter } })));
+		if (requestIdRef.current !== requestId) return;
+
 		setError(false);
-
 		setData((prev) => {
 			const next = { ...prev };
 			results.forEach((res, i) => {
@@ -187,38 +87,12 @@ export default function Progress() {
 		fetchAll(filter);
 	}, [filter]);
 
-	// Keep the fatigue-curve exercise selector pointed at a curve that still exists after each refetch,
-	// falling back to the first available curve inline (below) rather than syncing it via an effect.
-
 	const styles = useMemo(
 		() =>
 			StyleSheet.create({
 				scroll: { flex: 1 },
-				content: { padding: 16, paddingBottom: 32, gap: 20 },
-
-				pageTitle: {
-					fontSize: 28,
-					lineHeight: 34,
-					fontFamily: fonts.headingHeavy,
-					color: theme.text,
-				},
-
-				filterRow: { flexDirection: "row", gap: 8, marginBottom: 4 },
-				filterChip: {
-					paddingHorizontal: 14,
-					paddingVertical: 7,
-					borderRadius: 20,
-					backgroundColor: theme.cardBgAlt,
-					borderWidth: 1,
-					borderColor: theme.border,
-				},
-				filterChipActive: {
-					backgroundColor: theme.primary,
-					borderColor: theme.primary,
-				},
-				filterChipText: { fontSize: 12, fontWeight: "700", color: theme.textSecondary },
-				filterChipTextActive: { color: theme.textInverse },
-
+				content: { padding: SCREEN_PADDING, paddingBottom: 32, gap: 20 },
+				pageTitle: { fontSize: 28, lineHeight: 34, fontFamily: fonts.headingHeavy, color: theme.text },
 				row: {
 					flexDirection: "row",
 					alignItems: "center",
@@ -239,406 +113,140 @@ export default function Progress() {
 					borderColor: theme.border,
 				},
 				rowTitle: { fontSize: 14, fontWeight: "700", color: theme.text },
-				rowSubtitle: { fontSize: 11, color: theme.textMuted, marginTop: 1, textTransform: "capitalize" },
+				rowSubtitle: { fontSize: 11, color: theme.textMuted, marginTop: 1 },
 				rowValueLine: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 4 },
 				rowValueText: { fontSize: 11, color: theme.textSecondary },
 				percentWrap: { flexDirection: "row", alignItems: "center", gap: 4 },
 				percentText: { fontSize: 14, fontWeight: "800" },
-
-				legendRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 14, justifyContent: "center" },
-				legendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
-				legendDot: { width: 9, height: 9, borderRadius: 5 },
-				legendLabel: { fontSize: 11, color: theme.textSecondary, textTransform: "capitalize" },
-				legendPercent: { fontSize: 11, color: theme.textTertiary },
-
-				pieCenter: { alignItems: "center" },
-				pieCenterValue: { fontSize: 18, fontWeight: "800", color: theme.text },
-				pieCenterLabel: { fontSize: 10, color: theme.textTertiary },
-
-				chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 14 },
-				chip: {
-					paddingHorizontal: 12,
-					paddingVertical: 6,
-					borderRadius: 16,
-					backgroundColor: theme.cardBgAlt,
-					borderWidth: 1,
-					borderColor: theme.border,
-				},
-				chipActive: { backgroundColor: theme.primary, borderColor: theme.primary },
-				chipText: { fontSize: 11, fontWeight: "600", color: theme.textSecondary },
-				chipTextActive: { color: theme.textInverse },
-
-				weekRow: {
-					flexDirection: "row",
-					alignItems: "center",
-					justifyContent: "space-between",
-					paddingVertical: 8,
-					borderBottomWidth: 1,
-					borderBottomColor: theme.border,
-				},
-				weekRowLabel: { fontSize: 13, color: theme.text, textTransform: "capitalize", fontWeight: "600" },
-				weekRowRight: { flexDirection: "row", alignItems: "center", gap: 8 },
-				weekRowCount: { fontSize: 12, color: theme.textMuted },
-				pill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
-				pillText: { fontSize: 10, fontWeight: "700" },
-
-				chartLabel: { fontSize: 11, fontWeight: "700", color: theme.textMuted, marginBottom: 10 },
+				cardNote: { fontSize: 11, color: theme.textTertiary, marginTop: 10 },
 			}),
 		[theme],
 	);
 
-	function openHistory(catalogId: number, name: string) {
-		setHistoryModal({ visible: true, catalogId, name });
-	}
+	const cardInnerWidth = windowWidth - SCREEN_PADDING * 2 - CARD_PADDING * 2;
+	// Keep the lift picker on a lift that exists in the current range, falling back to the most-trained one
+	// (derived at render time rather than synced through an effect).
+	const effectiveCatalogId = data.lifts.some((l) => l.catalog_id === selectedCatalogId) ? selectedCatalogId : (data.lifts[0]?.catalog_id ?? null);
+	const hasVolume = !!data.volume && data.volume.breakdown.length > 0;
 
-	const chartWidth = windowWidth - 16 * 2 - 14 * 2;
-	// Fall back to the first available curve whenever the explicit selection doesn't match any current
-	// curve (e.g. right after a filter change) - derived at render time instead of synced via an effect.
-	const effectiveFatigueCatalogId = data.fatigueCurves.some((c) => c.catalog_id === selectedFatigueCatalogId)
-		? selectedFatigueCatalogId
-		: (data.fatigueCurves[0]?.catalog_id ?? null);
-	const selectedCurve = data.fatigueCurves.find((c) => c.catalog_id === effectiveFatigueCatalogId) ?? null;
-	const latestWeek = data.weeklyLandmarks[data.weeklyLandmarks.length - 1] ?? null;
-	const sortedRepRanges = REP_RANGE_ORDER.map(
-		(range) => data.repRangeDistribution.find((b) => b.range === range) ?? { range, set_count: 0, percent: 0 },
-	);
+	function showLift(catalogId: number) {
+		setSelectedCatalogId(catalogId);
+		scrollRef.current?.scrollTo({ y: Math.max(0, liftCardY.current - 12), animated: true });
+	}
 
 	return (
 		<Screen edges={["top"]}>
 			<ScreenState loading={loading} error={error} onRetry={() => fetchAll(filter)} errorTitle="Couldn't load your progress">
-			<ScrollView
-				style={styles.scroll}
-				contentContainerStyle={styles.content}
-				showsVerticalScrollIndicator={false}
-				refreshControl={
-					<RefreshControl
-						refreshing={refreshing}
-						onRefresh={() => {
-							setRefreshing(true);
-							fetchAll(filter, true);
-						}}
-						tintColor={theme.primary}
-					/>
-				}
-			>
-				<Text style={styles.pageTitle}>Progress</Text>
-
-				<View style={styles.filterRow}>
-					{FILTERS.map((f) => {
-						const active = f.value === filter;
-						return (
-							<Pressable key={f.value} style={[styles.filterChip, active && styles.filterChipActive]} onPress={() => setFilter(f.value)}>
-								<Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>{f.label}</Text>
-							</Pressable>
-						);
-					})}
-				</View>
-
-				{/* Biggest Changes */}
-				<ChartCard
-					title="Biggest changes"
-					isEmpty={data.changes.length === 0}
-					emptyIcon="chart-line"
-					emptyTitle="No lift changes yet"
-					emptySubtitle="Log the same exercise a couple times to see your biggest changes here"
+				<ScrollView
+					ref={scrollRef}
+					style={styles.scroll}
+					contentContainerStyle={styles.content}
+					showsVerticalScrollIndicator={false}
+					refreshControl={
+						<RefreshControl
+							refreshing={refreshing}
+							onRefresh={() => {
+								setRefreshing(true);
+								setRefreshKey((k) => k + 1);
+								fetchAll(filter, true);
+							}}
+							tintColor={theme.primary}
+						/>
+					}
 				>
-					{data.changes.map((c, i) => {
-						const isIncrease = c.percent_change >= 0;
-						const changeColor = isIncrease ? theme.macroProtein : theme.error;
-						return (
-							<Pressable
-								key={c.catalog_id}
-								style={[styles.row, i === data.changes.length - 1 && styles.rowLast]}
-								onPress={() => openHistory(c.catalog_id, c.name)}
-							>
-								<View style={styles.iconWrap}>
-									<FontAwesome5 name="dumbbell" size={15} color={theme.primary} />
-								</View>
-								<View style={{ flex: 1 }}>
-									<Text style={styles.rowTitle}>{c.name}</Text>
-									<Text style={styles.rowSubtitle}>{muscleLabel(c.muscle_group)}</Text>
-									<View style={styles.rowValueLine}>
-										<Text style={styles.rowValueText}>{Math.round(c.first_value)}</Text>
-										<FontAwesome5 name="arrow-right" size={8} color={theme.textTertiary} />
-										<Text style={styles.rowValueText}>{Math.round(c.last_value)}</Text>
-										<Text style={styles.rowValueText}>
-											({formatDate(c.first_date)} → {formatDate(c.last_date)})
-										</Text>
+					<Text style={styles.pageTitle}>Progress</Text>
+
+					<FilterChips options={FILTERS} value={filter} onSelect={setFilter} labels={FILTER_LABELS} />
+
+					<ChartCard
+						title="Biggest changes"
+						isEmpty={data.changes.length === 0}
+						emptyIcon="chart-line"
+						emptyTitle="No lift changes yet"
+						emptySubtitle="Log the same exercise a couple of times in this range to see how it's moved"
+					>
+						{data.changes.map((c, i) => {
+							const isIncrease = c.percent_change >= 0;
+							const changeColor = isIncrease ? theme.primary : theme.error;
+							return (
+								<Pressable
+									key={c.catalog_id}
+									style={[styles.row, i === data.changes.length - 1 && styles.rowLast]}
+									onPress={() => showLift(c.catalog_id)}
+									accessibilityRole="button"
+									accessibilityHint="Shows this lift's chart"
+								>
+									<View style={styles.iconWrap}>
+										<FontAwesome5 name="dumbbell" size={15} color={theme.primary} />
 									</View>
-								</View>
-								<View style={styles.percentWrap}>
-									<FontAwesome5 name={isIncrease ? "arrow-up" : "arrow-down"} size={11} color={changeColor} />
-									<Text style={[styles.percentText, { color: changeColor }]}>{Math.abs(c.percent_change).toFixed(1)}%</Text>
-								</View>
-							</Pressable>
-						);
-					})}
-				</ChartCard>
-
-				{/* Reps by Muscle Group (backend sums working-set reps) */}
-				<ChartCard
-					title="Reps by muscle group"
-					isEmpty={!data.volumeByMuscleGroup || data.volumeByMuscleGroup.total_volume === 0}
-					emptyIcon="chart-pie"
-					emptyTitle="No reps logged yet"
-					emptySubtitle="Log some sets to see which muscle groups you're training most"
-				>
-					{data.volumeByMuscleGroup && (
-						<>
-							<View style={{ alignItems: "center" }}>
-								<PieChart
-									data={data.volumeByMuscleGroup.breakdown.map((b) => ({
-										value: b.volume,
-										color: getMuscleGroupColor(b.muscle_group),
-									}))}
-									donut
-									radius={72}
-									innerRadius={46}
-									innerCircleColor={theme.cardBg}
-									centerLabelComponent={() => (
-										<View style={styles.pieCenter}>
-											<Text style={styles.pieCenterValue}>{data.volumeByMuscleGroup!.total_volume}</Text>
-											<Text style={styles.pieCenterLabel}>total reps</Text>
+									<View style={{ flex: 1 }}>
+										<Text style={styles.rowTitle}>{c.name}</Text>
+										<Text style={styles.rowSubtitle}>{muscleLabel(c.muscle_group)}</Text>
+										<View style={styles.rowValueLine}>
+											<Text style={styles.rowValueText}>{formatWeight(c.first_value)}</Text>
+											<FontAwesome5 name="arrow-right" size={8} color={theme.textTertiary} />
+											<Text style={styles.rowValueText}>
+												{formatWeight(c.last_value)} {WEIGHT_UNIT} e1RM
+											</Text>
+											<Text style={styles.rowValueText}>
+												({formatShortDate(c.first_date)} → {formatShortDate(c.last_date)})
+											</Text>
 										</View>
-									)}
-								/>
-							</View>
-							<View style={styles.legendRow}>
-								{data.volumeByMuscleGroup.breakdown.map((b) => (
-									<View key={b.muscle_group} style={styles.legendItem}>
-										<View style={[styles.legendDot, { backgroundColor: getMuscleGroupColor(b.muscle_group) }]} />
-										<Text style={styles.legendLabel}>{muscleLabel(b.muscle_group)}</Text>
-										<Text style={styles.legendPercent}>{Math.round(b.percent)}%</Text>
 									</View>
-								))}
-							</View>
-						</>
-					)}
-				</ChartCard>
+									<View style={styles.percentWrap}>
+										<FontAwesome5 name={isIncrease ? "arrow-up" : "arrow-down"} size={11} color={changeColor} />
+										<Text style={[styles.percentText, { color: changeColor }]}>{Math.abs(c.percent_change).toFixed(1)}%</Text>
+									</View>
+								</Pressable>
+							);
+						})}
+					</ChartCard>
 
-				{/* Fatigue Curve */}
-				<ChartCard
-					title="How you hold up through a workout"
-					isEmpty={data.fatigueCurves.length === 0}
-					emptyIcon="bolt"
-					emptyTitle="Not enough data yet"
-					emptySubtitle="Log a few workouts with more than one exercise to see how your strength holds up from first exercise to last"
-				>
-					{data.fatigueCurves.length > 0 && (
-						<>
-							<ScrollView horizontal showsHorizontalScrollIndicator={false}>
-								<View style={styles.chipRow}>
-									{data.fatigueCurves.map((c) => {
-										const active = c.catalog_id === effectiveFatigueCatalogId;
-										return (
-											<Pressable key={c.catalog_id} style={[styles.chip, active && styles.chipActive]} onPress={() => setSelectedFatigueCatalogId(c.catalog_id)}>
-												<Text style={[styles.chipText, active && styles.chipTextActive]}>{c.name}</Text>
-											</Pressable>
-										);
-									})}
-								</View>
-							</ScrollView>
-							{selectedCurve && (
-								<LineChart
-									data={selectedCurve.curve.map((p) => ({
-										value: p.avg_percent_of_best,
-										label: `#${p.order_number}`,
-									}))}
-									width={chartWidth}
-									height={180}
-									color={theme.primary}
-									thickness={2.5}
-									curved
-									yAxisLabelSuffix="%"
-									yAxisTextStyle={{ color: theme.textTertiary, fontSize: 10 }}
-									xAxisLabelTextStyle={{ color: theme.textTertiary, fontSize: 10 }}
-									xAxisColor={theme.border}
-									yAxisColor={theme.border}
-									rulesColor={theme.borderLight}
-									noOfSections={4}
-									initialSpacing={20}
-									endSpacing={20}
-								/>
-							)}
-						</>
-					)}
-				</ChartCard>
-
-				{/* This Week's Volume Landmarks */}
-				<ChartCard
-					title="Sets this week"
-					isEmpty={!latestWeek}
-					emptyIcon="layer-group"
-					emptyTitle="No sets logged this week"
-					emptySubtitle="Log some sets to see how many each muscle group got this week"
-				>
-					{latestWeek?.muscle_groups.map((mg, i) => (
-						<View key={mg.muscle_group} style={[styles.weekRow, i === latestWeek.muscle_groups.length - 1 && styles.rowLast]}>
-							<Text style={styles.weekRowLabel}>{muscleLabel(mg.muscle_group)}</Text>
-							<View style={styles.weekRowRight}>
-								<Text style={styles.weekRowCount}>{mg.set_count} sets</Text>
-								<View style={[styles.pill, { backgroundColor: classificationColor(mg.classification, theme) + "30" }]}>
-									<Text style={[styles.pillText, { color: classificationColor(mg.classification, theme) }]}>{CLASSIFICATION_LABELS[mg.classification] ?? mg.classification}</Text>
-								</View>
-							</View>
-						</View>
-					))}
-				</ChartCard>
-
-				{/* Personal Records */}
-				<ChartCard
-					title="Personal bests"
-					isEmpty={data.personalRecords.length === 0}
-					emptyIcon="trophy"
-					emptyTitle="No personal bests yet"
-					emptySubtitle="Beat your previous best on any lift and it'll show up here"
-				>
-					{data.personalRecords.slice(0, 10).map((r, i) => (
-						<Pressable
-							key={`${r.catalog_id}-${r.workout_date}`}
-							style={[styles.row, i === Math.min(data.personalRecords.length, 10) - 1 && styles.rowLast]}
-							onPress={() => openHistory(r.catalog_id, r.name)}
+					<View onLayout={(e) => (liftCardY.current = e.nativeEvent.layout.y)}>
+						<ChartCard
+							title="Lift progress"
+							isEmpty={data.lifts.length === 0}
+							emptyIcon="dumbbell"
+							emptyTitle="No lifts logged yet"
+							emptySubtitle="Log sets with weight and reps to chart each lift over time"
 						>
-							<View style={styles.iconWrap}>
-								<FontAwesome5 name="trophy" size={14} color={theme.macroFat} />
-							</View>
-							<View style={{ flex: 1 }}>
-								<Text style={styles.rowTitle}>{r.name}</Text>
-								<Text style={styles.rowSubtitle}>
-									{muscleLabel(r.muscle_group)}, {formatDate(r.workout_date)}
-								</Text>
-							</View>
-							<Text style={[styles.percentText, { color: theme.text }]}>{Math.round(r.value)}</Text>
-						</Pressable>
-					))}
-				</ChartCard>
+							<LiftProgressCard
+								lifts={data.lifts}
+								selectedCatalogId={effectiveCatalogId}
+								onSelectLift={setSelectedCatalogId}
+								filter={filter}
+								width={cardInnerWidth}
+								refreshKey={refreshKey}
+							/>
+						</ChartCard>
+					</View>
 
-				{/* Training Frequency */}
-				<ChartCard
-					title="Workouts per week"
-					isEmpty={data.trainingFrequency.length === 0}
-					emptyIcon="calendar-check"
-					emptyTitle="No workouts yet"
-					emptySubtitle="Log a few workouts to see how often you train each week"
-				>
-					<BarChart
-						data={data.trainingFrequency.map((w) => ({
-							value: w.session_count,
-							label: formatDate(w.week_start),
-							frontColor: theme.primary,
-						}))}
-						width={chartWidth}
-						height={160}
-						barWidth={22}
-						spacing={18}
-						barBorderRadius={4}
-						noOfSections={4}
-						yAxisTextStyle={{ color: theme.textTertiary, fontSize: 10 }}
-						xAxisLabelTextStyle={{ color: theme.textTertiary, fontSize: 9 }}
-						xAxisColor={theme.border}
-						yAxisColor={theme.border}
-						rulesColor={theme.borderLight}
-					/>
-				</ChartCard>
+					<ChartCard
+						title="Sets per muscle group"
+						isEmpty={!hasVolume}
+						emptyIcon="chart-pie"
+						emptyTitle="No sets logged yet"
+						emptySubtitle="Log some working sets to see which muscle groups you're training most"
+					>
+						{data.volume && <MuscleGroupSetsPie volume={data.volume} />}
+					</ChartCard>
 
-				{/* Session Trends */}
-				<ChartCard
-					title="Weight lifted per workout"
-					isEmpty={data.sessionTrends.length === 0}
-					emptyIcon="chart-area"
-					emptyTitle="No trend yet"
-					emptySubtitle="Log a few weeks of workouts to see how much you lift per workout over time"
-				>
-					{data.sessionTrends.length > 0 && (
-						<LineChart
-							data={data.sessionTrends.map((w) => ({ value: w.avg_volume ?? 0, label: formatDate(w.week_start) }))}
-							width={chartWidth}
-							height={160}
-							color={theme.macroCarbs}
-							thickness={2.5}
-							curved
-							areaChart
-							startFillColor={theme.macroCarbs}
-							startOpacity={0.2}
-							endOpacity={0.02}
-							yAxisTextStyle={{ color: theme.textTertiary, fontSize: 10 }}
-							xAxisLabelTextStyle={{ color: theme.textTertiary, fontSize: 9 }}
-							xAxisColor={theme.border}
-							yAxisColor={theme.border}
-							rulesColor={theme.borderLight}
-							noOfSections={4}
-							initialSpacing={16}
-							endSpacing={16}
-						/>
-					)}
-				</ChartCard>
-
-				<ChartCard
-					title="Workout length"
-					isEmpty={data.sessionTrends.length === 0}
-					emptyIcon="clock"
-					emptyTitle="No workout lengths yet"
-					emptySubtitle="Finish a few workouts to see how long they usually take"
-				>
-					{data.sessionTrends.length > 0 && (
-						<LineChart
-							data={data.sessionTrends.map((w) => ({ value: w.avg_duration_minutes ?? 0, label: formatDate(w.week_start) }))}
-							width={chartWidth}
-							height={160}
-							color={theme.macroFat}
-							thickness={2.5}
-							curved
-							yAxisLabelSuffix="m"
-							yAxisTextStyle={{ color: theme.textTertiary, fontSize: 10 }}
-							xAxisLabelTextStyle={{ color: theme.textTertiary, fontSize: 9 }}
-							xAxisColor={theme.border}
-							yAxisColor={theme.border}
-							rulesColor={theme.borderLight}
-							noOfSections={4}
-							initialSpacing={16}
-							endSpacing={16}
-						/>
-					)}
-				</ChartCard>
-
-				{/* Rep Range Distribution */}
-				<ChartCard
-					title="Reps per set"
-					isEmpty={sortedRepRanges.every((b) => b.set_count === 0)}
-					emptyIcon="sort-numeric-up"
-					emptyTitle="No sets yet"
-					emptySubtitle="Log some sets to see how many were heavy (few reps) or light (many reps)"
-				>
-					<BarChart
-						data={sortedRepRanges.map((b, i) => ({
-							value: b.set_count,
-							label: `${b.range} reps`,
-							frontColor: [theme.macroProtein, theme.macroCarbs, theme.macroFat][i],
-						}))}
-						width={chartWidth}
-						height={160}
-						barWidth={40}
-						spacing={30}
-						labelWidth={70}
-						barBorderRadius={4}
-						noOfSections={4}
-						yAxisTextStyle={{ color: theme.textTertiary, fontSize: 10 }}
-						xAxisLabelTextStyle={{ color: theme.textSecondary, fontSize: 11, fontWeight: "700" }}
-						xAxisColor={theme.border}
-						yAxisColor={theme.border}
-						rulesColor={theme.borderLight}
-					/>
-				</ChartCard>
-			</ScrollView>
+					<ChartCard
+						title="Sets and reps per muscle group"
+						isEmpty={!hasVolume}
+						emptyIcon="chart-bar"
+						emptyTitle="No sets logged yet"
+						emptySubtitle="Log some working sets to compare sets and reps for each muscle group"
+					>
+						{data.volume && (
+							<>
+								<MuscleGroupVolumeBars volume={data.volume} width={cardInnerWidth} />
+								<Text style={styles.cardNote}>Working sets only. Warm-ups aren&apos;t counted.</Text>
+							</>
+						)}
+					</ChartCard>
+				</ScrollView>
 			</ScreenState>
-
-			<ExerciseHistoryModal
-				visible={historyModal.visible}
-				onClose={() => setHistoryModal((prev) => ({ ...prev, visible: false }))}
-				catalogId={historyModal.catalogId}
-				name={historyModal.name}
-				filter={filter}
-			/>
 		</Screen>
 	);
 }
